@@ -1,0 +1,7 @@
+.git
+secrets
+web/node_modules
+bin
+coverage.out
+
+tests/node_modules

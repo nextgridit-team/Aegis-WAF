@@ -1,0 +1,14 @@
+{
+  "name": "aegis-waf-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --minify --outfile=../internal/app/assets/app.js && cp index.html src/style.css ../internal/app/assets/"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

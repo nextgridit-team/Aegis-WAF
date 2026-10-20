@@ -1,0 +1,7 @@
+/secrets/
+/bin/
+web/node_modules/
+*.test
+coverage.out
+tests/node_modules/
+__pycache__/

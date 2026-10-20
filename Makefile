@@ -1,0 +1,14 @@
+.PHONY: build dashboard test integration fmt
+build: dashboard
+	mkdir -p bin
+	go build -trimpath -o bin/aegis-waf ./cmd/aegis-waf
+dashboard:
+	cd web && npm ci && npm run build
+test:
+	go test -race ./...
+integration:
+	@test -n "$(TEST_DATABASE_URL)" || (echo 'TEST_DATABASE_URL is required' && exit 1)
+	go test -race -count=1 ./...
+fmt:
+	gofmt -w cmd internal
+	cd web && npx --no-install prettier --write src index.html package.json tsconfig.json ../compose.yaml ../docs/*.md ../README.md

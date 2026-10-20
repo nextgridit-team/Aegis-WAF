@@ -1,0 +1,5 @@
+# Gateway console design
+
+The console serves administrators configuring TLS and application routing. The hierarchy is readiness and inventory first, then sites, certificate inventory, ACME operations, and activity. The interface uses a restrained forest palette, a lime accent for actionable and healthy states, and monospace type for hostnames and operational identifiers. Tables expose real state with separate empty and unavailable states; forms remain visible after failed submissions. The narrow layout moves navigation above the content and retains accessible scroll regions for operational tables. No illustrative assets or external fonts are needed.
+
+Each form persists through an authenticated API call and displays success only after the database commit. Session expiry returns to sign-in; CSRF failures and service errors remain visible. Certificate inventory exposes metadata and assignments without private-key readback. ACME account registration requires terms discovery, explicit acceptance, and a real CA registration. Issuance is asynchronous and observable in the jobs table.

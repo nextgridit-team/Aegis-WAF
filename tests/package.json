@@ -1,0 +1,10 @@
+{
+  "name": "aegis-waf-browser-tests",
+  "private": true,
+  "scripts": {
+    "test": "node browser.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

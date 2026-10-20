@@ -1,0 +1,387 @@
+package app
+
+import (
+	"bufio"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	_ "embed"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+//go:embed schema.sql
+var schema string
+
+type Site struct {
+	ID            int64    `json:"id"`
+	Name          string   `json:"name"`
+	Hostnames     []string `json:"hostnames"`
+	Upstream      string   `json:"upstream"`
+	CertificateID *int64   `json:"certificate_id"`
+	RedirectHTTPS bool     `json:"redirect_https"`
+	PreserveHost  bool     `json:"preserve_host"`
+	Enabled       bool     `json:"enabled"`
+}
+type route struct {
+	site  Site
+	proxy *httputil.ReverseProxy
+	cert  *tls.Certificate
+}
+type snapshot struct {
+	version int64
+	routes  map[string]*route
+}
+type accessEvent struct {
+	at       time.Time
+	site     int64
+	method   string
+	status   int
+	duration int64
+	peer     string
+}
+type App struct {
+	cfg         Config
+	db          *pgxpool.Pool
+	active      atomic.Pointer[snapshot]
+	dbOK        atomic.Bool
+	initialized atomic.Bool
+	access      chan accessEvent
+	dropped     atomic.Uint64
+}
+
+func New(ctx context.Context, cfg Config) (*App, error) {
+	pc, e := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if e != nil {
+		return nil, errors.New("invalid DATABASE_URL")
+	}
+	pc.MaxConns = 20
+	pc.ConnConfig.ConnectTimeout = 5 * time.Second
+	pc.ConnConfig.RuntimeParams["statement_timeout"] = "15000"
+	db, e := pgxpool.NewWithConfig(ctx, pc)
+	if e != nil {
+		return nil, errors.New("database pool initialization failed")
+	}
+	return &App{cfg: cfg, db: db, access: make(chan accessEvent, 8192)}, nil
+}
+func (a *App) Close() { a.db.Close() }
+func (a *App) initialize(ctx context.Context) error {
+	tx, e := a.db.Begin(ctx)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback(ctx)
+	if _, e = tx.Exec(ctx, "SELECT pg_advisory_xact_lock(700010)"); e != nil {
+		return e
+	}
+	if _, e = tx.Exec(ctx, schema); e != nil {
+		return e
+	}
+	if e = tx.Commit(ctx); e != nil {
+		return e
+	}
+	a.initialized.Store(true)
+	return nil
+}
+func (a *App) Background(ctx context.Context) {
+	logDone := make(chan struct{})
+	go func() { defer close(logDone); a.logWorker(ctx) }()
+	defer func() { <-logDone }()
+	ticker := time.NewTicker(a.cfg.Refresh)
+	defer ticker.Stop()
+	for {
+		c, cancel := context.WithTimeout(ctx, 10*time.Second)
+		var e error
+		if !a.initialized.Load() {
+			e = a.initialize(c)
+		}
+		if e == nil {
+			e = a.refresh(c)
+		}
+		a.dbOK.Store(e == nil)
+		cancel()
+		if e != nil {
+			slog.Warn("database refresh unavailable; retaining last snapshot")
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+func (a *App) refresh(ctx context.Context) error {
+	tx, e := a.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback(ctx)
+	var version int64
+	if e = tx.QueryRow(ctx, "SELECT version FROM config_version WHERE id").Scan(&version); e != nil {
+		return e
+	}
+	if old := a.active.Load(); old != nil && old.version == version {
+		return tx.Commit(ctx)
+	}
+	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>''")
+	if e != nil {
+		return e
+	}
+	certs := map[int64]*tls.Certificate{}
+	for rows.Next() {
+		var id int64
+		var chain, kid string
+		var enc []byte
+		if e = rows.Scan(&id, &chain, &enc, &kid); e != nil {
+			rows.Close()
+			return e
+		}
+		if kid != a.cfg.KeyID {
+			rows.Close()
+			return errors.New("unknown encryption key identifier")
+		}
+		key, e := open(a.cfg.Key, kid+":certificate", enc)
+		if e != nil {
+			rows.Close()
+			return e
+		}
+		pair, e := tls.X509KeyPair([]byte(chain), key)
+		if e != nil {
+			rows.Close()
+			return e
+		}
+		pair.Leaf, e = x509.ParseCertificate(pair.Certificate[0])
+		if e != nil {
+			rows.Close()
+			return e
+		}
+		certs[id] = &pair
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return e
+	}
+	rows, e = tx.Query(ctx, "SELECT id,name,hostnames,upstream,certificate_id,redirect_https,preserve_host,enabled FROM sites WHERE enabled")
+	if e != nil {
+		return e
+	}
+	next := &snapshot{version: version, routes: map[string]*route{}}
+	for rows.Next() {
+		var s Site
+		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled); e != nil {
+			rows.Close()
+			return e
+		}
+		target, e := url.Parse(s.Upstream)
+		if e != nil {
+			rows.Close()
+			return e
+		}
+		r := &route{site: s}
+		if s.CertificateID != nil {
+			r.cert = certs[*s.CertificateID]
+		}
+		r.proxy = newProxy(target, s.PreserveHost)
+		for _, h := range s.Hostnames {
+			next.routes[h] = r
+		}
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return e
+	}
+	if e = tx.Commit(ctx); e != nil {
+		return e
+	}
+	old := a.active.Swap(next)
+	if old != nil {
+		for _, r := range old.routes {
+			if tr, ok := r.proxy.Transport.(*http.Transport); ok {
+				tr.CloseIdleConnections()
+			}
+		}
+	}
+	return nil
+}
+func newProxy(target *url.URL, preserve bool) *httputil.ReverseProxy {
+	p := &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
+		pr.SetURL(target)
+		pr.SetXForwarded()
+		if preserve {
+			pr.Out.Host = pr.In.Host
+		}
+	}, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
+		http.Error(w, "upstream unavailable", http.StatusBadGateway)
+	}}
+	return p
+}
+func requestHost(raw string) string {
+	h := raw
+	if v, _, e := net.SplitHostPort(raw); e == nil {
+		h = v
+	}
+	return strings.ToLower(strings.TrimSuffix(h, "."))
+}
+func (a *App) TLSConfig() *tls.Config {
+	return &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		s := a.active.Load()
+		if s == nil {
+			return nil, errors.New("configuration unavailable")
+		}
+		r := s.routes[requestHost(hello.ServerName)]
+		if r == nil || r.cert == nil {
+			return nil, errors.New("no certificate for SNI")
+		}
+		now := time.Now()
+		if now.Before(r.cert.Leaf.NotBefore) || !now.Before(r.cert.Leaf.NotAfter) {
+			return nil, errors.New("certificate is not currently valid")
+		}
+		return r.cert, nil
+	}}
+}
+func (a *App) Public(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") {
+		a.challenge(w, r)
+		return
+	}
+	s := a.active.Load()
+	if s == nil {
+		http.Error(w, "configuration unavailable", 503)
+		return
+	}
+	rt := s.routes[requestHost(r.Host)]
+	if rt == nil {
+		http.Error(w, "unknown hostname", 421)
+		return
+	}
+	if r.TLS != nil && requestHost(r.TLS.ServerName) != requestHost(r.Host) {
+		http.Error(w, "SNI and Host must match", 421)
+		return
+	}
+	start := time.Now()
+	rec := &statusWriter{ResponseWriter: w, status: 200}
+	defer func() {
+		peer, _, _ := net.SplitHostPort(r.RemoteAddr)
+		event := accessEvent{start, rt.site.ID, r.Method, rec.status, time.Since(start).Milliseconds(), peer}
+		select {
+		case a.access <- event:
+		default:
+			a.dropped.Add(1)
+		}
+	}()
+	if r.TLS == nil && rt.site.RedirectHTTPS {
+		http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
+		return
+	}
+	rt.proxy.ServeHTTP(rec, r)
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+	wrote  bool
+}
+
+func (w *statusWriter) WriteHeader(n int) {
+	if !w.wrote && n >= 200 {
+		w.status = n
+		w.wrote = true
+	}
+	w.ResponseWriter.WriteHeader(n)
+}
+func (w *statusWriter) Write(p []byte) (int, error) {
+	if !w.wrote {
+		w.WriteHeader(200)
+	}
+	return w.ResponseWriter.Write(p)
+}
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, buffer, e := http.NewResponseController(w.ResponseWriter).Hijack()
+	if e == nil {
+		w.status = http.StatusSwitchingProtocols
+		w.wrote = true
+	}
+	return conn, buffer, e
+}
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (a *App) challenge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "method not allowed", 405)
+		return
+	}
+	t := strings.TrimPrefix(r.URL.Path, "/.well-known/acme-challenge/")
+	if len(t) > 256 || strings.ContainsAny(t, "/\r\n") {
+		http.NotFound(w, r)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	var response string
+	e := a.db.QueryRow(ctx, "SELECT response FROM acme_challenges WHERE hostname=$1 AND token=$2 AND expires_at>now()", requestHost(r.Host), t).Scan(&response)
+	if errors.Is(e, pgx.ErrNoRows) {
+		http.NotFound(w, r)
+		return
+	}
+	if e != nil {
+		http.Error(w, "challenge store unavailable", 503)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Cache-Control", "no-store")
+	fmt.Fprint(w, response)
+}
+func (a *App) logWorker(ctx context.Context) {
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	batch := make([]accessEvent, 0, 1000)
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		c, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		items := make([][]any, len(batch))
+		for i, e := range batch {
+			items[i] = []any{e.at, e.site, e.method, e.status, e.duration, e.peer}
+		}
+		if _, e := a.db.CopyFrom(c, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer"}, pgx.CopyFromRows(items)); e != nil {
+			a.dropped.Add(uint64(len(batch)))
+			slog.Warn("access log batch unavailable")
+		}
+		batch = batch[:0]
+	}
+	for {
+		select {
+		case e := <-a.access:
+			batch = append(batch, e)
+			if len(batch) == 1000 {
+				flush()
+			}
+		case <-tick.C:
+			flush()
+		case <-ctx.Done():
+			for {
+				select {
+				case e := <-a.access:
+					batch = append(batch, e)
+				default:
+					flush()
+					return
+				}
+			}
+		}
+	}
+}
