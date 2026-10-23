@@ -42,21 +42,31 @@ BROWSER_CREDENTIALS_FILE=/absolute/path/test-credentials.json npm test
 
 `tests/process-outage.py` stops and restarts a dedicated local PostgreSQL cluster. It expects the compiled test app on 18080/18443/19090, PostgreSQL on 55432, and the `browser-admin` account from the browser test. Set `AEGIS_WAF_TEST_CREDENTIALS_FILE` to a private JSON file containing test deployment `key`, `secret`, and administrator `password`, and set `PG_CTL` and `PG_DATA` to that isolated PostgreSQL installation/data directory. It starts a second application replica, verifies recovery, stops that replica gracefully, and removes its site/certificate records.
 
-## Deployment checks still required
+## Docker runtime verification and remaining deployment checks
 
-Docker daemon access was denied by the host's Unix socket permissions, and passwordless sudo was unavailable. The Dockerfile and Compose configuration were reviewed, and Compose parsing passed, but **the image build and container runtime were not executed** here. In particular, read-only-root execution, capability dropping, mounted secret permissions with a platform-assigned UID, and the packaged CA bundle remain container-level checks to perform on a Docker-capable host.
+Docker runtime verification passed on **2026-10-23** using Docker Engine 29.9.2 and Compose 5.6.0. The Dockerfile built successfully from the checked-in source, and the resulting image is tagged locally as `aegis-waf:verification`. The application source did not require changes.
+
+`tests/container-smoke.py` runs the production Compose configuration with an isolated project, temporary secret-file overrides, random localhost ports, a disposable PostgreSQL volume, and a test HTTP upstream. It verified:
+
+- Healthy application startup as UID 10001 and platform-assigned UID/GID 23456.
+- Read-only root filesystem (including a failed write probe), writable temporary directory, readable mounted secrets, and packaged CA certificates.
+- All Linux capabilities dropped, no privileged mode or host networking, no Docker socket, and no persistent application volume.
+- First-run setup, cross-replica sessions, certificate uploads without private-key readback, and cached HTTP/TLS proxying through both replicas.
+- A successful HTTPS request to the Let's Encrypt staging directory using the packaged CA bundle; no CA account or certificate was created.
+- HTTP/TLS serving through a real PostgreSQL-container outage, accurate management failure responses, and a fresh third replica remaining unready until database recovery.
+- Configuration, certificates, and sessions reloading after application restart.
+- All three application containers exiting with status 0 on graceful shutdown.
+
+The test cleans up its own containers, network, volume, and temporary secrets; unrelated services are left untouched. Reproduce with:
 
 ```sh
-python3 scripts/bootstrap-secrets.py
-docker compose build
-docker compose up -d
-docker compose exec app aegis-waf healthcheck
-docker compose run --rm --user 23456:23456 --entrypoint /bin/sh app -c \
-  'id; test -r /run/secrets/encryption_key && test -r /etc/ssl/certs/ca-certificates.crt && test -w /tmp'
+make container-test
+# Or test an already-built image:
+python3 tests/container-smoke.py aegis-waf:verification
 ```
 
 Public ACME staging/production issuance also remains unverified. The local CA fixture establishes application protocol flow and database coordination, but cannot establish public DNS, external load-balancer behavior, CA policy, or real-world HTTP-01 reachability. Run a staging issuance through the target load balancer before requesting production certificates. Online encryption-key rotation, automated log retention, MFA and additional administrator roles are explicitly outside the implemented foundation.
 
 ## Repository import verification
 
-The Aegis WAF branding import was rebuilt and checked with TypeScript, `go build`, `go vet`, real-PostgreSQL race-enabled tests, and the browser acceptance suite. The Go module uses `github.com/nextgridit-team/Aegis-WAF`; the executable is `aegis-waf`. The repository’s original MIT license and initial commit were preserved. Docker runtime and public-CA verification limits above still apply.
+The Aegis WAF branding import was rebuilt and checked with TypeScript, `go build`, `go vet`, real-PostgreSQL race-enabled tests, and the browser acceptance suite. The Go module uses `github.com/nextgridit-team/Aegis-WAF`; the executable is `aegis-waf`. The repository’s original MIT license and initial commit were preserved. Docker runtime verification has since passed as documented above; public-CA issuance remains unverified.

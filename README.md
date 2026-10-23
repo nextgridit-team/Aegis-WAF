@@ -114,6 +114,14 @@ Tests use isolated schemas and exercise a real PostgreSQL database. The local AC
 
 Production assets are checked in for convenient Go-only development; rebuild them after dashboard edits. The Docker build always regenerates them from TypeScript. `make build`, `make test`, and `make integration` wrap the commands above. See [verification evidence](docs/verification.md) for checks performed in the implementation environment and remaining deployment checks.
 
+Verify the built image and its runtime constraints with Docker, Compose, Python 3, and OpenSSL:
+
+```sh
+make container-test
+```
+
+This builds `aegis-waf:verification` and runs `tests/container-smoke.py` against an isolated Compose project. It generates temporary secrets, binds random localhost ports, starts two replicas (including a platform-assigned UID) and a disposable PostgreSQL database, and verifies HTTP/TLS routing, shared sessions, CA connectivity, database outage/recovery, restart persistence, and graceful shutdown. A temporary Node HTTP server acts as the test upstream. Test containers, networks, volumes, and secrets are removed on exit; the application image is retained. No public ACME account or certificate is created.
+
 ## License
 
 [MIT](LICENSE), copyright nextgridit-team.
