@@ -1,4 +1,4 @@
-.PHONY: build dashboard test integration container-test fmt
+.PHONY: build dashboard test integration container-test browser-test fmt
 build: dashboard
 	mkdir -p bin
 	go build -trimpath -o bin/aegis-waf ./cmd/aegis-waf
@@ -12,6 +12,9 @@ integration:
 container-test:
 	docker build -t aegis-waf:verification .
 	python3 tests/container-smoke.py
+browser-test:
+	docker build -t aegis-waf:ui-verification .
+	python3 tests/acme-browser.py
 fmt:
 	gofmt -w cmd internal
 	cd web && npx --no-install prettier --write src index.html package.json tsconfig.json ../compose.yaml ../docs/*.md ../README.md

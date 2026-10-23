@@ -44,7 +44,7 @@ BROWSER_CREDENTIALS_FILE=/absolute/path/test-credentials.json npm test
 
 ## Docker runtime verification and remaining deployment checks
 
-Docker runtime verification passed on **2026-10-23** using Docker Engine 29.9.2 and Compose 5.6.0. The Dockerfile built successfully from the checked-in source, and the resulting image is tagged locally as `aegis-waf:verification`. The application source did not require changes.
+Docker runtime verification passed on **2026-10-23** using Docker Engine 29.9.2 and Compose 5.6.0. The Dockerfile built successfully from the checked-in source, and the resulting image is tagged locally as `aegis-waf:verification`. That initial runtime verification required no application-source changes.
 
 `tests/container-smoke.py` runs the production Compose configuration with an isolated project, temporary secret-file overrides, random localhost ports, a disposable PostgreSQL volume, and a test HTTP upstream. It verified:
 
@@ -70,3 +70,15 @@ Public ACME staging/production issuance also remains unverified. The local CA fi
 ## Repository import verification
 
 The Aegis WAF branding import was rebuilt and checked with TypeScript, `go build`, `go vet`, real-PostgreSQL race-enabled tests, and the browser acceptance suite. The Go module uses `github.com/nextgridit-team/Aegis-WAF`; the executable is `aegis-waf`. The repository’s original MIT license and initial commit were preserved. Docker runtime verification has since passed as documented above; public-CA issuance remains unverified.
+
+## Certificate-first console and real ACME verification — 2026-10-23
+
+The dashboard was redesigned with a light workspace, focused certificate inventory, guided authority/domain forms, automatic issuance status, and a prefilled Connect site handoff. Existing API authentication, CSRF, encrypted storage, and the two-container production architecture remain in use.
+
+The complete browser suite passed against the official Pebble image with validation enabled. Pebble resolved `app.example.test` to the second gateway replica and performed three real HTTP-01 validation requests; no always-valid bypass was configured. The browser registered the account, explicitly accepted its terms, queued issuance, observed a valid certificate through automatic polling, configured its upstream, and received trusted HTTPS responses through both replicas. The test then verified upload/coverage failures, form preservation, Escape/focus behavior, session logout, and 16 layout checks across 320, 390, 768 and 1440 px. Desktop and mobile screenshots were inspected; selected captures with synthetic local-test data are in `docs/screenshots/`.
+
+This real CA test exposed a finalization compatibility bug absent from the earlier synchronous fixture: an authority can return `processing` without repeating the order URL in Location. Aegis now supplies the previously authenticated order URL only for that finalization response so the existing ACME library can poll and fetch the certificate. The PostgreSQL integration fixture now reproduces this asynchronous response. Race-enabled Go tests and `go vet` passed in isolated containers. Issuance failures now identify the failed phase without logging raw CA messages or secrets.
+
+CA terms support HTTPS links and safely escaped inline plain text. Changing the authority or its URL clears acceptance and ignores obsolete lookup results. Non-submit controls cannot accidentally submit a form. Status refresh pauses while an editor is open, and modal dialogs preserve native keyboard behavior.
+
+Reproduce with the README’s `make browser-test` instructions, or run `python3 tests/acme-browser.py <built-image>`. Browser dependencies and a Chromium-compatible executable must be installed. Screenshots and Pebble validation logs are stored in `/tmp/aegis-ui-review`; test containers, network, database volume, and temporary key material are cleaned up. Public Let’s Encrypt issuance remains a deployment check requiring the administrator’s actual hostname and port-80 reachability.

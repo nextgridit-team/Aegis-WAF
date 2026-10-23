@@ -54,6 +54,44 @@ func signer(b []byte) (crypto.Signer, error) {
 func acmeClient(directory string, key crypto.Signer, kid string) *acme.Client {
 	return &acme.Client{Key: key, KID: acme.KeyID(kid), DirectoryURL: directory, HTTPClient: &http.Client{Timeout: 30 * time.Second}, UserAgent: "aegis-waf/0.1"}
 }
+
+// Some authorities omit Location when finalization returns "processing".
+// x/crypto/acme uses that header to poll the order. Supply the order URL
+// already authenticated in the new-order response, only on this POST response.
+type orderLocationTransport struct {
+	base                  http.RoundTripper
+	finalizeURL, orderURL string
+}
+
+func (t orderLocationTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	response, e := t.base.RoundTrip(r)
+	if e == nil && r.Method == http.MethodPost && r.URL.String() == t.finalizeURL && response.StatusCode == http.StatusOK && response.Header.Get("Location") == "" {
+		response.Header.Set("Location", t.orderURL)
+	}
+	return response, e
+}
+func createOrderCertificate(ctx context.Context, client *acme.Client, orderURL, finalizeURL string, csr []byte) ([][]byte, error) {
+	httpClient := *client.HTTPClient
+	base := httpClient.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	httpClient.Transport = orderLocationTransport{base: base, orderURL: orderURL, finalizeURL: finalizeURL}
+	original := client.HTTPClient
+	client.HTTPClient = &httpClient
+	defer func() { client.HTTPClient = original }()
+	chain, _, e := client.CreateOrderCert(ctx, finalizeURL, csr, true)
+	return chain, e
+}
+
+type issuanceError struct {
+	stage string
+	cause error
+}
+
+func (e issuanceError) Error() string { return e.stage + " failed" }
+func (e issuanceError) Unwrap() error { return e.cause }
+
 func (a *App) registerAccount(w http.ResponseWriter, r *http.Request, i identity) error {
 	var b struct {
 		Directory   string `json:"directory"`
@@ -316,7 +354,12 @@ func (a *App) runJob(parent context.Context, job, cert int64) {
 		return
 	}
 	if e != nil {
-		msg := acmeFailure("certificate issuance", e)
+		stage := "certificate issuance"
+		var ie issuanceError
+		if errors.As(e, &ie) {
+			stage = ie.stage
+		}
+		msg := acmeFailure(stage, e)
 		var ae apiError
 		if errors.As(e, &ae) {
 			msg = ae.message
@@ -354,7 +397,7 @@ func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 	client := acmeClient(directory, key, kid)
 	order, e := client.AuthorizeOrder(ctx, acme.DomainIDs(hosts...))
 	if e != nil {
-		return e
+		return issuanceError{"order creation", e}
 	}
 	var orderID int64
 	if e = a.db.QueryRow(ctx, "INSERT INTO acme_orders(job_id,url,status) VALUES($1,$2,$3) RETURNING id", job, order.URI, order.Status).Scan(&orderID); e != nil {
@@ -401,7 +444,7 @@ func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 			return e
 		}
 		if _, e = client.WaitAuthorization(ctx, authURL); e != nil {
-			return e
+			return issuanceError{"domain validation", e}
 		}
 	}
 	ready, e := client.WaitOrder(ctx, order.URI)
@@ -416,9 +459,9 @@ func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 	if e != nil {
 		return e
 	}
-	der, _, e := client.CreateOrderCert(ctx, ready.FinalizeURL, csr, true)
+	der, e := createOrderCertificate(ctx, client, order.URI, ready.FinalizeURL, csr)
 	if e != nil {
-		return e
+		return issuanceError{"certificate finalization", e}
 	}
 	var chain strings.Builder
 	for _, b := range der {

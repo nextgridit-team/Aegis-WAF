@@ -19,9 +19,13 @@ Manage all sites, certificates, and ACME accounts through the dashboard or manag
 
 ### Protect an application
 
-1. Upload a currently valid PEM certificate chain and its matching private key in **Certificates**, or issue one through **ACME & renewal**.
-2. In **Protected sites**, enter exact DNS hostnames, an HTTP(S) upstream URL, and the certificate. Choose whether to preserve the incoming Host header and redirect HTTP to HTTPS. HTTP-only sites are supported without a certificate.
-3. Point DNS and your port mappings or load balancer at the public listeners. Allow up to **2 seconds** for each replica to load the committed version.
+1. Open **Certificates → Request certificate**. If needed, the guided flow creates an ACME account after you review and accept the authority’s terms. Enter your domains and confirm DNS/port-80 prerequisites. **Upload PEM** supports an existing certificate and private key.
+2. Issuance progress updates automatically. When a certificate is valid, choose **Connect site** to open a proxy-host form with its domains and certificate already selected. Enter the application’s HTTP(S) upstream URL and save.
+3. Manage routing in **Proxy hosts**. Choose HTTP-to-HTTPS redirection, Host-header handling, and whether the route is enabled. Allow up to **2 seconds** for each replica to load committed changes. HTTP-only proxy hosts are also supported.
+
+The certificate inventory shows validity, expiration, renewal mode, and site assignments. **Certificate authorities** manages ACME accounts. Status polling runs every four seconds while the page is visible and pauses during editing so entered values and focus are preserved.
+
+![Aegis WAF certificate dashboard with local test certificates](docs/screenshots/certificates.png)
 
 Unknown hosts and mismatched TLS SNI/Host requests receive HTTP 421. Unknown or expired SNI certificates fail the TLS handshake. Uploaded certificates may use private PKI; upload validation checks format, dates for the supplied chain, signatures between adjacent certificates, server-auth usage, key correspondence, and coverage of every attached site. It does not assert public trust or perform revocation checks. Upload the leaf first, followed by intermediate certificates. PKCS#8, PKCS#1 RSA, and SEC1 EC unencrypted keys are supported. RSA, EC and Ed25519 keys are handled by Go TLS. Certificate replacement is transactional; invalid coverage, mismatched keys, or failed audit writes preserve the previous certificate.
 
@@ -121,6 +125,18 @@ make container-test
 ```
 
 This builds `aegis-waf:verification` and runs `tests/container-smoke.py` against an isolated Compose project. It generates temporary secrets, binds random localhost ports, starts two replicas (including a platform-assigned UID) and a disposable PostgreSQL database, and verifies HTTP/TLS routing, shared sessions, CA connectivity, database outage/recovery, restart persistence, and graceful shutdown. A temporary Node HTTP server acts as the test upstream. Test containers, networks, volumes, and secrets are removed on exit; the application image is retained. No public ACME account or certificate is created.
+
+### Verify the certificate-to-proxy browser flow
+
+The browser suite provisions a real [Pebble ACME test authority](https://github.com/letsencrypt/pebble), PostgreSQL, two gateway replicas, and a test upstream in an isolated Docker network. It performs real HTTP-01 validation through the second replica, requests a certificate through the dashboard, and verifies HTTPS proxy responses against the issued certificate’s trusted test root. It also checks PEM errors, modal focus, input preservation, and responsive layouts. Pebble is used only by tests; production deployment remains one application image plus PostgreSQL.
+
+```sh
+npm --prefix tests ci
+(cd tests && npx playwright install chromium) # or set BROWSER_EXECUTABLE
+make browser-test
+```
+
+The suite generates temporary credentials and certificates, uses random localhost ports, and removes its test resources on exit. Screenshots are written to `/tmp/aegis-ui-review` by default. Real Let’s Encrypt staging/production issuance still requires your public DNS and port forwarding.
 
 ## License
 

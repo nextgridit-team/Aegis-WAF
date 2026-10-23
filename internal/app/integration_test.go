@@ -501,7 +501,12 @@ func (ca *testCA) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		ca.chain = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER})) + string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: rootDER}))
 		ca.finalized = true
-		respond(w, 200, order())
+		// Real CAs may finalize asynchronously and omit Location on this response.
+		// The client must poll the original order URI, then fetch the certificate.
+		pending := order()
+		pending["status"] = "processing"
+		delete(pending, "certificate")
+		respond(w, 200, pending)
 	case "/certificate/1":
 		w.Header().Set("Content-Type", "application/pem-certificate-chain")
 		io.WriteString(w, ca.chain)

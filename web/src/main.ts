@@ -36,7 +36,7 @@ type Job = {
   next_attempt: string;
   orders: { url: string; status: string; error: string }[];
 };
-type Status = {
+type Gateway = {
   configuration_version: number;
   database_available: boolean;
   propagation_seconds: number;
@@ -58,15 +58,35 @@ type Access = {
   duration_ms: number;
   peer: string;
 };
+type State = {
+  sites: Site[];
+  certs: Certificate[];
+  accounts: Account[];
+  jobs: Job[];
+  gateway: Gateway;
+};
 const root = document.querySelector<HTMLDivElement>("#app")!;
+let state: State = {
+  sites: [],
+  certs: [],
+  accounts: [],
+  jobs: [],
+  gateway: {
+    configuration_version: 0,
+    database_available: false,
+    propagation_seconds: 2,
+    dropped_access_logs: 0,
+  },
+};
 let csrf = "",
   username = "",
-  page = "overview",
-  sites: Site[] = [],
-  certs: Certificate[] = [],
-  accounts: Account[] = [],
-  jobs: Job[] = [],
-  status: Status;
+  page = "certificates",
+  epoch = 0,
+  polling = false,
+  lastSignature = "",
+  reviewedDirectory = "",
+  termsSerial = 0,
+  returnFocus: HTMLElement | null = null;
 const esc = (v: unknown) =>
   String(v ?? "").replace(
     /[&<>"']/g,
@@ -75,59 +95,43 @@ const esc = (v: unknown) =>
         c
       ]!,
   );
-const date = (v: string | null) => (v ? new Date(v).toLocaleString() : "—");
-const badge = (v: string) =>
-  `<span class="badge ${["retry", "expired", "failed"].includes(v) ? "error" : ["pending", "queued", "running", "not yet valid"].includes(v) ? "warn" : ""}">${esc(v)}</span>`;
-async function api<T>(
-  path: string,
-  method = "GET",
-  body?: unknown,
-): Promise<T> {
-  const res = await fetch("/api" + path, {
-    method,
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Requested-With": "aegis-waf",
-      "X-CSRF-Token": csrf,
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    if (res.status === 401 && username) {
-      username = "";
-      void start();
-    }
-    throw new Error(data.error || `Request failed (${res.status})`);
-  }
-  return data as T;
-}
-function notice(message: string, error = false) {
-  const el = document.getElementById("message");
-  if (el) {
-    el.innerHTML = `<div class="notice ${error ? "error" : ""}" role="${error ? "alert" : "status"}">${esc(message)}</div>`;
-    el.scrollIntoView({ block: "nearest" });
-  }
-}
-function formHandler(id: string, submit: (f: FormData) => Promise<void>) {
-  const form = document.getElementById(id) as HTMLFormElement;
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const btn = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
-    btn.disabled = true;
-    btn.textContent = "Working…";
-    const label = btn.dataset.label || "Save";
-    try {
-      await submit(new FormData(form));
-    } catch (e) {
-      notice((e as Error).message, true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = label;
-    }
-  });
-}
+const date = (v: string | null) =>
+  v
+    ? new Date(v).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "Not issued yet";
+const dateTime = (v: string) => new Date(v).toLocaleString();
+const icons: Record<string, string> = {
+  shield: "M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z M9 12l2 2 4-4",
+  certificate:
+    "M7 3h10l3 3v9h-4M7 3 4 6v9h4 M8 9h8 M8 6h5 M12 13l2 1 2 1-1 2v4l-3-2-3 2v-4l-1-2 2-1Z",
+  globe:
+    "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM3 12h18M12 3c5 5 5 13 0 18-5-5-5-13 0-18Z",
+  activity: "M3 12h4l3-8 4 16 3-8h4",
+  key: "M14 7a4 4 0 1 1 0 6l-6 6H4v-4l6-6a4 4 0 0 1 4-2Z",
+  plus: "M12 5v14M5 12h14",
+  arrow: "M5 12h14m-5-5 5 5-5 5",
+  close: "m6 6 12 12M6 18 18 6",
+  check: "m5 12 4 4L19 6",
+  clock: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2",
+  upload: "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6",
+  refresh: "M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M5 15a8 8 0 0 0 13 3",
+  logout: "M9 4H4v16h5M10 12h11m-4-4 4 4-4 4",
+};
+const icon = (name: string) =>
+  `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${icons[name] || icons.shield}"/></svg>`;
+const button = (
+  action: string,
+  label: string,
+  style = "primary",
+  id?: number,
+) =>
+  `<button type="button" class="${style}" data-action="${action}" ${id ? `data-id="${id}"` : ""}>${label}</button>`;
+const badge = (label: string, tone = "neutral") =>
+  `<span class="badge ${tone}"><span class="badge-dot"></span>${esc(label)}</span>`;
 const field = (
   name: string,
   label: string,
@@ -135,234 +139,409 @@ const field = (
   type = "text",
   extra = "",
 ) =>
-  `<label>${label}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
-const check = (name: string, label: string, checked = false) =>
-  `<label><input type="checkbox" name="${name}" ${checked ? "checked" : ""}>${label}</label>`;
-const actions = (label = "Save") =>
-  `<div class="actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" data-label="${label}">${label}</button></div>`;
+  `<label class="field">${label}<input name="${name}" type="${type}" value="${esc(value)}" ${extra}></label>`;
+const check = (name: string, label: string, checked = false, extra = "") =>
+  `<label class="check"><input type="checkbox" name="${name}" ${checked ? "checked" : ""} ${extra}><span>${label}</span></label>`;
+const actions = (label: string) =>
+  `<div class="form-actions">${button("cancel", "Cancel", "secondary")}<button type="submit" class="primary" data-label="${label}">${label}${icon("arrow")}</button></div>`;
 const names = (v: FormDataEntryValue | null) =>
   String(v || "")
     .split(/[\s,]+/)
     .filter(Boolean);
-function empty(title: string, text: string) {
-  return `<div class="empty"><h2>${title}</h2><p>${text}</p></div>`;
+const authority = (a: Account) =>
+  a.directory.includes("acme-staging-v02.api.letsencrypt.org")
+    ? "Let’s Encrypt · staging"
+    : a.directory.includes("acme-v02.api.letsencrypt.org")
+      ? "Let’s Encrypt · production"
+      : new URL(a.directory).host;
+const newestJob = (id: number) =>
+  state.jobs.find((j) => j.certificate_id === id);
+class APIError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+async function api<T>(
+  path: string,
+  method = "GET",
+  body?: unknown,
+): Promise<T> {
+  const response = await fetch("/api" + path, {
+    method,
+    credentials: "same-origin",
+    signal: AbortSignal.timeout(
+      path === "/acme/accounts" && method === "POST" ? 90000 : 20000,
+    ),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Requested-With": "aegis-waf",
+      "X-CSRF-Token": csrf,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok)
+    throw new APIError(
+      data.error || "The request could not be completed.",
+      response.status,
+    );
+  return data as T;
+}
+async function fetchState(): Promise<State> {
+  const [sites, certs, accounts, jobs, gateway] = await Promise.all([
+    api<Site[]>("/sites"),
+    api<Certificate[]>("/certificates"),
+    api<Account[]>("/acme/accounts"),
+    api<Job[]>("/acme/jobs"),
+    api<Gateway>("/status"),
+  ]);
+  return { sites, certs, accounts, jobs, gateway };
+}
+function notice(message: string, error = false) {
+  const area =
+    document.querySelector<HTMLDivElement>("#editor[open] #form-message") ||
+    document.querySelector<HTMLDivElement>("#message");
+  if (area)
+    area.innerHTML = `<div class="notice ${error ? "error" : ""}" role="${error ? "alert" : "status"}">${icon(error ? "activity" : "check")}<span>${esc(message)}</span></div>`;
+}
+async function handleError(error: unknown) {
+  if (error instanceof APIError && error.status === 401) {
+    username = "";
+    csrf = "";
+    epoch++;
+    await start();
+    notice("Your session ended. Sign in to continue.", true);
+  } else
+    notice(
+      error instanceof Error
+        ? error.message
+        : "Something went wrong. Please try again.",
+      true,
+    );
+}
+function formHandler(id: string, submit: (data: FormData) => Promise<void>) {
+  const form = document.getElementById(id) as HTMLFormElement;
+  let busy = false;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    busy = true;
+    const submitButton = form.querySelector<HTMLButtonElement>(
+      "button[type=submit]",
+    )!;
+    submitButton.disabled = true;
+    submitButton.textContent = "Please wait…";
+    form.setAttribute("aria-busy", "true");
+    try {
+      await submit(new FormData(form));
+    } catch (error) {
+      await handleError(error);
+    } finally {
+      busy = false;
+      form.removeAttribute("aria-busy");
+      submitButton.disabled = false;
+      submitButton.textContent = submitButton.dataset.label || "Save";
+    }
+  });
+}
+function currentPage() {
+  const aliases: Record<string, string> = {
+    overview: "certificates",
+    sites: "proxy-hosts",
+    acme: "authorities",
+  };
+  const raw = location.hash.slice(1) || "certificates";
+  return (
+    aliases[raw] ||
+    (["certificates", "proxy-hosts", "authorities", "activity"].includes(raw)
+      ? raw
+      : "certificates")
+  );
 }
 function shell() {
   const nav = [
-    ["overview", "Overview"],
-    ["sites", "Protected sites"],
-    ["certificates", "Certificates"],
-    ["acme", "ACME & renewal"],
-    ["activity", "Activity"],
+    ["certificates", "certificate", "Certificates"],
+    ["proxy-hosts", "globe", "Proxy hosts"],
+    ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<header><div class="brand"><b>A</b>Aegis WAF <span class="inline-status">/ gateway console</span></div><div class="tools"><span class="inline-status">${esc(username)}</span><button class="secondary" data-action="logout">Sign out</button></div></header><div class="layout"><nav aria-label="Main navigation"><div class="section-label">Gateway operations</div>${nav.map(([id, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${label}</a>`).join("")}<div class="footnote">Foundation · v0.1<br>Certificate management<br>and application routing</div></nav><main id="content"><div id="message" aria-live="polite"></div><div id="view" class="loading">Loading gateway state…</div></main></div>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity" }[page]}</strong></span><div id="connection" class="connection"><span></span>Gateway connected</div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  document.getElementById("editor")!.addEventListener("close", () => {
+    if (returnFocus?.isConnected) returnFocus.focus();
+  });
 }
-function heading(eyebrow: string, title: string, text: string, buttons = "") {
-  return `<div class="heading"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p>${text}</p></div>${buttons ? `<div class="toolbar">${buttons}</div>` : ""}</div>`;
+const heading = (title: string, text: string, buttons = "") =>
+  `<div class="page-heading"><div><h1>${title}</h1><p>${text}</p></div><div class="heading-actions">${buttons}</div></div>`;
+function table(headers: string[], rows: string[][], label: string) {
+  return `<div class="table-wrap" tabindex="0" role="region" aria-label="${esc(label)}"><table><thead><tr>${headers.map((h) => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
-function table(headers: string[], rows: string[][]) {
-  return `<div class="table-wrap" tabindex="0" role="region" aria-label="${esc(headers.join(", "))}"><table><thead><tr>${headers.map((h) => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+function onboarding() {
+  const ready = state.certs.some((c) => c.validity === "valid"),
+    connected = state.sites.some((s) => s.enabled && s.certificate_id !== null);
+  if (ready && connected) return "";
+  return `<section class="onboarding" aria-label="Getting started"><div class="onboarding-title">A secure connection in two steps<small>Start with a certificate. Then connect your application.</small></div><div class="setup-step ${ready ? "complete" : ""}"><span>${ready ? icon("check") : "1"}</span><div><strong>Get a certificate</strong><small>${ready ? "Your certificate is ready." : "Issue with ACME or upload a PEM."}</small></div></div><div class="step-divider"></div><div class="setup-step ${connected ? "complete" : ""}"><span>${connected ? icon("check") : "2"}</span><div><strong>Connect a proxy host</strong><small>${connected ? "Your application is connected." : "Choose a domain and upstream."}</small></div></div></section>`;
 }
-async function refresh() {
-  page = location.hash.slice(1) || "overview";
-  if (!["overview", "sites", "certificates", "acme", "activity"].includes(page))
-    page = "overview";
-  shell();
-  try {
-    [sites, certs, accounts, jobs, status] = await Promise.all([
-      api<Site[]>("/sites"),
-      api<Certificate[]>("/certificates"),
-      api<Account[]>("/acme/accounts"),
-      api<Job[]>("/acme/jobs"),
-      api<Status>("/status"),
-    ]);
-    await render();
-  } catch (e) {
-    notice((e as Error).message, true);
-    document.getElementById("view")!.innerHTML =
-      '<p>Gateway state could not be loaded. <button data-action="refresh" class="secondary">Try again</button></p>';
+function certStatus(c: Certificate) {
+  const job = newestJob(c.id);
+  if (c.validity === "valid") {
+    const days = Math.ceil(
+      (new Date(c.not_after!).getTime() - Date.now()) / 86400000,
+    );
+    return badge(
+      days <= 14 ? "Expiring soon" : "Valid",
+      days <= 14 ? "warning" : "success",
+    );
   }
+  if (job?.status === "retry") return badge("Needs attention", "danger");
+  if (job?.status === "running") return badge("Issuing", "info");
+  return badge(
+    c.validity === "pending" ? "Queued" : c.validity,
+    c.validity === "pending" ? "info" : "danger",
+  );
+}
+function certificateList() {
+  if (!state.certs.length)
+    return `<section class="empty-state"><div class="empty-icon">${icon("certificate")}</div><h2>Your first certificate starts here</h2><p>Request a certificate with automatic renewal,<br class="desktop-only"> or bring your own certificate and private key.</p><div class="empty-note">${icon("key")}Private keys stay encrypted and never leave the server.</div></section>`;
+  return table(
+    ["Certificate", "Status", "Expires", "Renewal", ""],
+    state.certs.map((c) => {
+      const job = newestJob(c.id);
+      return [
+        `<div class="resource"><span class="resource-icon">${icon("certificate")}</span><div><button class="text-button" data-action="view-cert" data-id="${c.id}">${esc(c.name)}</button><small class="domain">${c.domains.map(esc).join(", ")}</small>${c.assigned_sites.length ? `<small>${c.assigned_sites.length} connected ${c.assigned_sites.length === 1 ? "site" : "sites"}</small>` : ""}</div></div>`,
+        `${certStatus(c)}${job?.status === "retry" ? `<small class="error-text">${esc(job.error)}</small>` : ""}`,
+        `<span>${esc(date(c.not_after))}</span>${c.not_after ? `<small>${Math.max(0, Math.ceil((new Date(c.not_after).getTime() - Date.now()) / 86400000))} days remaining</small>` : ""}`,
+        c.origin === "acme"
+          ? `<span class="renewal">${icon("refresh")}Automatic</span><small>ACME managed</small>`
+          : "<span>Manual</span><small>Uploaded PEM</small>",
+        `<div class="row-actions">${c.validity === "valid" && !c.assigned_sites.length ? button("connect", "Connect site", "secondary compact", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry", "secondary compact", job.id) : ""}${button("view-cert", "Details", "subtle compact", c.id)}</div>`,
+      ];
+    }),
+    "Certificates",
+  );
+}
+function jobsList() {
+  if (!state.jobs.length) return "";
+  return `<section class="section"><div class="section-heading"><div><h2>Issuance & renewal</h2><p>Live status from your certificate authority.</p></div><span class="live-caption"><span></span>Updates automatically</span></div><div class="job-list">${state.jobs
+    .slice(0, 8)
+    .map(
+      (j) =>
+        `<article class="job-row"><div class="job-icon ${j.status === "retry" ? "warning" : ""}">${icon(j.status === "succeeded" ? "check" : j.status === "retry" ? "activity" : "clock")}</div><div class="job-copy"><strong>${esc(j.name)}</strong><small>${j.status === "succeeded" ? "Certificate issued. Ready to connect to a proxy host." : j.status === "queued" ? "Queued. The certificate worker will start shortly." : j.status === "running" ? "Your authority is validating domains and preparing the certificate." : esc(j.error)}</small>${j.status === "retry" ? `<small>Attempt ${j.attempts} · Next retry ${esc(dateTime(j.next_attempt))}</small>` : ""}</div>${badge(({ succeeded: "Issued", queued: "Queued", running: "In progress", retry: "Retry scheduled" } as Record<string, string>)[j.status] || j.status, j.status === "succeeded" ? "success" : j.status === "retry" ? "warning" : "info")}${j.status === "retry" ? button("retry", "Retry now", "secondary compact", j.id) : ""}</article>`,
+    )
+    .join("")}</div></section>`;
+}
+function sitesList() {
+  if (!state.sites.length)
+    return `<section class="empty-state"><div class="empty-icon">${icon("globe")}</div><h2>Connect your first application</h2><p>A proxy host connects a public domain to your application.<br class="desktop-only"> Attach a certificate to serve it securely over HTTPS.</p>${button("new-site", `${icon("plus")}Add proxy host`)}</section>`;
+  return table(
+    ["Proxy host", "Upstream", "Certificate", "Status", ""],
+    state.sites.map((s) => [
+      `<div class="resource"><span class="resource-icon">${icon("globe")}</span><div><strong>${esc(s.name)}</strong><small class="domain">${s.hostnames.map(esc).join(", ")}</small></div></div>`,
+      `<span class="domain">${esc(s.upstream)}</span><small>${s.redirect_https ? "HTTP → HTTPS" : "HTTP allowed"} · ${s.preserve_host ? "Original host header" : "Upstream host header"}</small>`,
+      esc(
+        state.certs.find((c) => c.id === s.certificate_id)?.name || "HTTP only",
+      ),
+      badge(
+        s.enabled ? "Enabled" : "Disabled",
+        s.enabled ? "success" : "neutral",
+      ),
+      `<div class="row-actions">${button("edit-site", "Edit", "secondary compact", s.id)}${button("delete-site", "Delete", "danger compact", s.id)}</div>`,
+    ]),
+    "Proxy hosts",
+  );
 }
 async function render() {
-  const view = document.getElementById("view")!;
-  view.className = "";
-  const refreshBtn =
-    '<button class="secondary" data-action="refresh">Refresh</button>';
-  if (page === "overview") {
-    const active = sites.filter((s) => s.enabled).length,
-      valid = certs.filter((c) => c.validity === "valid").length;
+  const view = document.getElementById("view");
+  if (!view) return;
+  document.title = `${({ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity" } as Record<string, string>)[page]} · Aegis WAF`;
+  if (page === "certificates")
     view.innerHTML =
       heading(
-        "Certificate & proxy foundation",
-        "Your application edge",
-        "Manage TLS and route traffic to your applications. Configuration is shared by every replica.",
-        refreshBtn,
-      ) +
-      (!status.database_available
-        ? '<div class="notice error">Database connectivity is degraded. Loaded replicas continue serving their last configuration.</div>'
-        : "") +
-      `<div class="grid"><div class="stat"><span>Enabled sites</span><strong>${active}</strong><span>${sites.length} configured</span></div><div class="stat"><span>Valid certificates</span><strong>${valid}</strong><span>${certs.length} total</span></div><div class="stat"><span>Configuration</span><strong>v${status.configuration_version}</strong><span>${status.propagation_seconds}s propagation</span></div></div><div class="split"><section class="panel"><div class="eyebrow">Bring an application online</div><h2>Start with its certificate</h2><p class="muted">Upload a certificate chain and key, or use HTTP-01 to request a certificate from your ACME authority. Then attach it to a protected site.</p><div class="toolbar"><a href="#certificates">Manage certificates →</a><a href="#sites">Configure sites →</a></div></section><section class="panel"><h2>Replica status</h2><dl class="details"><dt>Database</dt><dd>${badge(status.database_available ? "connected" : "unavailable")}</dd><dt>Snapshot version</dt><dd class="mono">${status.configuration_version}</dd><dt>Access log drops</dt><dd>${status.dropped_access_logs}</dd><dt>Active scope</dt><dd>TLS termination & reverse proxy</dd></dl><small>Status describes the replica serving this request. AI and traffic detection are not enabled in this milestone.</small></section></div>`;
-  }
-  if (page === "sites") {
-    view.innerHTML =
-      heading(
-        "Application routing",
-        "Protected sites",
-        "Exact hostnames select an upstream. Upstream HTTPS certificates are verified.",
-        `<button data-action="new-site">Add site</button>`,
-      ) +
-      `<div id="editor"></div>` +
-      (sites.length
-        ? table(
-            ["Application", "Upstream", "TLS certificate", "State", "Manage"],
-            sites.map((s) => [
-              `${esc(s.name)}<small class="mono">${s.hostnames.map(esc).join("<br>")}</small>`,
-              `<span class="mono">${esc(s.upstream)}</span><small>${s.preserve_host ? "Preserve original Host" : "Use upstream Host"} · ${s.redirect_https ? "Redirect HTTP to HTTPS" : "Allow HTTP"}</small>`,
-              esc(
-                certs.find((c) => c.id === s.certificate_id)?.name ||
-                  "HTTP only",
-              ),
-              badge(s.enabled ? "enabled" : "disabled"),
-              `<div class="toolbar"><button class="secondary" data-action="edit-site" data-id="${s.id}">Edit</button><button class="danger" data-action="delete-site" data-id="${s.id}">Delete</button></div>`,
-            ]),
-          )
-        : empty(
-            "No sites configured",
-            "Add an application hostname and its upstream to begin routing traffic.",
-          ));
-  }
-  if (page === "certificates") {
-    view.innerHTML =
-      heading(
-        "TLS inventory",
         "Certificates",
-        "Private keys are encrypted in PostgreSQL and are never returned by this console.",
-        `<button data-action="upload">Upload certificate</button>`,
+        "Secure your domains. Let ACME take care of renewal.",
+        button("upload", `${icon("upload")}Upload PEM`, "secondary") +
+          button("issue", `${icon("plus")}Request certificate`),
       ) +
-      `<div id="editor"></div>` +
-      (certs.length
-        ? table(
-            ["Certificate", "Issuer & validity", "Assigned sites", "Manage"],
-            certs.map((c) => [
-              `${esc(c.name)} <small>${badge(c.origin === "acme" ? "ACME-managed" : "uploaded")} #${c.id}</small><small class="mono">${c.domains.map(esc).join("<br>")}</small>`,
-              `${badge(c.validity)}<small>${esc(c.issuer || "Awaiting issuance")}</small><small>From ${esc(date(c.not_before))}<br>Expires ${esc(date(c.not_after))}</small>`,
-              c.assigned_sites.map((s) => esc(s.name)).join("<br>") ||
-                '<span class="muted">Unassigned</span>',
-              `<div class="toolbar">${c.origin === "upload" ? `<button class="secondary" data-action="replace" data-id="${c.id}">Replace</button>` : ""}<button class="danger" data-action="delete-cert" data-id="${c.id}">Delete</button></div>`,
-            ]),
-          )
-        : empty(
-            "Your TLS inventory is empty",
-            "Upload an existing certificate, or open ACME & renewal to request one.",
-          ));
-  }
-  if (page === "acme") {
+      onboarding() +
+      `<section class="inventory"><div class="inventory-heading"><h2>Certificate inventory <span class="count">${state.certs.length}</span></h2><span class="muted">${state.certs.filter((c) => c.origin === "acme").length} automatically managed</span></div><div id="certificate-list">${certificateList()}</div></section><div id="job-list">${jobsList()}</div><div class="page-note">${icon("shield")}ACME certificates renew automatically before they expire. Existing certificates stay active during retries.</div>`;
+  if (page === "proxy-hosts")
     view.innerHTML =
       heading(
-        "Certificate automation",
-        "ACME & renewal",
-        "HTTP-01 requires public port 80 to reach every replica. Renewal starts 30 days before expiration.",
-        `<button class="secondary" data-action="new-account">Register account</button><button data-action="issue">Request certificate</button>`,
+        "Proxy hosts",
+        "Route your domains to the applications behind them.",
+        button("new-site", `${icon("plus")}Add proxy host`),
       ) +
-      `<div id="editor"></div><h2>Registered authorities</h2>` +
-      (accounts.length
-        ? table(
-            ["Account", "Directory", "Terms accepted"],
-            accounts.map((a) => [
-              `#${a.id} · ${esc(a.email)}`,
-              `<span class="mono">${esc(a.directory)}</span>`,
-              esc(date(a.tos_accepted_at)),
-            ]),
-          )
-        : empty(
-            "No ACME account",
-            "Register an account and accept the certificate authority’s terms first.",
-          )) +
-      `<div class="toolbar"><h2>Issuance & renewal jobs</h2>${refreshBtn}</div>` +
-      (jobs.length
-        ? table(
-            ["Certificate / job", "Status", "Attempts & next run", "Details"],
-            jobs.map((j) => [
-              `${esc(j.name)}<small>#${j.id} · certificate #${j.certificate_id}</small>`,
-              badge(j.status),
-              `${j.attempts}<small>${j.status === "succeeded" ? "Complete" : esc(date(j.next_attempt))}</small>`,
-              `${j.error ? `<p>${esc(j.error)}</p>` : ""}${j.orders.map((o) => `<small>${badge(o.status)} <span class="mono">${esc(o.url)}</span></small>`).join("")}${j.status === "retry" ? `<button class="secondary" data-action="retry" data-id="${j.id}">Retry now</button>` : ""}`,
-            ]),
-          )
-        : empty(
-            "No issuance jobs",
-            "Requested certificates and automatic renewals appear here.",
-          ));
-  }
+      `<div class="route-guide"><span>Public domain</span>${icon("arrow")}<span class="route-active">${icon("shield")}Aegis WAF · TLS</span>${icon("arrow")}<span>Your upstream</span></div><div id="site-list">${sitesList()}</div><div class="page-note">${icon("clock")}Saved changes reach every gateway replica within 2 seconds.</div>`;
+  if (page === "authorities")
+    view.innerHTML =
+      heading(
+        "Certificate authorities",
+        "Accounts used to request and renew your ACME certificates.",
+        button("new-account", `${icon("plus")}Add authority`),
+      ) +
+      (!state.accounts.length
+        ? `<section class="empty-state"><div class="empty-icon">${icon("key")}</div><h2>Choose your certificate authority</h2><p>Connect to Let’s Encrypt or a custom ACME server.<br class="desktop-only"> You’ll review its terms before creating an account.</p>${button("new-account", "Set up ACME")}</section>`
+        : `<div class="authority-list">${state.accounts.map((a) => `<article class="authority-card"><span class="resource-icon">${icon("key")}</span><div><h2>${esc(authority(a))}</h2><p>${esc(a.email)}</p><span class="domain muted">${esc(a.directory)}</span><small>Terms accepted ${esc(date(a.tos_accepted_at))}</small></div>${badge(a.directory.includes("staging") ? "Test certificates" : "Registered", a.directory.includes("staging") ? "warning" : "success")}</article>`).join("")}</div>`) +
+      `<div class="info-panel"><h3>Start with staging</h3><p>Use Let’s Encrypt staging to check DNS and HTTP-01 reachability. Switch to production for certificates trusted by browsers.</p></div>`;
   if (page === "activity") {
+    view.innerHTML =
+      heading(
+        "Activity",
+        "Administrative changes and recent requests to your applications.",
+        button("refresh", `${icon("refresh")}Refresh`, "secondary"),
+      ) + '<div class="loading">Loading activity…</div>';
+    const stamp = epoch;
     const [audit, access] = await Promise.all([
       api<Audit[]>("/audit"),
       api<Access[]>("/access-logs"),
     ]);
+    if (stamp !== epoch || page !== "activity") return;
     view.innerHTML =
       heading(
-        "Operational history",
         "Activity",
-        "The latest 200 audit events and access records. Request bodies, query strings, and keys are excluded.",
-        refreshBtn,
+        "Administrative changes and recent requests to your applications.",
+        button("refresh", `${icon("refresh")}Refresh`, "secondary"),
       ) +
-      `<h2>Administrative audit</h2>` +
-      (audit.length
-        ? table(
-            ["Time", "Actor", "Action", "Resource"],
-            audit.map((a) => [
-              esc(date(a.at)),
-              esc(a.actor),
-              `<span class="mono">${esc(a.action)}</span>`,
-              esc(a.resource),
-            ]),
-          )
-        : empty(
-            "No audit events",
-            "Security-relevant administrative actions appear here.",
-          )) +
-      "<h2>Application access</h2>" +
-      (access.length
-        ? table(
-            ["Time", "Site / sender", "Method / status", "Duration"],
-            access.map((a) => [
-              esc(date(a.at)),
-              `${a.site_id}<small class="mono">${esc(a.peer)}</small>`,
-              `${esc(a.method)} · ${a.status}`,
-              `${a.duration_ms} ms`,
-            ]),
-          )
-        : empty(
-            "No access records",
-            "Records appear after requests reach a configured site.",
-          ));
+      `<section class="section"><div class="section-heading"><h2>Administrative audit</h2><span class="muted">Latest 200 events</span></div>${
+        audit.length
+          ? table(
+              ["Time", "Administrator", "Action", "Resource"],
+              audit.map((a) => [
+                esc(dateTime(a.at)),
+                esc(a.actor),
+                esc(a.action),
+                esc(a.resource),
+              ]),
+              "Administrative audit",
+            )
+          : '<div class="simple-empty">Administrative changes will appear here.</div>'
+      }</section><section class="section"><div class="section-heading"><h2>Application requests</h2><span class="muted">Latest 200 requests</span></div>${
+        access.length
+          ? table(
+              ["Time", "Site / sender", "Request", "Duration"],
+              access.map((a) => [
+                esc(dateTime(a.at)),
+                `${a.site_id}<small>${esc(a.peer)}</small>`,
+                `${esc(a.method)} · ${a.status}`,
+                `${a.duration_ms} ms`,
+              ]),
+              "Application requests",
+            )
+          : '<div class="simple-empty">Requests appear after a proxy host starts receiving traffic.</div>'
+      }</section>`;
+  }
+  updateConnection();
+}
+function updateConnection(degraded = false) {
+  const el = document.getElementById("connection");
+  if (!el) return;
+  el.classList.toggle(
+    "degraded",
+    degraded || !state.gateway.database_available,
+  );
+  el.innerHTML = `<span></span>${degraded ? "Connection interrupted" : state.gateway.database_available ? "Gateway connected" : "Database unavailable"}`;
+}
+async function refresh() {
+  page = currentPage();
+  const stamp = ++epoch;
+  shell();
+  try {
+    const next = await fetchState();
+    if (stamp !== epoch || !username) return;
+    state = next;
+    lastSignature = JSON.stringify(next);
+    await render();
+  } catch (error) {
+    if (stamp !== epoch) return;
+    const view = document.getElementById("view");
+    if (view)
+      view.innerHTML = `<div class="empty-state"><h2>Workspace unavailable</h2><p>Check the gateway’s database connection and try again.</p>${button("refresh", "Try again", "secondary")}</div>`;
+    await handleError(error);
   }
 }
-function editor(html: string) {
-  const el = document.getElementById("editor")!;
-  el.innerHTML = `<section class="panel form-panel">${html}</section>`;
-  el.scrollIntoView({
-    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? "auto"
-      : "smooth",
-    block: "start",
-  });
-  el.querySelector<HTMLElement>("input,select,textarea")?.focus();
+async function poll() {
+  if (
+    polling ||
+    !username ||
+    document.hidden ||
+    (document.getElementById("editor") as HTMLDialogElement | null)?.open ||
+    page === "activity"
+  )
+    return;
+  polling = true;
+  const stamp = epoch;
+  try {
+    const next = await fetchState();
+    if (
+      stamp !== epoch ||
+      !username ||
+      (document.getElementById("editor") as HTMLDialogElement | null)?.open
+    )
+      return;
+    state = next;
+    updateConnection();
+    const signature = JSON.stringify(next);
+    if (signature !== lastSignature) {
+      lastSignature = signature;
+      const focus = document.activeElement as HTMLElement;
+      const focusAction = focus?.dataset.action,
+        focusID = focus?.dataset.id;
+      await render();
+      if (focusAction) {
+        const target = document.querySelector<HTMLElement>(
+          `button[data-action="${CSS.escape(focusAction)}"]${focusID ? `[data-id="${CSS.escape(focusID)}"]` : ""}`,
+        );
+        target?.focus();
+      }
+    }
+  } catch (error) {
+    if (stamp !== epoch) return;
+    if (error instanceof APIError && error.status === 401)
+      await handleError(error);
+    else updateConnection(true);
+  } finally {
+    polling = false;
+  }
 }
-function siteForm(s?: Site) {
-  editor(
-    `<h2>${s ? "Edit site" : "Add protected site"}</h2><form id="site-form">${field("name", "Application name", s?.name || "", "text", 'required maxlength="120"')}${field("hostnames", "Hostnames", s?.hostnames.join(", ") || "", "text", 'required placeholder="app.example.com, www.example.com"')}<small>Comma-separated exact DNS hostnames. Wildcard routing is not enabled.</small>${field("upstream", "Upstream URL", s?.upstream || "", "url", 'required placeholder="http://service:3000"')}<label>TLS certificate<select name="certificate_id" aria-label="TLS certificate"><option value="">HTTP only</option>${certs
-      .filter((c) => c.validity === "valid")
+function openEditor(title: string, html: string, step = 0) {
+  const dialog = document.getElementById("editor") as HTMLDialogElement;
+  if (!dialog.open) returnFocus = document.activeElement as HTMLElement;
+  dialog.innerHTML = `<div class="dialog-heading"><div>${step ? `<div class="step-label">STEP ${step} OF 2 · ${step === 1 ? "AUTHORITY" : "DOMAINS"}</div>` : ""}<h2 id="editor-title">${title}</h2></div><button class="icon-button" data-action="cancel" aria-label="Close dialog">${icon("close")}</button></div><div id="form-message" aria-live="polite"></div><div class="dialog-body">${html}</div>`;
+  if (!dialog.open) dialog.showModal();
+  dialog.querySelector<HTMLElement>("input,select,textarea")?.focus();
+}
+function closeEditor() {
+  (document.getElementById("editor") as HTMLDialogElement | null)?.close();
+}
+function siteForm(site?: Site, certificate?: Certificate) {
+  const c = site
+    ? state.certs.find((c) => c.id === site.certificate_id)
+    : certificate;
+  openEditor(
+    site ? "Edit proxy host" : "Connect an application",
+    `<p class="form-intro">Choose the domain visitors will use and the address where your application runs.</p><form id="site-form">${field("name", "Name", site?.name || c?.name || "", "text", 'required maxlength="120" placeholder="My application"')}${field("hostnames", "Domains", site?.hostnames.join(", ") || c?.domains.filter((h) => !h.includes("*")).join(", ") || "", "text", 'required placeholder="app.example.com"')}<small>Separate multiple domains with commas.</small>${field("upstream", "Upstream URL", site?.upstream || "", "url", 'required placeholder="http://192.168.1.20:3000"')}<div class="form-divider"></div><label class="field" for="site-certificate">TLS certificate</label><select id="site-certificate" name="certificate_id"><option value="">HTTP only · no certificate</option>${state.certs
+      .filter((v) => v.validity === "valid" || v.id === site?.certificate_id)
       .map(
-        (c) =>
-          `<option value="${c.id}" ${c.id === s?.certificate_id ? "selected" : ""}>${esc(c.name)} · ${esc(c.domains.join(", "))}</option>`,
+        (v) =>
+          `<option value="${v.id}" ${v.id === c?.id ? "selected" : ""}>${esc(v.name)} · ${esc(v.domains.join(", "))}${v.validity !== "valid" ? " (expired)" : ""}</option>`,
       )
       .join(
         "",
-      )}</select></label>${check("redirect_https", "Redirect HTTP to HTTPS", s?.redirect_https ?? false)}${check("preserve_host", "Preserve the original Host header", s?.preserve_host ?? true)}${check("enabled", "Enable routing", s?.enabled ?? true)}${actions("Save site")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
   );
+  const select = document.getElementById(
+    "site-certificate",
+  ) as HTMLSelectElement;
+  select.addEventListener("change", () => {
+    const redirect = document.querySelector<HTMLInputElement>(
+      "[name=redirect_https]",
+    )!;
+    redirect.disabled = !select.value;
+    redirect.checked = Boolean(select.value);
+  });
   formHandler("site-form", async (f) => {
-    await api("/sites" + (s ? "/" + s.id : ""), s ? "PUT" : "POST", {
+    await api("/sites" + (site ? "/" + site.id : ""), site ? "PUT" : "POST", {
       name: f.get("name"),
       hostnames: names(f.get("hostnames")),
       upstream: f.get("upstream"),
@@ -373,13 +552,15 @@ function siteForm(s?: Site) {
       preserve_host: f.has("preserve_host"),
       enabled: f.has("enabled"),
     });
+    closeEditor();
     await refresh();
-    notice("Site saved. Replicas apply this configuration within 2 seconds.");
+    notice("Proxy host saved. Your gateway will apply it within 2 seconds.");
   });
 }
 function uploadForm(c?: Certificate) {
-  editor(
-    `<h2>${c ? "Replace certificate" : "Upload certificate"}</h2><p class="muted">Paste the leaf certificate followed by intermediate certificates, and an unencrypted PEM private key. The chain must be currently valid.</p><form id="upload-form">${field("name", "Certificate name", c?.name || "", "text", 'required maxlength="120"')}<label>PEM certificate chain<textarea name="chain_pem" required spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label><label>PEM private key<textarea name="private_key_pem" required spellcheck="false" autocomplete="off" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></label><small>PKCS#8, RSA PKCS#1, or EC SEC1. A replacement must cover every assigned hostname.</small>${actions(c ? "Replace certificate" : "Upload certificate")}</form>`,
+  openEditor(
+    c ? "Replace certificate" : "Upload a PEM certificate",
+    `<p class="form-intro">Add your certificate chain and matching private key. Keys are encrypted on the server and cannot be downloaded.</p><form id="upload-form">${field("name", "Certificate name", c?.name || "", "text", 'required maxlength="120"')}<label class="field">PEM certificate chain<textarea name="chain_pem" required spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label><small>Leaf certificate first, followed by intermediate certificates.</small><label class="field">PEM private key<textarea name="private_key_pem" required spellcheck="false" autocomplete="off" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></label>${actions(c ? "Replace certificate" : "Upload certificate")}</form>`,
   );
   formHandler("upload-form", async (f) => {
     await api(
@@ -387,166 +568,307 @@ function uploadForm(c?: Certificate) {
       c ? "PUT" : "POST",
       Object.fromEntries(f),
     );
-    await refresh();
-    notice("Certificate saved. TLS updates on every replica within 2 seconds.");
-  });
-}
-function accountForm() {
-  editor(
-    `<h2>Register an ACME account</h2><form id="account-form"><label>Certificate authority<select name="directory" id="directory" aria-label="Certificate authority"><option value="staging">Let’s Encrypt · staging (test certificates)</option><option value="production">Let’s Encrypt · production</option><option value="custom">Custom ACME directory</option></select></label>${field("custom", "Custom directory URL (when selected)", "", "url", 'placeholder="https://ca.example.com/directory"')}${field("email", "Account email", "", "email", 'required autocomplete="email"')}<button class="secondary" type="button" data-action="review-terms">Load CA terms</button><div id="ca-terms"></div>${check("accept_terms", "I have read and accept this certificate authority’s terms of service.")}<small>Acceptance is recorded with the account. Staging certificates are not trusted by browsers.</small>${actions("Register account")}</form>`,
-  );
-  formHandler("account-form", async (f) => {
-    if (!f.has("accept_terms"))
-      throw new Error("Explicit acceptance of the CA terms is required.");
-    const directory =
-      f.get("directory") === "custom"
-        ? String(f.get("custom"))
-        : String(f.get("directory"));
-    if (directory !== reviewedDirectory)
-      throw new Error(
-        "Load and review the terms for the selected CA before registering.",
-      );
-    await api("/acme/accounts", "POST", {
-      directory,
-      email: f.get("email"),
-      accept_terms: true,
-    });
-    await refresh();
-    notice("ACME account registered.");
-  });
-}
-let reviewedDirectory = "";
-function issueForm() {
-  if (!accounts.length) {
-    notice("Register an ACME account first.", true);
-    return;
-  }
-  editor(
-    `<h2>Request an HTTP-01 certificate</h2><p class="muted">Point each hostname’s public DNS to this gateway and forward public port 80 to HTTP port 8080. Challenges are shared through PostgreSQL.</p><form id="issue-form">${field("name", "Certificate name", "", "text", 'required maxlength="120"')}${field("domains", "Hostnames", "", "text", 'required placeholder="app.example.com, www.example.com"')}<label>ACME account<select name="account_id" aria-label="ACME account">${accounts.map((a) => `<option value="${a.id}">${esc(a.email)} · ${esc(a.directory)}</option>`).join("")}</select></label>${actions("Queue issuance")}</form>`,
-  );
-  formHandler("issue-form", async (f) => {
-    await api("/acme/certificates", "POST", {
-      name: f.get("name"),
-      domains: names(f.get("domains")),
-      account_id: Number(f.get("account_id")),
-    });
+    closeEditor();
     await refresh();
     notice(
-      "Issuance queued. Refresh job status to follow progress; attach the certificate after issuance completes.",
+      "Certificate saved. TLS updates across your gateway within 2 seconds.",
     );
   });
 }
+function accountForm(continueToIssue = false) {
+  reviewedDirectory = "";
+  openEditor(
+    "Connect a certificate authority",
+    `<p class="form-intro">An ACME account lets Aegis request certificates and renew them automatically.</p><form id="account-form"><label class="field" for="directory">Certificate authority</label><select name="directory" id="directory"><option value="staging">Let’s Encrypt · staging (testing)</option><option value="production">Let’s Encrypt · production</option><option value="custom">Custom ACME server</option></select><div id="custom-directory" hidden>${field("custom", "Directory URL", "", "url", 'placeholder="https://ca.example.com/directory"')}</div>${field("email", "Account email", "", "email", 'required autocomplete="email" placeholder="you@example.com"')}<div class="terms-box"><div id="ca-terms" aria-live="polite">Loading authority terms…</div>${button("review-terms", "Reload terms", "text-button")}${check("accept_terms", "I accept this authority’s terms of service.", false, "required disabled")}</div><small>Staging certificates are for testing and won’t be trusted by browsers.</small>${actions(continueToIssue ? "Continue to domains" : "Connect authority")}</form>`,
+    continueToIssue ? 1 : 0,
+  );
+  const directory = document.getElementById("directory") as HTMLSelectElement;
+  directory.addEventListener("change", () => {
+    termsSerial++;
+    document.querySelector<HTMLButtonElement>(
+      '[data-action="review-terms"]',
+    )!.disabled = false;
+    document.getElementById("custom-directory")!.hidden =
+      directory.value !== "custom";
+    reviewedDirectory = "";
+    const checkbox = document.querySelector<HTMLInputElement>(
+      "[name=accept_terms]",
+    )!;
+    checkbox.checked = false;
+    checkbox.disabled = true;
+    document.getElementById("ca-terms")!.textContent =
+      directory.value === "custom"
+        ? "Enter your directory URL, then load its terms."
+        : "Loading authority terms…";
+    if (directory.value !== "custom") void loadTerms();
+  });
+  document.querySelector("[name=custom]")!.addEventListener("input", () => {
+    termsSerial++;
+    document.querySelector<HTMLButtonElement>(
+      '[data-action="review-terms"]',
+    )!.disabled = false;
+    reviewedDirectory = "";
+    const checkbox = document.querySelector<HTMLInputElement>(
+      "[name=accept_terms]",
+    )!;
+    checkbox.checked = false;
+    checkbox.disabled = true;
+  });
+  formHandler("account-form", async (f) => {
+    const dir =
+      directory.value === "custom" ? String(f.get("custom")) : directory.value;
+    if (!f.has("accept_terms") || reviewedDirectory !== dir)
+      throw new Error(
+        "Load and accept the terms for this certificate authority first.",
+      );
+    const account = await api<{ id: number }>("/acme/accounts", "POST", {
+      directory: dir,
+      email: f.get("email"),
+      accept_terms: true,
+    });
+    state = await fetchState();
+    if (continueToIssue) issueForm(account.id);
+    else {
+      closeEditor();
+      await refresh();
+      notice(
+        "Certificate authority connected. You can now request a certificate.",
+      );
+    }
+  });
+  void loadTerms();
+}
+async function loadTerms() {
+  const form = document.getElementById(
+    "account-form",
+  ) as HTMLFormElement | null;
+  if (!form) return;
+  const serial = ++termsSerial;
+  const data = new FormData(form);
+  const directory = String(
+    data.get("directory") === "custom"
+      ? data.get("custom")
+      : data.get("directory"),
+  );
+  const target = document.getElementById("ca-terms")!;
+  const checkbox = form.querySelector<HTMLInputElement>("[name=accept_terms]")!;
+  const reload = form.querySelector<HTMLButtonElement>(
+    "[data-action=review-terms]",
+  )!;
+  reviewedDirectory = "";
+  checkbox.disabled = true;
+  checkbox.checked = false;
+  reload.disabled = true;
+  target.textContent = "Loading authority terms…";
+  try {
+    const result = await api<{ terms_url: string }>(
+      "/acme/directory?url=" + encodeURIComponent(directory),
+    );
+    const current = new FormData(form);
+    const currentDirectory = String(
+      current.get("directory") === "custom"
+        ? current.get("custom")
+        : current.get("directory"),
+    );
+    if (
+      !form.isConnected ||
+      currentDirectory !== directory ||
+      serial !== termsSerial
+    )
+      return;
+    const plainTerms = result.terms_url.match(
+      /^data:text\/plain(?:;charset=utf-8)?,(.*)$/is,
+    );
+    if (plainTerms) {
+      const text = decodeURIComponent(plainTerms[1]);
+      if (text.length > 20000)
+        throw new Error(
+          "The authority's inline terms are too long to display.",
+        );
+      target.innerHTML = `<div class="inline-terms">${esc(text)}</div>`;
+    } else {
+      const u = result.terms_url ? new URL(result.terms_url) : null;
+      if (u && u.protocol !== "https:")
+        throw new Error("The authority returned an unsupported terms URL.");
+      target.innerHTML = u
+        ? `<a href="${esc(u.href)}" target="_blank" rel="noopener noreferrer">Read the authority’s terms of service ↗</a>`
+        : "This authority does not publish a terms-of-service link.";
+    }
+    reviewedDirectory = directory;
+    checkbox.disabled = false;
+  } catch (error) {
+    if (form.isConnected && serial === termsSerial) {
+      target.textContent =
+        "Could not load the terms. Check the directory URL and try again.";
+      await handleError(error);
+    }
+  } finally {
+    if (serial === termsSerial) reload.disabled = false;
+  }
+}
+function issueForm(accountID?: number) {
+  if (!state.accounts.length) {
+    accountForm(true);
+    return;
+  }
+  const account =
+    state.accounts.find((a) => a.id === accountID) || state.accounts[0];
+  openEditor(
+    "Request a certificate",
+    `<p class="form-intro">Tell Aegis which domains to secure. Your certificate will renew automatically after issuance.</p><form id="issue-form"><label class="field" for="issue-account">Certificate authority</label><select id="issue-account" name="account_id">${state.accounts.map((a) => `<option value="${a.id}" ${a.id === account.id ? "selected" : ""}>${esc(authority(a))} · ${esc(a.email)}</option>`).join("")}</select>${field("domains", "Domains", "", "text", 'required placeholder="app.example.com, www.example.com"')}<small>Use exact domain names. HTTP-01 does not support wildcards.</small>${field("name", "Certificate name (optional)", "", "text", 'maxlength="120" placeholder="Uses your first domain"')}<div class="info-panel compact-info"><h3>Before you request</h3><p>Point each domain’s DNS to this gateway and forward public port 80 to its HTTP listener. An existing proxy host isn’t required.</p>${check("dns_ready", "My DNS and port 80 forwarding are ready.", false, "required")}</div>${actions("Request certificate")}</form>`,
+    2,
+  );
+  formHandler("issue-form", async (f) => {
+    const hosts = names(f.get("domains"));
+    await api("/acme/certificates", "POST", {
+      name: String(f.get("name") || "").trim() || hosts[0],
+      domains: hosts,
+      account_id: Number(f.get("account_id")),
+    });
+    closeEditor();
+    if (page !== "certificates") history.pushState(null, "", "#certificates");
+    await refresh();
+    notice(
+      "Certificate requested. Issuance progress will update automatically below.",
+    );
+  });
+}
+function certificateDetails(c: Certificate) {
+  const job = newestJob(c.id);
+  openEditor(
+    c.name,
+    `<div class="detail-status">${certStatus(c)}${badge(c.origin === "acme" ? "Automatic renewal" : "Uploaded PEM")}</div><dl class="details"><dt>Covered domains</dt><dd class="domain">${c.domains.map(esc).join("<br>")}</dd><dt>Issuer</dt><dd>${esc(c.issuer || "Waiting for issuance")}</dd><dt>Valid from</dt><dd>${esc(date(c.not_before))}</dd><dt>Expires</dt><dd>${esc(date(c.not_after))}</dd><dt>Connected sites</dt><dd>${c.assigned_sites.map((s) => esc(s.name)).join(", ") || "Not connected yet"}</dd></dl>${job ? `<details class="advanced"><summary>ACME details</summary><p>Attempt ${job.attempts} · ${esc(job.status)}</p>${job.error ? `<p class="error-text">${esc(job.error)}</p>` : ""}${job.orders.map((o) => `<small class="domain">${esc(o.status)} · ${esc(o.url)}</small>`).join("")}</details>` : ""}<div class="form-actions split-actions">${button("delete-cert", "Delete certificate", "danger", c.id)}<div>${c.origin === "upload" ? button("replace", "Replace PEM", "secondary", c.id) : ""}${c.validity === "valid" ? button("connect", `${icon("arrow")}Connect site`, "primary", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry now", "primary", job.id) : ""}</div></div>`,
+  );
+}
 root.addEventListener("click", async (e) => {
-  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
     "button[data-action]",
   );
-  if (!btn) return;
-  const id = Number(btn.dataset.id);
+  if (!b) return;
+  const action = b.dataset.action,
+    id = Number(b.dataset.id);
   try {
-    switch (btn.dataset.action) {
-      case "refresh":
-        await refresh();
-        break;
+    switch (action) {
       case "cancel":
-        document.getElementById("editor")!.innerHTML = "";
+        closeEditor();
         break;
       case "logout":
         await api("/logout", "POST", {});
         username = "";
         csrf = "";
+        epoch++;
         await start();
+        break;
+      case "refresh":
+        await refresh();
+        break;
+      case "issue":
+        issueForm();
+        break;
+      case "new-account":
+        accountForm();
+        break;
+      case "review-terms":
+        await loadTerms();
         break;
       case "new-site":
         siteForm();
         break;
       case "edit-site":
-        siteForm(sites.find((s) => s.id === id));
+        siteForm(state.sites.find((s) => s.id === id));
         break;
+      case "connect": {
+        const c = state.certs.find((c) => c.id === id);
+        if (page !== "proxy-hosts") {
+          closeEditor();
+          history.pushState(null, "", "#proxy-hosts");
+          await refresh();
+        }
+        siteForm(undefined, c);
+        break;
+      }
       case "upload":
         uploadForm();
         break;
       case "replace":
-        uploadForm(certs.find((c) => c.id === id));
+        uploadForm(state.certs.find((c) => c.id === id));
         break;
-      case "new-account":
-        reviewedDirectory = "";
-        accountForm();
+      case "view-cert": {
+        const c = state.certs.find((c) => c.id === id);
+        if (c) certificateDetails(c);
         break;
-      case "issue":
-        issueForm();
+      }
+      case "retry":
+        b.disabled = true;
+        await api(`/acme/jobs/${id}/retry`, "POST", {});
+        closeEditor();
+        await refresh();
+        notice("Retry queued. Progress will update automatically.");
         break;
       case "delete-site":
       case "delete-cert":
         if (
           confirm(
-            `Delete this ${btn.dataset.action === "delete-site" ? "site and stop its routing" : "certificate"}?`,
+            action === "delete-site"
+              ? "Delete this proxy host and stop routing its traffic?"
+              : "Delete this certificate? Attached certificates must be disconnected first.",
           )
         ) {
           await api(
-            `/${btn.dataset.action === "delete-site" ? "sites" : "certificates"}/${id}`,
+            `/${action === "delete-site" ? "sites" : "certificates"}/${id}`,
             "DELETE",
           );
+          closeEditor();
           await refresh();
-          notice("Deleted. Replicas update within 2 seconds.");
+          notice(
+            action === "delete-site"
+              ? "Proxy host deleted."
+              : "Certificate deleted.",
+          );
         }
         break;
-      case "retry":
-        btn.disabled = true;
-        await api(`/acme/jobs/${id}/retry`, "POST", {});
-        await refresh();
-        notice("Retry queued.");
+      case "reconnect":
+        await start();
         break;
-      case "review-terms": {
-        const f = new FormData(
-          document.getElementById("account-form") as HTMLFormElement,
-        );
-        const directory = String(
-          f.get("directory") === "custom"
-            ? f.get("custom")
-            : f.get("directory"),
-        );
-        btn.disabled = true;
-        const terms = await api<{ terms_url: string }>(
-          `/acme/directory?url=${encodeURIComponent(directory)}`,
-        );
-        const u = terms.terms_url ? new URL(terms.terms_url) : null;
-        if (u && u.protocol !== "https:")
-          throw new Error("The CA returned a non-HTTPS terms URL.");
-        document.getElementById("ca-terms")!.innerHTML = u
-          ? `<p><a href="${esc(u.href)}" target="_blank" rel="noopener noreferrer">Read this CA’s terms of service ↗</a></p>`
-          : "<p>This CA did not advertise a terms-of-service URL.</p>";
-        reviewedDirectory = directory;
-        break;
-      }
     }
-  } catch (e) {
-    notice((e as Error).message, true);
+  } catch (error) {
+    await handleError(error);
   } finally {
-    btn.disabled = false;
+    b.disabled = false;
   }
 });
 window.addEventListener("hashchange", () => {
   if (username) void refresh();
 });
+setInterval(() => void poll(), 4000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) void poll();
+});
 async function start() {
-  root.innerHTML = '<div class="loading">Connecting to management…</div>';
+  root.innerHTML =
+    '<main class="auth-loading">Connecting to your gateway…</main>';
   try {
     const setup = await api<{ setup_required: boolean }>("/setup");
-    try {
-      const me = await api<{ username: string; csrf: string }>("/me");
-      username = me.username;
-      csrf = me.csrf;
-      await refresh();
-      return;
-    } catch (e) {
-      if (!(e as Error).message.match(/authentication|expired/)) throw e;
+    if (!setup.setup_required) {
+      try {
+        const me = await api<{ username: string; csrf: string }>("/me");
+        username = me.username;
+        csrf = me.csrf;
+        await refresh();
+        return;
+      } catch (error) {
+        if (!(error instanceof APIError) || error.status !== 401) throw error;
+      }
     }
-    root.innerHTML = `<main class="auth" id="content"><div class="brand"><b>A</b>Aegis WAF</div><div class="eyebrow">Private gateway console</div><h1>${setup.setup_required ? "Create your administrator" : "Sign in to your gateway"}</h1><p class="muted">${setup.setup_required ? "Use your deployment bootstrap secret to establish the first administrator. Setup is available only once." : "Manage protected sites, certificates, and renewal operations."}</p><div id="message" aria-live="polite"></div><form id="auth-form">${setup.setup_required ? field("secret", "Bootstrap secret", "", "password", 'required autocomplete="off"') : ""}${field("username", "Username", "", "text", 'required minlength="3" maxlength="64" autocomplete="username"')}${field("password", "Password", "", "password", `required ${setup.setup_required ? 'minlength="14" maxlength="72" autocomplete="new-password"' : 'autocomplete="current-password"'}`)}${setup.setup_required ? "<small>Choose a unique password of 14–72 bytes. There are no default credentials.</small>" : ""}<button type="submit" data-label="${setup.setup_required ? "Create administrator" : "Sign in"}">${setup.setup_required ? "Create administrator" : "Sign in"}</button></form><small>Use an HTTPS management endpoint or a localhost tunnel.</small></main>`;
+    document.title = setup.setup_required
+      ? "Set up your gateway · Aegis WAF"
+      : "Sign in · Aegis WAF";
+    root.innerHTML = `<div class="auth-shell"><aside class="auth-story"><a href="#certificates" class="brand">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div><div class="eyebrow">YOUR APPLICATIONS. YOUR EDGE.</div><h2>A secure home for<br>every application.</h2><p>Manage your certificates.<br>Connect your domains.<br>Keep your infrastructure yours.</p></div><small>Self-hosted · Certificate management & reverse proxy</small></aside><main class="auth-main" id="content"><div class="auth-card"><span class="auth-symbol">${icon("shield")}</span><h1>${setup.setup_required ? "Set up your gateway" : "Welcome back"}</h1><p class="muted">${setup.setup_required ? "Create the administrator account for your Aegis workspace." : "Sign in to manage certificates and proxy hosts."}</p><div id="message" aria-live="polite"></div><form id="auth-form">${setup.setup_required ? field("secret", "Bootstrap secret", "", "password", 'required autocomplete="off"') : ""}${field("username", "Username", "", "text", 'required minlength="3" maxlength="64" autocomplete="username"')}${field("password", "Password", "", "password", `required ${setup.setup_required ? 'minlength="14" maxlength="72" autocomplete="new-password"' : 'autocomplete="current-password"'}`)}${setup.setup_required ? "<small>Use a unique password of 14–72 bytes. Your bootstrap secret comes from deployment setup.</small>" : ""}<button class="primary auth-submit" type="submit" data-label="${setup.setup_required ? "Create administrator" : "Sign in"}">${setup.setup_required ? "Create administrator" : "Sign in"}${icon("arrow")}</button></form><div class="auth-footnote">${icon("key")}Your workspace. Your infrastructure.</div></div></main></div>`;
     formHandler("auth-form", async (f) => {
       if (setup.setup_required) {
         await api("/setup", "POST", Object.fromEntries(f));
         await start();
-        notice("Administrator created. Sign in to continue.");
+        notice("Administrator created. Sign in to get started.");
       } else {
         const me = await api<{ username: string; csrf: string }>(
           "/login",
@@ -558,11 +880,9 @@ async function start() {
         await refresh();
       }
     });
-  } catch (e) {
-    root.innerHTML = `<main class="auth" id="content"><h1>Gateway unavailable</h1><p role="alert">${esc((e as Error).message)}</p><p>The management database must be available before setup or sign-in.</p><button data-action="reconnect">Retry connection</button></main>`;
-    root
-      .querySelector("[data-action=reconnect]")
-      ?.addEventListener("click", () => void start());
+  } catch (error) {
+    root.innerHTML = `<main id="content" class="auth-loading"><h1>Gateway unavailable</h1><div id="message"></div><p>Check the database connection, then try again.</p>${button("reconnect", "Retry connection", "secondary")}</main>`;
+    notice(error instanceof Error ? error.message : "Connection failed.", true);
   }
 }
 void start();
