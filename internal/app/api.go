@@ -163,6 +163,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("POST /api/acme/jobs/{id}/retry", a.wrap(true, a.retryJob))
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
 	m.HandleFunc("GET /api/access-logs", a.wrap(true, a.listAccess))
+	ruleAPI(a, m)
 	f, _ := fs.Sub(assets, "assets")
 	m.Handle("GET /", http.FileServer(http.FS(f)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

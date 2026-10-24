@@ -1,3 +1,4 @@
+import { makePolicyUI } from "./policies";
 export {};
 type Site = {
   id: number;
@@ -57,6 +58,7 @@ type Access = {
   status: number;
   duration_ms: number;
   peer: string;
+  rule_results: { rule_id: number; action: string; result: string }[];
 };
 type State = {
   sites: Site[];
@@ -256,7 +258,14 @@ function currentPage() {
   const raw = location.hash.slice(1) || "certificates";
   return (
     aliases[raw] ||
-    (["certificates", "proxy-hosts", "authorities", "activity"].includes(raw)
+    ([
+      "certificates",
+      "proxy-hosts",
+      "authorities",
+      "activity",
+      "rules",
+      "traffic",
+    ].includes(raw)
       ? raw
       : "certificates")
   );
@@ -265,9 +274,11 @@ function shell() {
   const nav = [
     ["certificates", "certificate", "Certificates"],
     ["proxy-hosts", "globe", "Proxy hosts"],
+    ["rules", "shield", "Rules"],
+    ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity" }[page]}</strong></span><div id="connection" class="connection"><span></span>Gateway connected</div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div id="connection" class="connection"><span></span>Gateway connected</div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -354,7 +365,7 @@ function sitesList() {
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "certificates")
     view.innerHTML =
       heading(
@@ -419,17 +430,33 @@ async function render() {
       }</section><section class="section"><div class="section-heading"><h2>Application requests</h2><span class="muted">Latest 200 requests</span></div>${
         access.length
           ? table(
-              ["Time", "Site / sender", "Request", "Duration"],
+              ["Time", "Site / sender", "Request", "Rule outcomes", "Duration"],
               access.map((a) => [
                 esc(dateTime(a.at)),
                 `${a.site_id}<small>${esc(a.peer)}</small>`,
                 `${esc(a.method)} · ${a.status}`,
+                a.rule_results
+                  ?.map(
+                    (r) =>
+                      `#${r.rule_id} · ${esc(r.action)} · ${esc(r.result)}`,
+                  )
+                  .join("<br>") || "—",
                 `${a.duration_ms} ms`,
               ]),
               "Application requests",
             )
           : '<div class="simple-empty">Requests appear after a proxy host starts receiving traffic.</div>'
       }</section>`;
+  }
+  if (page === "rules" || page === "traffic") {
+    const stamp = epoch;
+    view.innerHTML = '<div class="loading">Loading policy workspace…</div>';
+    const html =
+      page === "rules"
+        ? await policyUI.renderRules()
+        : await policyUI.renderTraffic();
+    if (stamp !== epoch) return;
+    view.innerHTML = html;
   }
   updateConnection();
 }
@@ -466,7 +493,8 @@ async function poll() {
     !username ||
     document.hidden ||
     (document.getElementById("editor") as HTMLDialogElement | null)?.open ||
-    page === "activity"
+    page === "activity" ||
+    page === "traffic"
   )
     return;
   polling = true;
@@ -482,7 +510,7 @@ async function poll() {
     state = next;
     updateConnection();
     const signature = JSON.stringify(next);
-    if (signature !== lastSignature) {
+    if (signature !== lastSignature || page === "rules") {
       lastSignature = signature;
       const focus = document.activeElement as HTMLElement;
       const focusAction = focus?.dataset.action,
@@ -507,7 +535,7 @@ async function poll() {
 function openEditor(title: string, html: string, step = 0) {
   const dialog = document.getElementById("editor") as HTMLDialogElement;
   if (!dialog.open) returnFocus = document.activeElement as HTMLElement;
-  dialog.innerHTML = `<div class="dialog-heading"><div>${step ? `<div class="step-label">STEP ${step} OF 2 · ${step === 1 ? "AUTHORITY" : "DOMAINS"}</div>` : ""}<h2 id="editor-title">${title}</h2></div><button class="icon-button" data-action="cancel" aria-label="Close dialog">${icon("close")}</button></div><div id="form-message" aria-live="polite"></div><div class="dialog-body">${html}</div>`;
+  dialog.innerHTML = `<div class="dialog-heading"><div>${step ? `<div class="step-label">STEP ${step} OF 2 · ${step === 1 ? "AUTHORITY" : "DOMAINS"}</div>` : ""}<h2 id="editor-title">${esc(title)}</h2></div><button class="icon-button" data-action="cancel" aria-label="Close dialog">${icon("close")}</button></div><div id="form-message" aria-live="polite"></div><div class="dialog-body">${html}</div>`;
   if (!dialog.open) dialog.showModal();
   dialog.querySelector<HTMLElement>("input,select,textarea")?.focus();
 }
@@ -748,6 +776,7 @@ root.addEventListener("click", async (e) => {
   const action = b.dataset.action,
     id = Number(b.dataset.id);
   try {
+    if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
       case "cancel":
         closeEditor();
@@ -885,4 +914,13 @@ async function start() {
     notice(error instanceof Error ? error.message : "Connection failed.", true);
   }
 }
+const policyUI = makePolicyUI({
+  api,
+  sites: () => state.sites,
+  openEditor,
+  closeEditor,
+  formHandler,
+  refresh,
+  notice,
+});
 void start();

@@ -68,14 +68,14 @@ const { execFileSync } = require("node:child_process");
       key: fs.readFileSync(key, "utf8"),
     };
   };
-  const httpsRequest = (port, host, ca) =>
+  const httpsRequest = (port, host, ca, requestPath = "/") =>
     new Promise((resolve, reject) => {
       const req = https.get(
         {
           hostname: "127.0.0.1",
           port,
           servername: host,
-          path: "/",
+          path: requestPath,
           headers: { Host: host },
           ca,
           rejectUnauthorized: Boolean(ca),
@@ -321,6 +321,246 @@ const { execFileSync } = require("node:child_process");
       await upload.evaluate((el) => el === document.activeElement),
       true,
     );
+    // Configure opt-in evidence, draft a rule, replay it, then enforce on both replicas.
+    await nav("Traffic").click();
+    await page
+      .getByRole("heading", { name: "Traffic evidence", exact: true })
+      .waitFor();
+    const captureRow = page
+      .getByRole("region", { name: "Traffic capture settings", exact: true })
+      .locator("tbody tr")
+      .filter({ hasText: "Manual TLS" });
+    await captureRow
+      .getByRole("button", { name: "Configure", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Enable bounded traffic sampling", { exact: true })
+      .check();
+    await dialog()
+      .getByLabel("Capture paths with common token/identifier redaction", {
+        exact: true,
+      })
+      .check();
+    await dialog()
+      .getByLabel("Query keys (up to four)", { exact: true })
+      .fill("q");
+    await dialog()
+      .getByRole("button", { name: "Save capture settings", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page.waitForTimeout(2500);
+    const ports = [
+      process.env.BROWSER_HTTPS_PORT,
+      process.env.BROWSER_ALT_HTTPS_PORT,
+    ].filter(Boolean);
+    for (const port of ports) {
+      assert.equal(
+        (
+          await httpsRequest(
+            port,
+            "manual.example.test",
+            null,
+            "/.env?q=Bearer+private-sample&password=never-persist",
+          )
+        ).status,
+        200,
+      );
+    }
+    await page.waitForTimeout(1500);
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Inspect", exact: true })
+      .first()
+      .waitFor();
+    await page
+      .getByRole("button", { name: "Inspect", exact: true })
+      .first()
+      .click();
+    const evidenceText = await dialog().textContent();
+    assert.ok(evidenceText.includes("redacted"));
+    assert.ok(
+      !evidenceText.includes("private-sample") &&
+        !evidenceText.includes("never-persist"),
+    );
+    await page.keyboard.press("Escape");
+    await nav("Rules").click();
+    await page.getByRole("heading", { name: "Rules", exact: true }).waitFor();
+    await page
+      .getByRole("button", { name: "Create rule", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Rule name", { exact: true })
+      .fill("Environment file probes");
+    await dialog()
+      .getByLabel("Proxy host", { exact: true })
+      .selectOption({ label: "Manual TLS · manual.example.test" });
+    await dialog().getByLabel("Value", { exact: true }).fill("/.env");
+    await dialog()
+      .getByLabel("Active lifetime (seconds)", { exact: true })
+      .fill("60");
+    await dialog()
+      .getByRole("button", { name: "Save draft", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    const ruleRow = () =>
+      page
+        .getByRole("region", { name: "Rules", exact: true })
+        .locator("tbody tr")
+        .filter({ hasText: "Environment file probes" });
+    await ruleRow().getByText("draft", { exact: true }).waitFor();
+    assert.equal(
+      (await httpsRequest(ports[0], "manual.example.test", null, "/.env"))
+        .status,
+      200,
+    );
+    await ruleRow()
+      .getByRole("button", { name: "Observe", exact: true })
+      .click();
+    await ruleRow().getByText("observe", { exact: true }).waitFor();
+    await page.waitForTimeout(2500);
+    for (const port of ports)
+      assert.equal(
+        (await httpsRequest(port, "manual.example.test", null, "/.env")).status,
+        200,
+      );
+    await ruleRow().getByRole("button", { name: "Test", exact: true }).click();
+    await dialog()
+      .getByRole("button", { name: "Evaluate locally", exact: true })
+      .click();
+    await dialog()
+      .getByRole("status")
+      .filter({ hasText: "No live requests sent" })
+      .waitFor();
+    assert.ok(
+      (await dialog().getByRole("status").textContent()).includes("0 unknown"),
+    );
+    await page.keyboard.press("Escape");
+    await ruleRow()
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
+    page.once("dialog", (d) => d.accept());
+    await dialog()
+      .getByRole("button", { name: "Enforce blocking", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    for (const port of ports)
+      await eventually(async () =>
+        assert.equal(
+          (await httpsRequest(port, "manual.example.test", null, "/.env"))
+            .status,
+          403,
+        ),
+      );
+    for (const port of ports)
+      assert.equal(
+        (await httpsRequest(port, "manual.example.test", null, "/safe")).status,
+        200,
+      );
+    await screenshot("rules-desktop");
+    await ruleRow()
+      .getByRole("button", { name: "Disable", exact: true })
+      .click();
+    for (const port of ports)
+      await eventually(async () =>
+        assert.equal(
+          (await httpsRequest(port, "manual.example.test", null, "/.env"))
+            .status,
+          200,
+        ),
+      );
+    await ruleRow()
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
+    await dialog()
+      .getByRole("button", { name: "Rollback previous", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    for (const port of ports)
+      await eventually(async () =>
+        assert.equal(
+          (await httpsRequest(port, "manual.example.test", null, "/.env"))
+            .status,
+          403,
+        ),
+      );
+    await ruleRow()
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
+    await dialog()
+      .getByRole("button", { name: "Edit draft", exact: true })
+      .click();
+    await dialog()
+      .getByRole("button", { name: "Save draft", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await ruleRow().getByText("draft", { exact: true }).waitFor();
+    for (const port of ports)
+      await eventually(async () =>
+        assert.equal(
+          (await httpsRequest(port, "manual.example.test", null, "/.env"))
+            .status,
+          200,
+        ),
+      );
+    // JSON proposals remain drafts; invalid input stays editable, exports round-trip.
+    await ruleRow()
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
+    const downloaded = page.waitForEvent("download");
+    await dialog()
+      .getByRole("button", { name: "Export JSON", exact: true })
+      .click();
+    const download = await downloaded;
+    const exported = JSON.parse(fs.readFileSync(await download.path(), "utf8"));
+    assert.equal(exported.all[0].value, "/.env");
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Import JSON", exact: true })
+      .click();
+    await dialog().getByLabel("Rule JSON", { exact: true }).fill("{bad");
+    await dialog()
+      .getByRole("button", { name: "Import draft", exact: true })
+      .click();
+    await dialog()
+      .getByRole("alert")
+      .filter({ hasText: "not valid JSON" })
+      .waitFor();
+    assert.equal(
+      await dialog().getByLabel("Rule JSON", { exact: true }).inputValue(),
+      "{bad",
+    );
+    exported.name = "Imported <img src=x> probe draft";
+    await dialog()
+      .getByLabel("Rule JSON", { exact: true })
+      .fill(JSON.stringify(exported));
+    await dialog()
+      .getByRole("button", { name: "Import draft", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page
+      .getByRole("region", { name: "Rules", exact: true })
+      .locator("tbody tr")
+      .filter({ hasText: "Imported <img src=x> probe draft" })
+      .getByText("draft", { exact: true })
+      .waitFor();
+    const importedRow = page
+      .getByRole("region", { name: "Rules", exact: true })
+      .locator("tbody tr")
+      .filter({ hasText: exported.name });
+    await importedRow
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
+    await dialog()
+      .getByRole("heading", { name: exported.name, exact: true })
+      .waitFor();
+    assert.equal(await dialog().locator("img").count(), 0);
+    await page.keyboard.press("Escape");
+    await nav("Activity").click();
+    await page
+      .getByRole("region", { name: "Application requests", exact: true })
+      .getByText(/#\d+ · observe · matched/)
+      .first()
+      .waitFor();
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const label of [
@@ -328,9 +568,16 @@ const { execFileSync } = require("node:child_process");
         "Proxy hosts",
         "Activity",
         "Certificate authorities",
+        "Rules",
+        "Traffic",
       ]) {
         await nav(label).click();
-        await page.getByRole("heading", { name: label, exact: true }).waitFor();
+        await page
+          .getByRole("heading", {
+            name: label === "Traffic" ? "Traffic evidence" : label,
+            exact: true,
+          })
+          .waitFor();
         assert.equal(
           await page.evaluate(
             () => document.documentElement.scrollWidth > innerWidth,
@@ -349,6 +596,16 @@ const { execFileSync } = require("node:child_process");
         .getByRole("heading", { name: "Proxy hosts", exact: true })
         .waitFor();
       await screenshot(`proxy-hosts-${width}`);
+      for (const label of ["Rules", "Traffic"]) {
+        await nav(label).click();
+        await page
+          .getByRole("heading", {
+            name: label === "Traffic" ? "Traffic evidence" : label,
+            exact: true,
+          })
+          .waitFor();
+        await screenshot(`${label.toLowerCase()}-${width}`);
+      }
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
     await nav("Certificates").click();
@@ -384,7 +641,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, 16 responsive checks and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 24 responsive checks and logout.",
     );
   } catch (error) {
     await screenshot("failure");

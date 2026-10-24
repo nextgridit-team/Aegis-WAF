@@ -17,3 +17,14 @@ CREATE TABLE IF NOT EXISTS acme_challenges(hostname text NOT NULL, token text NO
 CREATE TABLE IF NOT EXISTS audit_events(id bigserial PRIMARY KEY, at timestamptz NOT NULL DEFAULT now(), actor text NOT NULL, action text NOT NULL, resource text NOT NULL);
 CREATE TABLE IF NOT EXISTS access_logs(id bigserial PRIMARY KEY, at timestamptz NOT NULL, site_id bigint NOT NULL, method text NOT NULL, status int NOT NULL, duration_ms bigint NOT NULL, peer text NOT NULL);
 CREATE INDEX IF NOT EXISTS access_logs_at ON access_logs(at);
+-- Version 2: bounded declarative rules and opt-in, expiring traffic evidence.
+CREATE TABLE IF NOT EXISTS rules(id bigserial PRIMARY KEY, site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE, spec jsonb NOT NULL, enabled boolean NOT NULL DEFAULT false, expires_at timestamptz, revision bigint NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS rules_site ON rules(site_id);
+CREATE TABLE IF NOT EXISTS rule_revisions(id bigserial PRIMARY KEY, rule_id bigint NOT NULL REFERENCES rules ON DELETE CASCADE, spec jsonb NOT NULL, enabled boolean NOT NULL, expires_at timestamptz, at timestamptz NOT NULL DEFAULT now(), actor text NOT NULL);
+CREATE TABLE IF NOT EXISTS traffic_settings(site_id bigint PRIMARY KEY REFERENCES sites ON DELETE CASCADE, settings jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS traffic_evidence(id text PRIMARY KEY, at timestamptz NOT NULL, site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE, expires_at timestamptz NOT NULL, data jsonb NOT NULL);
+CREATE INDEX IF NOT EXISTS traffic_evidence_site_at ON traffic_evidence(site_id,at DESC);
+CREATE INDEX IF NOT EXISTS traffic_evidence_expiry ON traffic_evidence(expires_at);
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS rule_results jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS event_id text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES (2) ON CONFLICT DO NOTHING;

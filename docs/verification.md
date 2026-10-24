@@ -82,3 +82,25 @@ This real CA test exposed a finalization compatibility bug absent from the earli
 CA terms support HTTPS links and safely escaped inline plain text. Changing the authority or its URL clears acceptance and ignores obsolete lookup results. Non-submit controls cannot accidentally submit a form. Status refresh pauses while an editor is open, and modal dialogs preserve native keyboard behavior.
 
 Reproduce with the README’s `make browser-test` instructions, or run `python3 tests/acme-browser.py <built-image>`. Browser dependencies and a Chromium-compatible executable must be installed. Screenshots and Pebble validation logs are stored in `/tmp/aegis-ui-review`; test containers, network, database volume, and temporary key material are cleaned up. Public Let’s Encrypt issuance remains a deployment check requiring the administrator’s actual hostname and port-80 reachability.
+
+## Declarative rules and bounded evidence — 2026-10-24
+
+The Go rule engine, PostgreSQL migration, rule lifecycle APIs, and Rules/Traffic dashboard views were added to the existing application image. No model, behavioral learning, CAPTCHA, external signature feed, or automatic activation was added. Capture is opt-in and new/edited/imported rules remain drafts.
+
+Race-enabled tests against isolated PostgreSQL passed, including the original certificate/ACME/proxy tests and new coverage for:
+
+- Validation of operators, scope, protected field selectors, RE2 syntax and activation bounds.
+- Single decoding, repeated query values, direct-peer CIDRs (including mapped IPv4), incomplete inspection and tri-state AND evaluation.
+- JSON inspection preserving exact upstream request bytes for valid, duplicate-key, malformed, oversized and chunked bodies.
+- Evidence allowlists, common-secret/path redaction, bounded values, sampling caps, and unknown replay results for uncaptured facts.
+- Draft/observe/block behavior through two replicas, site isolation, CSRF rejection, rejected edits preserving enforcement, and editing an active rule returning it to draft.
+- Offline replay with zero upstream requests, rejection of foreign-site evidence, revision history and rollback preserving the original expiry.
+- Cached rules enforcing and expiring after the database pool is closed, and accurate management failure responses.
+- Failed audit inserts rolling back the rule and configuration version; stale deleted-site samples not poisoning log batches.
+- Upgrading the actual previous schema with existing access-log rows and repeating migration safely.
+
+The production image built successfully and strict TypeScript checks passed. The container smoke suite passed with the new backend: default/arbitrary non-root UIDs, read-only root, tmpfs, secret/CA readability, no capabilities/privilege/socket/application volume, shared sessions, HTTP/TLS, a real PostgreSQL outage, fresh-replica readiness, restart persistence and graceful shutdown. Repeat with `python3 tests/container-smoke.py aegis-waf:ui-verification` after building that tag.
+
+Use `python3 tests/go-integration.py` for a disposable PostgreSQL container plus Dockerized Go race tests and vet. It publishes no database port and removes its isolated resources. See [rules documentation](rules.md) for inspection, privacy, propagation, retention and replay limitations. HTTP-01 remains the implemented ACME method; automated DNS-01 still needs a selected DNS provider/integration.
+
+The real Pebble/two-replica browser suite passed with the new dashboard. It verified redacted bounded capture, draft creation, observe/block/disable/rollback, edit-to-draft behavior, scoped offline replay, JSON export/import (including invalid-input preservation), visible observe results in Activity, and 24 responsive page/viewport checks at 320/390/768/1440 pixels. It also reverified the complete account/HTTP-01/certificate-to-proxy workflow and trusted HTTPS through both replicas. Import testing exposed an accessible-label issue that was fixed; dialog titles now escape user-provided names, with a literal-HTML-name regression check. A final unit check rejects null capture allowlists so API settings round-trip through the dashboard. Desktop/mobile screenshots were inspected, and a synthetic rules capture is checked in as `docs/screenshots/rules.png`.

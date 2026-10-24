@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aegis WAF rule proposal v1",
+  "description": "Declarative rule data. Creation is draft-only. Server validation additionally checks regex/CIDR syntax, protected field names, existing site/evidence scope and capacity. No model calls or automatic activation are implemented.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "scope",
+    "all",
+    "action",
+    "ttl_seconds"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "site_id"
+      ],
+      "properties": {
+        "site_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "path_prefix": {
+          "type": "string",
+          "maxLength": 1024,
+          "pattern": "^/"
+        }
+      }
+    },
+    "all": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "op",
+          "value"
+        ],
+        "properties": {
+          "field": {
+            "enum": [
+              "method",
+              "path",
+              "client_ip",
+              "header",
+              "query",
+              "json_body"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "op": {
+            "enum": [
+              "equals",
+              "in",
+              "contains",
+              "prefix",
+              "regex",
+              "cidr"
+            ]
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 32,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                }
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "op": {
+                  "const": "in"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "type": "array"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "field": {
+                  "enum": [
+                    "header",
+                    "query",
+                    "json_body"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "key"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "key"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "field": {
+                  "const": "method"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "op": {
+                  "enum": [
+                    "equals",
+                    "in"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "field": {
+                  "const": "client_ip"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "op": {
+                  "const": "cidr"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "op": {
+                  "const": "cidr"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "field": {
+                  "const": "client_ip"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "action": {
+      "enum": [
+        "observe",
+        "block"
+      ]
+    },
+    "ttl_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400
+    },
+    "evidence_ids": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    }
+  }
+}

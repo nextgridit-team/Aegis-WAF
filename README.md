@@ -1,6 +1,6 @@
 # Aegis WAF foundation
 
-A self-hosted Go reverse proxy with a TypeScript management console embedded in the application binary. PostgreSQL is the sole persistent application store. Each replica runs the API, proxy, configuration refresher, log writer, and ACME worker. This milestone implements TLS and routing; it contains no AI integration, traffic learning, CAPTCHA, or WAF detection.
+A self-hosted Go reverse proxy with a TypeScript management console embedded in the application binary. PostgreSQL is the sole persistent application store. Each replica runs the API, proxy, configuration refresher, log writer, and ACME worker. It implements TLS, routing, and administrator-controlled declarative rules with opt-in traffic evidence. There is no AI integration, traffic learning, CAPTCHA, or automatic attack detection.
 
 ## Run with Compose
 
@@ -28,6 +28,10 @@ The certificate inventory shows validity, expiration, renewal mode, and site ass
 ![Aegis WAF certificate dashboard with local test certificates](docs/screenshots/certificates.png)
 
 Unknown hosts and mismatched TLS SNI/Host requests receive HTTP 421. Unknown or expired SNI certificates fail the TLS handshake. Uploaded certificates may use private PKI; upload validation checks format, dates for the supplied chain, signatures between adjacent certificates, server-auth usage, key correspondence, and coverage of every attached site. It does not assert public trust or perform revocation checks. Upload the leaf first, followed by intermediate certificates. PKCS#8, PKCS#1 RSA, and SEC1 EC unencrypted keys are supported. RSA, EC and Ed25519 keys are handled by Go TLS. Certificate replacement is transactional; invalid coverage, mismatched keys, or failed audit writes preserve the previous certificate.
+
+### Rules and traffic evidence
+
+**Rules** provides a visual condition editor, JSON import/export, draft/observe/block activation, automatic expiry, history and rollback. **Traffic** provides opt-in, allowlisted, sampled evidence with bounded values, best-effort redaction and automatic expiry. Test proposals against stored evidence without sending requests to upstreams. No rules or capture are enabled by default. See [the rule format, semantics, limits and APIs](docs/rules.md).
 
 ### ACME
 
@@ -80,7 +84,7 @@ Routing and certificates load in one repeatable-read transaction and are publish
 
 ACME issuance uses a per-certificate PostgreSQL session advisory lock, one active job per certificate, connection-health monitoring that cancels work on lock-connection loss, and per-attempt owner tokens fencing stale completion writes. HTTP-01 challenge records commit before asking the CA to validate. CA network requests cannot be committed atomically with PostgreSQL: a process failure at the boundary can leave an orphaned CA account/order; it cannot expose private keys or replace a stored certificate with partial material.
 
-Access logs contain timestamp, site ID, direct peer IP, HTTP method, response status, and duration. They intentionally omit request/response bodies, path/query, authorization, and cookies. Logs are batched to PostgreSQL once per second or per 1,000 records. An 8,192-event in-memory queue avoids blocking proxy traffic. Outages or saturation can drop access logs; a per-replica counter is exposed at `/api/status`. Audit writes are synchronous and transactional with administrative changes. No secrets are included in audit events or normal service logs. Access/audit retention is currently manual in PostgreSQL; plan disk capacity and a retention policy before high-volume deployment.
+Access logs contain timestamp, site ID, direct peer IP, HTTP method, response status, and duration. Metadata records also include rule outcomes and an optional evidence ID; they omit request/response bodies, path/query, authorization, and cookies. Separately opt-in traffic evidence can persist selected bounded field values and paths; review the [privacy and retention details](docs/rules.md#capture-and-privacy) before enabling it. Logs are batched to PostgreSQL once per second or per 1,000 records. An 8,192-event in-memory queue avoids blocking proxy traffic. Outages or saturation can drop access logs; a per-replica counter is exposed at `/api/status`. Audit writes are synchronous and transactional with administrative changes. No secrets are included in audit events or normal service logs. Access/audit retention is currently manual in PostgreSQL; plan disk capacity and a retention policy before high-volume deployment.
 
 ## Management API
 
@@ -96,6 +100,7 @@ All authenticated paths live under `/api` on the management listener. There are 
 - `POST /acme/certificates`: `name`, `domains`, `account_id`; returns 202 after queuing issuance. Attach it to sites after issuance succeeds.
 - `GET /acme/jobs`, `POST /acme/jobs/{id}/retry`: newest 100 jobs with order history; retry only accepts jobs in `retry` state.
 - `GET /audit`, `GET /access-logs`: latest 200 records.
+- Rule lifecycle, JSON schema, traffic settings, evidence and offline replay: see the [rules API](docs/rules.md#management-api).
 
 For mutations, send `Content-Type: application/json`, `X-Requested-With: aegis-waf`, and the current `X-CSRF-Token` (except setup/login, which have no session yet). Errors return JSON with an `error` field. Database failures return 503 without claiming success; invalid input returns 400; conflicts return 409. A connection loss exactly at commit can leave an ambiguous result; refresh state before repeating a create operation.
 
@@ -114,7 +119,7 @@ TEST_DATABASE_URL='postgres://user:password@localhost:5432/testdb?sslmode=disabl
   go test -race -count=1 ./...
 ```
 
-Tests use isolated schemas and exercise a real PostgreSQL database. The local ACME fixture exercises the real `golang.org/x/crypto/acme` client, registration, orders, CSR submission, shared HTTP-01 responses, two-replica issuance coordination, failed renewal preservation, backoff/manual retry, and crashed-worker recovery. It does not establish compatibility with every public CA. Other tests cover bootstrap exclusivity, cross-replica sessions/revocation, CSRF, encrypted storage/no key readback, transactional audit failures, live TLS replacement, snapshot propagation, proxy forwarding-header trust, streaming, unknown/expired SNI, and database failure behavior.
+`python3 tests/go-integration.py` runs race-enabled tests and vet in Docker against a disposable, unexposed PostgreSQL instance and removes its resources. Tests use isolated schemas and exercise a real PostgreSQL database. The local ACME fixture exercises the real `golang.org/x/crypto/acme` client, registration, orders, CSR submission, shared HTTP-01 responses, two-replica issuance coordination, failed renewal preservation, backoff/manual retry, and crashed-worker recovery. It does not establish compatibility with every public CA. Other tests cover bootstrap exclusivity, cross-replica sessions/revocation, CSRF, encrypted storage/no key readback, transactional audit failures, live TLS replacement, snapshot propagation, proxy forwarding-header trust, streaming, unknown/expired SNI, and database failure behavior.
 
 Production assets are checked in for convenient Go-only development; rebuild them after dashboard edits. The Docker build always regenerates them from TypeScript. `make build`, `make test`, and `make integration` wrap the commands above. See [verification evidence](docs/verification.md) for checks performed in the implementation environment and remaining deployment checks.
 
@@ -128,7 +133,7 @@ This builds `aegis-waf:verification` and runs `tests/container-smoke.py` against
 
 ### Verify the certificate-to-proxy browser flow
 
-The browser suite provisions a real [Pebble ACME test authority](https://github.com/letsencrypt/pebble), PostgreSQL, two gateway replicas, and a test upstream in an isolated Docker network. It performs real HTTP-01 validation through the second replica, requests a certificate through the dashboard, and verifies HTTPS proxy responses against the issued certificate’s trusted test root. It also checks PEM errors, modal focus, input preservation, and responsive layouts. Pebble is used only by tests; production deployment remains one application image plus PostgreSQL.
+The browser suite provisions a real [Pebble ACME test authority](https://github.com/letsencrypt/pebble), PostgreSQL, two gateway replicas, and a test upstream in an isolated Docker network. It performs real HTTP-01 validation through the second replica, requests a certificate through the dashboard, and verifies HTTPS proxy responses against the issued certificate’s trusted test root. It also checks PEM errors, modal focus, input preservation, bounded/redacted traffic capture, draft/observe/block/disable/rollback workflows, offline replay, and responsive layouts. Pebble is used only by tests; production deployment remains one application image plus PostgreSQL.
 
 ```sh
 npm --prefix tests ci

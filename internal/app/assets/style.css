@@ -1484,3 +1484,87 @@ input[type="checkbox"] {
   max-height: 160px;
   overflow: auto;
 }
+
+.rule-intro {
+  margin: 0 0 24px;
+}
+.rule-condition {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 18px 0;
+  background: #fafcfc;
+}
+.condition-top {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+.condition-top > .field {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+.condition-top > button {
+  margin-bottom: 8px;
+}
+.condition-help {
+  margin-top: 7px;
+}
+.json-editor {
+  min-height: 350px;
+  white-space: pre;
+  font-size: 12px;
+  tab-size: 2;
+}
+.json-view {
+  padding: 18px;
+  background: #f6f8f9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 370px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    11px/1.7 ui-monospace,
+    monospace;
+}
+.policy-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-top: 20px;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.sample-picker {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  padding: 4px 15px 16px;
+  border-radius: 8px;
+}
+.sample-picker .check {
+  font-size: 12px;
+}
+@media (max-width: 500px) {
+  .condition-top {
+    flex-wrap: wrap;
+  }
+  .condition-top > .field {
+    flex-basis: 40%;
+  }
+  .condition-top > button {
+    margin-left: auto;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .json-editor {
+    font-size: 16px;
+  }
+}

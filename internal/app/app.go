@@ -42,6 +42,8 @@ type route struct {
 type snapshot struct {
 	version int64
 	routes  map[string]*route
+	rules   map[int64][]compiledRule
+	capture map[int64]*capturePolicy
 }
 type accessEvent struct {
 	at       time.Time
@@ -50,6 +52,8 @@ type accessEvent struct {
 	status   int
 	duration int64
 	peer     string
+	results  []RuleResult
+	evidence *evidenceEvent
 }
 type App struct {
 	cfg         Config
@@ -203,6 +207,9 @@ func (a *App) refresh(ctx context.Context) error {
 	if e != nil {
 		return e
 	}
+	if e = a.loadPolicies(ctx, tx, next); e != nil {
+		return e
+	}
 	if e = tx.Commit(ctx); e != nil {
 		return e
 	}
@@ -273,15 +280,26 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	start := time.Now()
 	rec := &statusWriter{ResponseWriter: w, status: 200}
+	facts := newRequestFacts(r)
+	results, blocked := evaluateRules(s.rules[rt.site.ID], facts, start)
+	evidence := s.capture[rt.site.ID].capture(facts, results, start)
+	if evidence != nil {
+		evidence.site = rt.site.ID
+	}
 	defer func() {
 		peer, _, _ := net.SplitHostPort(r.RemoteAddr)
-		event := accessEvent{start, rt.site.ID, r.Method, rec.status, time.Since(start).Milliseconds(), peer}
+		event := accessEvent{at: start, site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, evidence: evidence}
 		select {
 		case a.access <- event:
 		default:
 			a.dropped.Add(1)
 		}
 	}()
+	if blocked {
+		rec.Header().Set("Cache-Control", "no-store")
+		http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
+		return
+	}
 	if r.TLS == nil && rt.site.RedirectHTTPS {
 		http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
 		return
@@ -353,14 +371,11 @@ func (a *App) logWorker(ctx context.Context) {
 		}
 		c, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		items := make([][]any, len(batch))
-		for i, e := range batch {
-			items[i] = []any{e.at, e.site, e.method, e.status, e.duration, e.peer}
-		}
-		if _, e := a.db.CopyFrom(c, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer"}, pgx.CopyFromRows(items)); e != nil {
+		if e := a.storeAccessBatch(c, batch); e != nil {
 			a.dropped.Add(uint64(len(batch)))
-			slog.Warn("access log batch unavailable")
+			slog.Warn("access/evidence log batch unavailable")
 		}
+
 		batch = batch[:0]
 	}
 	for {
@@ -372,6 +387,11 @@ func (a *App) logWorker(ctx context.Context) {
 			}
 		case <-tick.C:
 			flush()
+			if a.initialized.Load() {
+				cleanup, cancel := context.WithTimeout(ctx, time.Second)
+				_, _ = a.db.Exec(cleanup, "DELETE FROM traffic_evidence WHERE id IN (SELECT id FROM traffic_evidence WHERE expires_at<=now() LIMIT 1000)")
+				cancel()
+			}
 		case <-ctx.Done():
 			for {
 				select {
