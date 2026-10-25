@@ -70,7 +70,7 @@ On a database outage, existing replicas retain their cached rules and proxy conf
 
 ## Management API
 
-All routes below require the existing administrator session. Mutations require JSON and the same-origin/CSRF headers documented in the README.
+All routes below require the existing administrator session. Mutations require JSON and the same-origin/CSRF headers documented in the [management API guide](management-api.md).
 
 | Endpoint                              | Behavior                                                           |
 | ------------------------------------- | ------------------------------------------------------------------ |

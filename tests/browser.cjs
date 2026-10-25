@@ -28,7 +28,10 @@ const { execFileSync } = require("node:child_process");
   const exceptions = [];
   page.on("pageerror", (e) => exceptions.push(e.message));
   const screenshot = async (name) =>
-    page.screenshot({ path: path.join(out, name + ".png"), fullPage: true });
+    page.screenshot({
+      path: path.join(out, name + ".png"),
+      fullPage: process.env.BROWSER_SCREENSHOT_FULL_PAGE !== "false",
+    });
   const message = (text) => page.getByRole("status").filter({ hasText: text });
   const dialog = () => page.getByRole("dialog");
   const nav = (label) => (label === "Rule feeds" || label === "Signature sets") ? { click: async () => { await nav("Rules").click(); await page.getByRole("navigation", {name: "Rule workspace"}).getByRole("link", {name: label, exact:true}).click(); } } :
