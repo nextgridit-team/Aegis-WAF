@@ -122,3 +122,45 @@ Reviewed the Cloudflare workflows documented by acme.sh, Certbot and lego. The d
 `npm --prefix tests run test:onboarding` passed with intercepted APIs: first request without prerequisite setup, existing setup reuse, credential-save retry, certificate-queue retry without recreating confirmed credentials, ambiguous registration-response recovery, no side effects before terms acceptance, invalid token input before account creation, responsive form widths at 320/390/1440 pixels, and closing the form during delayed registration stopping subsequent credential/issuance steps. This test creates no public CA accounts or DNS records.
 
 The Nexus candidate image passed strict TypeScript compilation and the full browser suite using real Pebble account registration/HTTP-01 validation, issuance and trusted HTTPS through both replicas. Existing Cloudflare configuration, dark-mode persistence, 24 responsive page checks and proxy/rule flows passed. Live Cloudflare issuance still requires the user's token and domain. No backend API/schema changes were needed for this UX update.
+
+
+## Traffic dashboard, bot/flood protection and URL feeds — 2026-10-24
+
+Passed strict TypeScript build, production image build, real PostgreSQL race
+checks and go vet. New backend tests cover concurrent token budgets, client
+and application isolation, observe/block behavior, trusted-proxy spoofing
+resistance, public socket/in-flight accounting, aggregated replica reports,
+application/time filters, transactional app/protection creation and rejected
+edits, feed format validation, public-address/SSRF checks, ETag requests,
+12-hour due-time checks, competing-replica sync coordination, draft-only
+imports, duplicate prevention and preservation of enabled rules on updates.
+
+The real Pebble browser suite passed with two replicas: ACME validation,
+trusted HTTPS proxying, dashboard/application filters, user-configurable
+protection at application creation, bot observation/blocking, a real DB-IP
+country database download and lookup with a trusted forwarded client, and
+32 responsive page checks. The standalone feed UI fixture covers source
+creation, starter URL, sync error/retry, escaped candidate JSON, draft import,
+removal and four responsive layouts. The certificate onboarding regression
+fixture remains covered separately.
+
+The downloaded DB-IP country file also passed reader verification and real
+IPv4/IPv6 lookups; private addresses remain unlocated. No visitor traffic was
+sent to a geolocation API. The container smoke suite passed with the new
+workers/telemetry: default/arbitrary non-root UIDs, read-only root, tmpfs,
+CA/secret readability, shared sessions and HTTP/TLS, database outage/cache
+survival, fresh-replica readiness, restart persistence and graceful shutdown.
+These checks use disposable databases/projects and leave user data intact.
+
+Natural Earth map boundaries are public domain. Synthetic local test
+screenshots are included as traffic-dashboard.png and
+traffic-dashboard-mobile.png. Basic user-agent bot signatures are not
+advanced bot classification. Flood budgets are per replica and statistics
+are derived from best-effort access logs; the dashboard exposes dropped-log
+warnings. See dashboard.md and rule-feeds.md for operational limits.
+
+The application/group/rule mapping requested next is researched in
+cloudflare-rule-design.md using Cloudflare's primary documentation.
+Reusable versioned rule groups and attachments are a proposed next schema
+increment, not part of this implementation; current rule/feed imports remain
+site-scoped and require explicit activation.

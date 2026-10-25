@@ -35,3 +35,19 @@ ALTER TABLE certificates ADD COLUMN IF NOT EXISTS dns_credential_id bigint REFER
 INSERT INTO schema_version VALUES(3) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS dns_challenges(id bigserial PRIMARY KEY,job_id bigint NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,credential_id bigint NOT NULL REFERENCES dns_credentials(id),zone_id text NOT NULL,record_id text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS dns_challenges_job ON dns_challenges(job_id);
+
+-- Version 4: per-application protection and replica telemetry.
+CREATE TABLE IF NOT EXISTS protection_settings(site_id bigint PRIMARY KEY REFERENCES sites ON DELETE CASCADE, settings jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS geo_database(id boolean PRIMARY KEY DEFAULT true CHECK(id), data bytea NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS replica_metrics(id text PRIMARY KEY, at timestamptz NOT NULL, data jsonb NOT NULL);
+ALTER TABLE replica_metrics ADD COLUMN IF NOT EXISTS dropped_logs bigint NOT NULL DEFAULT 0;
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS country text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS blocked boolean NOT NULL DEFAULT false;
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS signals jsonb NOT NULL DEFAULT '[]';
+CREATE INDEX IF NOT EXISTS access_logs_site_at ON access_logs(site_id,at);
+INSERT INTO schema_version VALUES(4) ON CONFLICT DO NOTHING;
+
+-- Version 5: source candidates are separate from live rules.
+CREATE TABLE IF NOT EXISTS rule_feeds(id serial PRIMARY KEY,name text NOT NULL,url text NOT NULL,site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,etag text NOT NULL DEFAULT '',last_attempt timestamptz,last_success timestamptz,next_sync timestamptz NOT NULL DEFAULT now(),error text NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS rule_feed_items(feed_id int NOT NULL REFERENCES rule_feeds ON DELETE CASCADE,entry_id text NOT NULL,spec jsonb NOT NULL,available boolean NOT NULL DEFAULT true,imported_spec jsonb,rule_id bigint REFERENCES rules ON DELETE SET NULL,PRIMARY KEY(feed_id,entry_id));
+INSERT INTO schema_version VALUES(5) ON CONFLICT DO NOTHING;

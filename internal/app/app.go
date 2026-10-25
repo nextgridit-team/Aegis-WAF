@@ -14,25 +14,28 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oschwald/maxminddb-golang/v2"
 )
 
 //go:embed schema.sql
 var schema string
 
 type Site struct {
-	ID            int64    `json:"id"`
-	Name          string   `json:"name"`
-	Hostnames     []string `json:"hostnames"`
-	Upstream      string   `json:"upstream"`
-	CertificateID *int64   `json:"certificate_id"`
-	RedirectHTTPS bool     `json:"redirect_https"`
-	PreserveHost  bool     `json:"preserve_host"`
-	Enabled       bool     `json:"enabled"`
+	Protection    *ProtectionSettings `json:"protection,omitempty"`
+	ID            int64               `json:"id"`
+	Name          string              `json:"name"`
+	Hostnames     []string            `json:"hostnames"`
+	Upstream      string              `json:"upstream"`
+	CertificateID *int64              `json:"certificate_id"`
+	RedirectHTTPS bool                `json:"redirect_https"`
+	PreserveHost  bool                `json:"preserve_host"`
+	Enabled       bool                `json:"enabled"`
 }
 type route struct {
 	site  Site
@@ -40,10 +43,12 @@ type route struct {
 	cert  *tls.Certificate
 }
 type snapshot struct {
-	version int64
-	routes  map[string]*route
-	rules   map[int64][]compiledRule
-	capture map[int64]*capturePolicy
+	version    int64
+	routes     map[string]*route
+	rules      map[int64][]compiledRule
+	capture    map[int64]*capturePolicy
+	protection map[int64]*protectionPolicy
+	geo        *maxminddb.Reader
 }
 type accessEvent struct {
 	at       time.Time
@@ -54,8 +59,15 @@ type accessEvent struct {
 	peer     string
 	results  []RuleResult
 	evidence *evidenceEvent
+	country  string
+	blocked  bool
+	signals  []string
 }
 type App struct {
+	flood        floodLimiter
+	metrics      liveMetrics
+	replicaID    string
+	feedHTTP     http.RoundTripper
 	dnsFactory   func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
 	dnsWait      func(context.Context, string, string) error
 	dnsTransport http.RoundTripper
@@ -80,7 +92,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	return &App{cfg: cfg, db: db, access: make(chan accessEvent, 8192)}, nil
+	return &App{replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}, nil
 }
 func (a *App) Close() { a.db.Close() }
 func (a *App) initialize(ctx context.Context) error {
@@ -213,6 +225,12 @@ func (a *App) refresh(ctx context.Context) error {
 	if e = a.loadPolicies(ctx, tx, next); e != nil {
 		return e
 	}
+	if e = a.loadProtection(ctx, tx, next); e != nil {
+		return e
+	}
+	if e = a.loadGeo(ctx, tx, next); e != nil {
+		return e
+	}
 	if e = tx.Commit(ctx); e != nil {
 		return e
 	}
@@ -282,22 +300,38 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	start := time.Now()
-	rec := &statusWriter{ResponseWriter: w, status: 200}
+	rec := &statusWriter{ResponseWriter: w, status: 200, onHijack: func(c net.Conn) net.Conn {
+		return &trackedConnection{Conn: c, closed: func() { a.ConnectionState(c, http.StateClosed) }}
+	}}
+	policy := s.protection[rt.site.ID]
+	clientIP := policy.clientIP(r)
+	signals, protectionBlocked, protectionStatus := a.protect(policy, rt.site.ID, r, clientIP, start)
+	done := a.metrics.begin(r, rt.site.ID)
+	defer done()
 	facts := newRequestFacts(r)
+	facts.facts["client_ip"] = Fact{State: "present", Values: []string{clientIP.String()}}
 	results, blocked := evaluateRules(s.rules[rt.site.ID], facts, start)
 	evidence := s.capture[rt.site.ID].capture(facts, results, start)
 	if evidence != nil {
 		evidence.site = rt.site.ID
 	}
 	defer func() {
-		peer, _, _ := net.SplitHostPort(r.RemoteAddr)
-		event := accessEvent{at: start, site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, evidence: evidence}
+		peer := clientIP.String()
+		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, evidence: evidence, country: countryFor(s.geo, clientIP), blocked: blocked || protectionBlocked, signals: signals}
 		select {
 		case a.access <- event:
 		default:
 			a.dropped.Add(1)
 		}
 	}()
+	if protectionBlocked {
+		rec.Header().Set("Cache-Control", "no-store")
+		if protectionStatus == 429 {
+			rec.Header().Set("Retry-After", "1")
+		}
+		http.Error(rec, "request blocked by gateway protection", protectionStatus)
+		return
+	}
 	if blocked {
 		rec.Header().Set("Cache-Control", "no-store")
 		http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
@@ -312,8 +346,9 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 
 type statusWriter struct {
 	http.ResponseWriter
-	status int
-	wrote  bool
+	status   int
+	wrote    bool
+	onHijack func(net.Conn) net.Conn
 }
 
 func (w *statusWriter) WriteHeader(n int) {
@@ -335,8 +370,19 @@ func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 		w.status = http.StatusSwitchingProtocols
 		w.wrote = true
 	}
+	if e == nil && w.onHijack != nil {
+		conn = w.onHijack(conn)
+	}
 	return conn, buffer, e
 }
+
+type trackedConnection struct {
+	net.Conn
+	once   sync.Once
+	closed func()
+}
+
+func (c *trackedConnection) Close() error           { err := c.Conn.Close(); c.once.Do(c.closed); return err }
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 func (a *App) challenge(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
@@ -390,6 +436,9 @@ func (a *App) logWorker(ctx context.Context) {
 			}
 		case <-tick.C:
 			flush()
+			if a.initialized.Load() {
+				a.publishMetrics(ctx)
+			}
 			if a.initialized.Load() {
 				cleanup, cancel := context.WithTimeout(ctx, time.Second)
 				_, _ = a.db.Exec(cleanup, "DELETE FROM traffic_evidence WHERE id IN (SELECT id FROM traffic_evidence WHERE expires_at<=now() LIMIT 1000)")

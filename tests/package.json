@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "test": "node browser.cjs",
-    "test:onboarding": "node certificate-onboarding.cjs"
+    "test:onboarding": "node certificate-onboarding.cjs",
+    "test:feeds": "node feed-ui.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

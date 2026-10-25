@@ -121,7 +121,7 @@ export function makePolicyUI(c: Context) {
       heading(
         "Rules",
         "Small, application-scoped signatures. Start as a draft, observe, then enforce.",
-        btn("import-rule", "Import JSON", "secondary") +
+        `<a href="#rule-feeds" class="secondary">Rule feeds</a>` + btn("import-rule", "Import JSON", "secondary") +
           btn("new-rule", "Create rule", "primary"),
       ) +
       `<div class="info-panel rule-intro"><h3>You control activation</h3><p>New and edited rules are drafts. Observe records matches; Block returns HTTP 403. Active rules expire automatically. JSON proposals use the same validated format as this editor.</p></div>` +

@@ -153,7 +153,7 @@ const http = require("node:http");
         if (url.pathname === "/api/certificates") data = certificates;
         await route.fulfill({ status, json: data });
       });
-      await page.goto(base);
+      await page.goto(base+"/#certificates");
       await page
         .getByRole("heading", { name: "Certificates", exact: true })
         .waitFor();

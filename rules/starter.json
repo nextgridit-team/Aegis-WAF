@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "config-files",
+      "rule": {
+        "schema_version": 1,
+        "name": "Exposed configuration probes",
+        "scope": {
+          "site_id": 1
+        },
+        "all": [
+          {
+            "field": "path",
+            "op": "in",
+            "value": [
+              "/.env",
+              "/.env.local",
+              "/.env.production",
+              "/config.php.bak",
+              "/wp-config.php.bak"
+            ]
+          }
+        ],
+        "action": "observe",
+        "ttl_seconds": 3600
+      }
+    },
+    {
+      "id": "git-metadata",
+      "rule": {
+        "schema_version": 1,
+        "name": "Git metadata probes",
+        "scope": {
+          "site_id": 1
+        },
+        "all": [
+          {
+            "field": "path",
+            "op": "prefix",
+            "value": "/.git/"
+          }
+        ],
+        "action": "observe",
+        "ttl_seconds": 3600
+      }
+    },
+    {
+      "id": "scanner-agents",
+      "rule": {
+        "schema_version": 1,
+        "name": "Declared scanner user agents",
+        "scope": {
+          "site_id": 1
+        },
+        "all": [
+          {
+            "field": "header",
+            "key": "user-agent",
+            "op": "regex",
+            "value": "(?i)(sqlmap|nikto|nuclei|masscan|zgrab)"
+          }
+        ],
+        "action": "observe",
+        "ttl_seconds": 3600
+      }
+    }
+  ]
+}

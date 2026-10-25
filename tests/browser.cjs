@@ -68,7 +68,7 @@ const { execFileSync } = require("node:child_process");
       key: fs.readFileSync(key, "utf8"),
     };
   };
-  const httpsRequest = (port, host, ca, requestPath = "/") =>
+  const httpsRequest = (port, host, ca, requestPath = "/", extraHeaders = {}) =>
     new Promise((resolve, reject) => {
       const req = https.get(
         {
@@ -76,7 +76,7 @@ const { execFileSync } = require("node:child_process");
           port,
           servername: host,
           path: requestPath,
-          headers: { Host: host },
+          headers: { Host: host, ...extraHeaders },
           ca,
           rejectUnauthorized: Boolean(ca),
         },
@@ -140,6 +140,14 @@ const { execFileSync } = require("node:child_process");
     await page.getByLabel("Username", { exact: true }).fill("browser-admin");
     await page.getByLabel("Password", { exact: true }).fill(state.password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "Dashboard", exact: true })
+      .waitFor();
+    await page
+      .getByText("No traffic in this time range.", { exact: false })
+      .waitFor();
+    await screenshot("dashboard-empty");
+    await nav("Certificates").click();
     await page
       .getByRole("heading", { name: "Certificates", exact: true })
       .waitFor();
@@ -227,6 +235,18 @@ const { execFileSync } = require("node:child_process");
         "app.example.test",
       );
       await dialog().getByLabel("Upstream URL", { exact: true }).fill(upstream);
+      await dialog()
+        .getByLabel("HTTP flood protection", { exact: true })
+        .selectOption("observe");
+      await dialog()
+        .getByLabel("Requests / second per client", { exact: true })
+        .fill("35");
+      await dialog()
+        .getByLabel("Client burst allowance", { exact: true })
+        .fill("70");
+      await dialog()
+        .getByLabel("Anti-bot protection", { exact: true })
+        .selectOption("observe");
       await screenshot("connect-proxy");
       await dialog()
         .getByRole("button", { name: "Save proxy host", exact: true })
@@ -650,14 +670,171 @@ const { execFileSync } = require("node:child_process");
       .getByText(/#\d+ · observe · matched/)
       .first()
       .waitFor();
+    // Dashboard and browser-managed protection operate on the real test proxy.
+    await nav("Dashboard").click();
+    await page
+      .getByRole("heading", { name: "Incoming traffic", exact: true })
+      .waitFor();
+    await page
+      .getByLabel("Application", { exact: true })
+      .selectOption({ label: "Manual TLS" });
+    await page.getByLabel("Time range", { exact: true }).selectOption("5");
+    await page
+      .getByRole("button", { name: "Protection settings", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Application", { exact: true })
+      .selectOption({ label: "Manual TLS" });
+    await dialog()
+      .getByLabel("Flood mode", { exact: true })
+      .selectOption("observe");
+    await dialog()
+      .getByLabel("Bot mode", { exact: true })
+      .selectOption("observe");
+    await dialog()
+      .getByRole("button", { name: "Save protection", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Protection saved" })
+      .waitFor();
+    await page.waitForTimeout(2500);
+    const botRequest = () =>
+      new Promise((resolve, reject) => {
+        const req = https.get(
+          {
+            hostname: "127.0.0.1",
+            port: ports[0],
+            servername: "manual.example.test",
+            rejectUnauthorized: false,
+            headers: {
+              Host: "manual.example.test",
+              "User-Agent": "sqlmap/test",
+            },
+          },
+          (res) => {
+            res.resume();
+            res.on("end", () => resolve(res.statusCode));
+          },
+        );
+        req.on("error", reject);
+      });
+    assert.equal(await botRequest(), 200);
+    await page
+      .getByRole("button", { name: "Protection settings", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Bot mode", { exact: true })
+      .selectOption("block");
+    await dialog()
+      .getByRole("button", { name: "Save protection", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await eventually(async () => assert.equal(await botRequest(), 403));
+    await page.locator("#dashboard-site").selectOption("");
+    await page.waitForTimeout(4500);
+    await page
+      .getByRole("heading", { name: "Bot & flood signals", exact: true })
+      .waitFor();
+    await screenshot("dashboard-desktop");
+    await page
+      .getByRole("button", { name: "Switch color theme", exact: true })
+      .click();
+    await screenshot("dashboard-dark");
+    await page
+      .getByRole("button", { name: "Switch color theme", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Enable map locations", exact: true })
+      .click();
+    await dialog()
+      .getByRole("heading", { name: "Enable country locations", exact: true })
+      .waitFor();
+    await dialog().getByRole("checkbox").check();
+    await dialog()
+      .getByRole("button", { name: "Download country database", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached", timeout: 90000 });
+    await page
+      .getByRole("button", { name: "Update database", exact: true })
+      .waitFor();
+    const dashboardReport = await (
+      await page.request.get(base + "/api/dashboard")
+    ).json();
+    const peer = dashboardReport.recent[0].peer;
+    await page
+      .getByRole("button", { name: "Protection settings", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Application", { exact: true })
+      .selectOption({ label: "Manual TLS" });
+    await dialog()
+      .getByLabel("Trusted proxy CIDRs", { exact: true })
+      .fill(peer + (peer.includes(":") ? "/128" : "/32"));
+    await dialog()
+      .getByRole("button", { name: "Save protection", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page.waitForTimeout(2500);
+    assert.equal(
+      (
+        await httpsRequest(ports[0], "manual.example.test", null, "/", {
+          "X-Forwarded-For": "8.8.8.8",
+          "User-Agent": "ordinary-browser",
+        })
+      ).status,
+      200,
+    );
+    await eventually(async () => {
+      const report = await (
+        await page.request.get(base + "/api/dashboard")
+      ).json();
+      assert.ok(
+        report.countries.some((c) => c.country === "US" && c.requests > 0),
+      );
+    });
+    await page.waitForTimeout(4500);
+    await screenshot("dashboard-desktop");
+    // First-party public feed: real download, candidate review and draft import.
+    await nav("Rule feeds").click();
+    await page
+      .getByRole("button", { name: "Use Aegis starter feed", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Application", { exact: true })
+      .selectOption({ label: "Manual TLS" });
+    await dialog()
+      .getByRole("button", { name: "Add source", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Sync now", exact: true }).click();
+    await page
+      .getByText("3 pending import", { exact: true })
+      .waitFor({ timeout: 45000 });
+    await page.getByRole("button", { name: "Review", exact: true }).click();
+    await dialog()
+      .getByText("Exposed configuration probes", { exact: true })
+      .waitFor();
+    await dialog()
+      .getByRole("button", { name: "Import pending as drafts", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page
+      .getByRole("status")
+      .filter({ hasText: "3 draft rules imported" })
+      .waitFor();
+    await screenshot("rule-feeds-live");
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const label of [
+        "Dashboard",
         "Certificates",
         "Proxy hosts",
         "Activity",
         "Certificate authorities",
         "Rules",
+        "Rule feeds",
         "Traffic",
       ]) {
         await nav(label).click();
@@ -675,6 +852,11 @@ const { execFileSync } = require("node:child_process");
           `${label} overflows at ${width}`,
         );
       }
+      await nav("Dashboard").click();
+      await page
+        .getByRole("heading", { name: "Incoming traffic", exact: true })
+        .waitFor();
+      await screenshot(`dashboard-${width}`);
       await nav("Certificates").click();
       await page
         .getByRole("heading", { name: "Certificates", exact: true })
@@ -730,7 +912,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 24 responsive checks and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 32 responsive checks, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

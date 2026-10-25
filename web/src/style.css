@@ -1820,3 +1820,62 @@ input[type="checkbox"] {
   background: #44391f;
   color: #f5d993;
 }
+
+/* Traffic dashboard */
+.dashboard-controls { display:flex; align-items:end; gap:18px; flex-wrap:wrap; margin-bottom:24px; }
+.dashboard-controls label { display:grid; gap:7px; color:var(--muted); font-size:12px; font-weight:600; }
+.dashboard-controls select { min-width:180px; }
+.dashboard-controls #dashboard-freshness { margin-left:auto; padding-bottom:10px; font-size:12px; }
+.metric-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+.metric-card { display:flex; flex-direction:column; gap:10px; padding:22px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.metric-card > span { color:var(--muted); font-weight:500; }
+.metric-card > strong { font-size:32px; letter-spacing:-1px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.metric-card > small { color:var(--muted); font-size:11px; }
+.dashboard-panel { min-width:0; border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:24px; margin-bottom:20px; }
+.dashboard-panel h2 { margin:0 0 18px; font-size:16px; }
+.dashboard-panel .section-heading h2 { margin:0; }
+.dashboard-columns { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:20px; }
+.dashboard-row { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); font-size:12px; }
+.dashboard-row > :first-child { margin-right:auto; }
+.dashboard-row small { color:var(--muted); }
+.dashboard-panel > .muted { font-size:12px; line-height:1.6; }
+.world-map { display:block; width:100%; height:auto; margin:20px 0 10px; }
+.world-map path { stroke:var(--surface); stroke-width:.3; stroke-linejoin:round; }
+.map-level-0 { fill:var(--line); }
+.map-level-1 { fill:#b8d9c9; }
+.map-level-2 { fill:#73b99a; }
+.map-level-3 { fill:#358d6c; }
+.map-level-4 { fill:#136747; }
+.world-map path:hover { stroke:var(--ink); stroke-width:.8; }
+.map-caption,.chart-labels { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:10px; }
+.map-scale { color:var(--accent); letter-spacing:2px; }
+.geo-status { color:var(--muted); font-size:12px; line-height:1.7; margin:18px 0 8px; }
+.world-panel > small { font-size:10px; color:var(--muted); }
+.traffic-chart { width:100%; height:180px; display:block; overflow:visible; }
+.chart-baseline { stroke:var(--line); fill:none; stroke-width:1; }
+.chart-requests { stroke:var(--accent); fill:none; stroke-width:2.5; vector-effect:non-scaling-stroke; }
+.chart-blocks { stroke:#cd735c; fill:none; stroke-width:2; vector-effect:non-scaling-stroke; }
+.chart-legend { display:flex; gap:16px; color:var(--accent); font-size:11px; }
+.chart-legend > :last-child { color:#cd735c; }
+.dashboard-empty { color:var(--muted); text-align:center; font-size:12px; }
+:root[data-theme="dark"] .map-level-4 { fill:#70d8ac; }
+:root[data-theme="dark"] .map-level-3 { fill:#4eab85; }
+:root[data-theme="dark"] .map-level-2 { fill:#367659; }
+:root[data-theme="dark"] .map-level-1 { fill:#294e40; }
+@media(min-width:1500px) { .metric-grid { grid-template-columns:repeat(6,minmax(0,1fr)); } }
+@media(max-width:1000px) { .dashboard-columns { grid-template-columns:1fr; gap:0; } }
+@media(max-width:600px) {
+ .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+ .metric-card { padding:16px; }
+ .metric-card > strong { font-size:26px; }
+ .dashboard-panel { padding:16px; }
+ .dashboard-controls label { width:100%; }
+ .dashboard-controls select { width:100%; }
+ .dashboard-controls #dashboard-freshness { margin-left:0; }
+ .chart-labels { flex-wrap:wrap; }
+ .dashboard-row { gap:8px; }
+}
+
+.feed-candidate {padding:16px 0; border-bottom:1px solid var(--line);}
+.feed-candidate > small {display:block;color:var(--muted);margin-top:7px;}
+.feed-candidate pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;font-size:11px;}

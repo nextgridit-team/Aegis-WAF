@@ -1,6 +1,6 @@
 # Declarative rules and traffic evidence
 
-Aegis evaluates administrator-authored JSON signatures in Go. There is no model connection, automatic rule generation, built-in attack-signature feed, behavioral learning, CAPTCHA, or automatic activation. The format is intended for future structured model proposals; importing a proposal always creates a draft. Treat captured traffic and any future model output as untrusted input.
+Aegis evaluates administrator-authored JSON signatures in Go. There is no model connection, automatic rule generation, behavioral learning, CAPTCHA, or automatic activation. Named [rule feeds](rule-feeds.md) provide optional synced candidates; [basic bot/flood controls](dashboard.md) are configured independently. The format is intended for future structured model proposals; importing a proposal always creates a draft. Treat captured traffic and any future model output as untrusted input.
 
 ## Workflow
 
@@ -35,7 +35,7 @@ Use an actual existing site ID. `path_prefix` and `evidence_ids` are optional; e
 | ----------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
 | `method`    | None                                          | `equals`, `in`; uppercase letters, e.g. `GET`                                |
 | `path`      | None                                          | `equals`, `in`, `contains`, `prefix`, `regex`; Go URL path, decoded once     |
-| `client_ip` | None                                          | `cidr`; direct connection peer, IPv4 or IPv6                                 |
+| `client_ip` | None                                          | `cidr`; resolved client IP, IPv4 or IPv6 (peer unless trusted proxies are configured)                                 |
 | `header`    | Header name                                   | `equals`, `in`, `contains`, `prefix`, `regex`; case-insensitive header names |
 | `query`     | Query key                                     | Same string operators; query decoding once, including `+` as space           |
 | `json_body` | JSON pointer, e.g. `/file` or `/items/0/name` | Same string operators; scalar string, number or boolean                      |

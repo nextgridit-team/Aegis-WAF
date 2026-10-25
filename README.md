@@ -1,6 +1,6 @@
 # Aegis WAF foundation
 
-A self-hosted Go reverse proxy with a TypeScript management console embedded in the application binary. PostgreSQL is the sole persistent application store. Each replica runs the API, proxy, configuration refresher, log writer, and ACME worker. It implements TLS, routing, and administrator-controlled declarative rules with opt-in traffic evidence. There is no AI integration, traffic learning, CAPTCHA, or automatic attack detection.
+A self-hosted Go reverse proxy with a TypeScript management console embedded in the application binary. PostgreSQL is the sole persistent application store. Each replica runs the API, proxy, configuration refresher, log writer, ACME worker and lightweight rule-feed sync. It implements TLS, routing, a live traffic dashboard, configurable HTTP flood limits, basic bot signals and administrator-controlled declarative rules with opt-in traffic evidence. There is no AI integration, behavioral learning or CAPTCHA.
 
 ## Run with Compose
 
@@ -29,9 +29,17 @@ Use the **Dark mode / Light mode** control to switch themes. The initial theme f
 
 Unknown hosts and mismatched TLS SNI/Host requests receive HTTP 421. Unknown or expired SNI certificates fail the TLS handshake. Uploaded certificates may use private PKI; upload validation checks format, dates for the supplied chain, signatures between adjacent certificates, server-auth usage, key correspondence, and coverage of every attached site. It does not assert public trust or perform revocation checks. Upload the leaf first, followed by intermediate certificates. PKCS#8, PKCS#1 RSA, and SEC1 EC unencrypted keys are supported. RSA, EC and Ed25519 keys are handled by Go TLS. Certificate replacement is transactional; invalid coverage, mismatched keys, or failed audit writes preserve the previous certificate.
 
+### Traffic dashboard and protection
+
+![Global traffic dashboard with synthetic test requests](docs/screenshots/traffic-dashboard.png)
+
+The default **Dashboard** shows global or application-specific requests/second, public connections, in-flight requests, status codes, blocking and bot/flood signals, a traffic chart and a country map. Enable local country lookups with the dashboard’s database download action. Configure application flood budgets and basic bot signatures in Off, Observe or Block mode; defaults are Off and limits apply per replica. See [dashboard, identity and protection details](docs/dashboard.md). The proposed reusable group mapping and Cloudflare research are recorded in [application protection design notes](docs/cloudflare-rule-design.md).
+
 ### Rules and traffic evidence
 
 **Rules** provides a visual condition editor, JSON import/export, draft/observe/block activation, automatic expiry, history and rollback. **Traffic** provides opt-in, allowlisted, sampled evidence with bounded values, best-effort redaction and automatic expiry. Test proposals against stored evidence without sending requests to upstreams. No rules or capture are enabled by default. See [the rule format, semantics, limits and APIs](docs/rules.md).
+
+**Rule feeds** subscribes to a named public HTTPS JSON source for an application, syncs every 12 hours or on demand, and stages candidates for review and draft import. Existing enabled rules remain unchanged. An Aegis starter feed is included. See [feed format, synchronization and network constraints](docs/rule-feeds.md).
 
 ### ACME
 
@@ -84,7 +92,7 @@ Routing and certificates load in one repeatable-read transaction and are publish
 
 ACME issuance uses a per-certificate PostgreSQL session advisory lock, one active job per certificate, connection-health monitoring that cancels work on lock-connection loss, and per-attempt owner tokens fencing stale completion writes. HTTP-01 challenge records commit before asking the CA to validate. CA network requests cannot be committed atomically with PostgreSQL: a process failure at the boundary can leave an orphaned CA account/order; it cannot expose private keys or replace a stored certificate with partial material.
 
-Access logs contain timestamp, site ID, direct peer IP, HTTP method, response status, and duration. Metadata records also include rule outcomes and an optional evidence ID; they omit request/response bodies, path/query, authorization, and cookies. Separately opt-in traffic evidence can persist selected bounded field values and paths; review the [privacy and retention details](docs/rules.md#capture-and-privacy) before enabling it. Logs are batched to PostgreSQL once per second or per 1,000 records. An 8,192-event in-memory queue avoids blocking proxy traffic. Outages or saturation can drop access logs; a per-replica counter is exposed at `/api/status`. Audit writes are synchronous and transactional with administrative changes. No secrets are included in audit events or normal service logs. Access/audit retention is currently manual in PostgreSQL; plan disk capacity and a retention policy before high-volume deployment.
+Access logs contain timestamp, site ID, resolved client IP (transport peer unless a trusted proxy is configured), HTTP method, response status, and duration. Metadata records also include rule outcomes, bot/flood signals, the blocking decision, country code when available and an optional evidence ID; they omit request/response bodies, path/query, authorization, and cookies. Separately opt-in traffic evidence can persist selected bounded field values and paths; review the [privacy and retention details](docs/rules.md#capture-and-privacy) before enabling it. Logs are batched to PostgreSQL once per second or per 1,000 records. An 8,192-event in-memory queue avoids blocking proxy traffic. Outages or saturation can drop access logs; a per-replica counter is exposed at `/api/status`. Audit writes are synchronous and transactional with administrative changes. No secrets are included in audit events or normal service logs. Access/audit retention is currently manual in PostgreSQL; plan disk capacity and a retention policy before high-volume deployment.
 
 ## Management API
 

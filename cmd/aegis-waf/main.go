@@ -80,15 +80,20 @@ func run() error {
 			handler = a.Management()
 		}
 		s := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, IdleTimeout: 90 * time.Second, MaxHeaderBytes: 1 << 20}
+		if i != 2 {
+			s.ConnContext = a.ConnectionContext
+			s.ConnState = a.ConnectionState
+		}
 		if i == 1 {
 			s.TLSConfig = a.TLSConfig()
 			s.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		}
 		servers = append(servers, s)
 	}
-	wg.Add(2)
+	wg.Add(3)
 	go func() { defer wg.Done(); a.Background(ctx) }()
 	go func() { defer wg.Done(); a.ACMEWorker(ctx) }()
+	go func() { defer wg.Done(); a.FeedWorker(ctx) }()
 	errs := make(chan error, 3)
 	for i, s := range servers {
 		go func(i int, s *http.Server) {

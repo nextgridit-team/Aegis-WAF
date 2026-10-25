@@ -1,7 +1,14 @@
+import { makeFeedsUI } from "./feeds";
+import {
+  makeDashboardUI,
+  defaultProtection,
+  type Protection,
+} from "./dashboard";
 import { themeControl, toggleTheme } from "./theme";
 import { makePolicyUI } from "./policies";
 export {};
 type Site = {
+  protection?: Protection | null;
   id: number;
   name: string;
   hostnames: string[];
@@ -182,7 +189,12 @@ async function api<T>(
     method,
     credentials: "same-origin",
     signal: AbortSignal.timeout(
-      path === "/acme/accounts" && method === "POST" ? 90000 : 20000,
+      (path === "/acme/accounts" || path === "/geolocation/update") &&
+        method === "POST"
+        ? 90000
+        : path.startsWith("/rule-feeds/") && path.endsWith("/sync")
+          ? 45000
+          : 20000,
     ),
     headers: {
       "Content-Type": "application/json",
@@ -259,14 +271,16 @@ function formHandler(id: string, submit: (data: FormData) => Promise<void>) {
 }
 function currentPage() {
   const aliases: Record<string, string> = {
-    overview: "certificates",
+    overview: "dashboard",
     sites: "proxy-hosts",
     acme: "authorities",
   };
-  const raw = location.hash.slice(1) || "certificates";
+  const raw = location.hash.slice(1) || "dashboard";
   return (
     aliases[raw] ||
     ([
+      "rule-feeds",
+      "dashboard",
       "certificates",
       "proxy-hosts",
       "authorities",
@@ -280,13 +294,15 @@ function currentPage() {
 }
 function shell() {
   const nav = [
+    ["dashboard", "activity", "Dashboard"],
     ["certificates", "certificate", "Certificates"],
     ["proxy-hosts", "globe", "Proxy hosts"],
     ["rules", "shield", "Rules"],
+    ["rule-feeds", "refresh", "Rule feeds"],
     ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "rule-feeds": "Rule feeds", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -373,7 +389,13 @@ function sitesList() {
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "rule-feeds": "Rule feeds", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  if (page === "dashboard") await dashboardUI.mount(view, state.sites);
+  if (page === "rule-feeds") {
+    const stamp = epoch;
+    const html = await feedsUI.render();
+    if (stamp === epoch) view.innerHTML = html;
+  }
   if (page === "certificates")
     view.innerHTML =
       heading(
@@ -520,6 +542,11 @@ async function poll() {
   polling = true;
   const stamp = epoch;
   try {
+    if (page === "dashboard") {
+      await dashboardUI.update();
+      updateConnection();
+      return;
+    }
     const next = await fetchState();
     if (
       stamp !== epoch ||
@@ -530,7 +557,11 @@ async function poll() {
     state = next;
     updateConnection();
     const signature = JSON.stringify(next);
-    if (signature !== lastSignature || page === "rules") {
+    if (
+      signature !== lastSignature ||
+      page === "rules" ||
+      page === "rule-feeds"
+    ) {
       lastSignature = signature;
       const focus = document.activeElement as HTMLElement;
       const focusAction = focus?.dataset.action,
@@ -562,6 +593,11 @@ function openEditor(title: string, html: string, step = 0) {
 function closeEditor() {
   (document.getElementById("editor") as HTMLDialogElement | null)?.close();
 }
+function siteProtectionMarkup(p: Protection) {
+  const mode = (name: string, label: string, value: string) =>
+    `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
+  return `<div class="form-divider"></div><h3>Application protection</h3><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small><details class="advanced"><summary>Protection options</summary>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}<label class="field">Trusted proxy CIDRs<textarea name="trusted_proxies" rows="2" placeholder="Leave empty for direct connections">${esc(p.trusted_proxies.join("\n"))}</textarea></label><small>Only trust proxies you control that sanitize X-Forwarded-For.</small></details>`;
+}
 function siteForm(site?: Site, certificate?: Certificate) {
   const c = site
     ? state.certs.find((c) => c.id === site.certificate_id)
@@ -576,7 +612,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
       )
       .join(
         "",
-      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${siteProtectionMarkup(site?.protection || defaultProtection)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
   );
   const select = document.getElementById(
     "site-certificate",
@@ -588,6 +624,12 @@ function siteForm(site?: Site, certificate?: Certificate) {
     redirect.disabled = !select.value;
     redirect.checked = Boolean(select.value);
   });
+  document
+    .getElementById("site-flood_mode")!
+    .addEventListener("change", (e) => {
+      document.getElementById("site-flood-rates")!.hidden =
+        (e.target as HTMLSelectElement).value === "off";
+    });
   formHandler("site-form", async (f) => {
     await api("/sites" + (site ? "/" + site.id : ""), site ? "PUT" : "POST", {
       name: f.get("name"),
@@ -599,6 +641,18 @@ function siteForm(site?: Site, certificate?: Certificate) {
       redirect_https: f.has("redirect_https"),
       preserve_host: f.has("preserve_host"),
       enabled: f.has("enabled"),
+      protection: {
+        mode: String(f.get("flood_mode")),
+        bot_mode: String(f.get("bot_mode")),
+        requests_per_second: Number(f.get("client_rate")),
+        burst: Number(f.get("client_burst")),
+        site_requests_per_second: Number(f.get("application_rate")),
+        site_burst: Number(f.get("application_burst")),
+        block_empty_user_agent: f.has("empty_user_agent"),
+        trusted_proxies: String(f.get("trusted_proxies") || "")
+          .split(/[\s,]+/)
+          .filter(Boolean),
+      },
     });
     closeEditor();
     await refresh();
@@ -987,8 +1041,15 @@ root.addEventListener("click", async (e) => {
   const action = b.dataset.action,
     id = Number(b.dataset.id);
   try {
+    if (await feedsUI.handle(action, id)) return;
     if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
+      case "protection":
+        await dashboardUI.protectionForm();
+        break;
+      case "geo-update":
+        dashboardUI.geoForm();
+        break;
       case "toggle-theme":
         toggleTheme();
         break;
@@ -1094,6 +1155,29 @@ root.addEventListener("click", async (e) => {
   } finally {
     b.disabled = false;
   }
+});
+const feedsUI = makeFeedsUI({
+  api,
+  sites: () => state.sites,
+  esc,
+  heading,
+  table,
+  openEditor,
+  closeEditor,
+  formHandler,
+  refresh,
+  notice,
+});
+const dashboardUI = makeDashboardUI({
+  api,
+  esc,
+  heading,
+  table,
+  openEditor,
+  closeEditor,
+  formHandler,
+  notice,
+  handleError,
 });
 window.addEventListener("hashchange", () => {
   if (username) void refresh();
