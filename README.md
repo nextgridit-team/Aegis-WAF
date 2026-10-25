@@ -1,23 +1,34 @@
 # Aegis WAF
 
-**A self-hosted web application firewall: OWASP CRS protection, automatic TLS and a reverse proxy in one dashboard — without sending your traffic through a third party.**
+**Protect the applications you host. Manage TLS, application policies and live traffic from one dashboard.**
 
 [![Build and publish](https://github.com/nextgridit-team/Aegis-WAF/actions/workflows/image.yml/badge.svg?branch=main)](https://github.com/nextgridit-team/Aegis-WAF/actions/workflows/image.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-167565)](LICENSE)
 
-Aegis sits between clients and the HTTP(S) applications you host. Use its web interface to request certificates, configure upstreams, load OWASP CRS signatures and assign protection policies. It runs as one application container plus PostgreSQL, with a separate management listener and an embedded TypeScript dashboard. See [current limits](#current-limits) before deploying.
+Aegis is a self-hosted web application firewall and reverse proxy for HTTP(S) applications. It combines Coraza and OWASP Core Rule Set (CRS) signatures, automatic certificates and reusable protection policies. Inspection runs inside your deployment: **one application container plus PostgreSQL**, configured through a web interface.
 
-![Aegis traffic dashboard showing synthetic requests, protection outcomes, CPU and memory usage](docs/screenshots/overview.png)
+![Aegis dashboard showing application traffic, protection outcomes and system metrics](docs/screenshots/overview.png)
 
-_Actual application screens with isolated test traffic and example domains. Screenshots are illustrative, not performance measurements._
+_Real application screens with isolated test traffic and example domains. [Screenshot provenance](docs/screenshots/README.md)._
 
-[Quickstart](#quickstart) · [Why Aegis](#why-aegis) · [Performance](#performance-at-a-glance) · [Protect your first application](#protect-your-first-application) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
+[Get started](#quickstart) · [Documentation](docs/README.md) · [Security](docs/security.md) · [Performance](#performance-at-a-glance) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
+
+<a id="what-it-does-today"></a>
+
+## Why Aegis
+
+- **Give each application its own protection.** Apply reusable policies with OWASP CRS signatures, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
+- **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
+- **See what happened.** Inspect any listed request's recorded decision and matched rules. Follow allowed and blocked traffic on the live map and application flow diagram, with global or application filters.
+- **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies and headers, and tune CIDR/Geo decisions, basic bot signals and HTTP flood rates.
+- **Connect your own agent.** An optional management MCP endpoint offers scoped, expiring keys and a downloadable skill. Your agent and model run outside Aegis; no built-in inference is required.
+- **Own the deployment.** The app runs as non-root with a read-only root filesystem. Private keys and saved provider credentials are encrypted before storage with an external encryption key. [Security boundaries](docs/security.md).
 
 <a id="deploy-with-docker-compose"></a>
 
 ## Quickstart
 
-Bring a Linux/amd64 Docker host with **Compose v2+**, **Git** and **Python 3**, and ports 80/443 free for the default mappings.
+Use a Linux/amd64 Docker host with **Compose v2+**, **Git** and **Python 3**, and ports 80/443 free for the default mappings.
 
 ```sh
 git clone https://github.com/nextgridit-team/Aegis-WAF.git
@@ -26,268 +37,76 @@ python3 scripts/bootstrap-secrets.py
 docker compose up -d --wait
 ```
 
-The script creates deployment secrets once and refuses to overwrite a nonempty `secrets/` directory. Compose pulls the public image `ghcr.io/nextgridit-team/aegis-waf:latest`; no Go/Node build or registry login is required.
+Compose pulls the public `ghcr.io/nextgridit-team/aegis-waf:latest` image. No source build or registry login is required. The [checked-in compose.yaml](compose.yaml) defines the complete two-container deployment; the bootstrap script creates its secrets once and refuses to overwrite existing material.
 
-Open **http://localhost:9090 on the Docker host**, then read the generated setup code:
+Open **http://localhost:9090 on the Docker host**. Read the generated setup code, then create your administrator in the browser:
 
 ```sh
 cat secrets/bootstrap_secret
 ```
 
-Complete setup in the browser with that code, your chosen administrator name and a unique 14–72-byte password. There are no default credentials, and the bootstrap code cannot reset an existing account.
+Choose a unique 14–72-byte password. There are no default credentials; the setup code cannot reset an existing account.
 
-| Listener     | Default host mapping    | Purpose                                            |
-| ------------ | ----------------------- | -------------------------------------------------- |
-| Public HTTP  | `0.0.0.0:80 → 8080`     | Application HTTP, redirects and HTTP-01 challenges |
-| Public HTTPS | `0.0.0.0:443 → 8443`    | TLS termination and protected applications         |
-| Management   | `127.0.0.1:9090 → 9090` | Dashboard, management API, `/livez` and `/readyz`  |
+| Listener   | Default host mapping    | Purpose                                        |
+| ---------- | ----------------------- | ---------------------------------------------- |
+| HTTP       | `0.0.0.0:80 → 8080`     | Application HTTP and HTTP-01 challenges        |
+| HTTPS      | `0.0.0.0:443 → 8443`    | Protected applications and TLS termination     |
+| Management | `127.0.0.1:9090 → 9090` | Dashboard, management API and health endpoints |
 
-**Deploying on a server or through Dockge?** Localhost means the Docker host, not your laptop. Keep management separate and use HTTPS for remote browser access. Aegis supports an existing HTTPS management proxy or native management TLS after a matching certificate is stored. Follow [remote HTTPS management](docs/deployment.md#remote-https-management) before publishing port 9090 to your LAN. Plain HTTP on a remote IP cannot retain the required Secure session cookie.
+**Installing on a server or through Dockge?** Localhost refers to the Docker host. Follow [remote HTTPS management](docs/deployment.md#remote-https-management) to access the dashboard from another machine. Keep administration separate from public application traffic; remote plain HTTP cannot retain the required Secure session cookie.
 
-<details>
-<summary>Two-container compose.yaml example</summary>
-
-This is the checked-in Compose deployment. The bootstrap command above creates the secret files it references.
-
-```yaml
-services:
-  app:
-    image: ${AEGIS_IMAGE:-ghcr.io/nextgridit-team/aegis-waf:latest}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      DATABASE_URL_FILE: /run/secrets/database_url
-      ENCRYPTION_KEY_FILE: /run/secrets/encryption_key
-      BOOTSTRAP_SECRET_FILE: /run/secrets/bootstrap_secret
-      ENCRYPTION_KEY_ID: primary
-      HTTP_ADDR: :8080
-      HTTPS_ADDR: :8443
-      MANAGEMENT_ADDR: :9090
-      TMPDIR: /tmp
-    secrets:
-      - database_url
-      - encryption_key
-      - bootstrap_secret
-    ports:
-      - "${HTTP_PUBLISH:-0.0.0.0:80}:8080"
-      - "${HTTPS_PUBLISH:-0.0.0.0:443}:8443"
-      - "${MANAGEMENT_PUBLISH:-127.0.0.1:9090}:9090"
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    stop_grace_period: 25s
-    depends_on:
-      db:
-        condition: service_healthy
-  db:
-    image: postgres:18-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: aegis_waf
-      POSTGRES_USER: aegis_waf
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
-    volumes:
-      - postgres:/var/lib/postgresql
-    healthcheck:
-      test: [CMD-SHELL, "pg_isready -U aegis_waf -d aegis_waf"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-secrets:
-  database_url:
-    file: ./secrets/database_url
-  postgres_password:
-    file: ./secrets/postgres_password
-  encryption_key:
-    file: ./secrets/encryption_key
-  bootstrap_secret:
-    file: ./secrets/bootstrap_secret
-volumes:
-  postgres:
-```
-
-</details>
-
-For custom port mappings, source builds, secret inputs, backups and multiple replicas, see the [deployment guide](docs/deployment.md).
-
-## Why Aegis
-
-Protecting applications you host yourself usually means one of two trade-offs: stitch nginx, certbot, ModSecurity and fail2ban together and maintain them by hand — or push all your traffic through a third-party CDN and trust it with your logs. Aegis is the third path: a web application firewall you operate yourself, without giving up the dashboard.
-
-- **Protection you own.** OWASP CRS v4.30.0 runs on Coraza inside your deployment. Start in Observe, tune exclusions, then enforce — per application.
-- **TLS on autopilot.** ACME issuance and renewal with Cloudflare DNS-01 (including wildcards) or HTTP-01, staging and custom directories, or upload your existing PEM.
-- **Decisions you can audit.** Every block ships as a versioned JSON event on container stdout — ready for your SIEM or `jq`.
-- **Hardened by default.** Read-only container root, dropped capabilities, non-root process, no Docker socket, AES-256-GCM for private keys and saved credentials, no default credentials.
-- **Bring your own AI agent.** An optional MCP endpoint with hashed, expiring, scoped keys. Aegis runs no inference or built-in AI workflow itself.
-
-Sites, certificates, policies and application settings are managed through the dashboard or management API — no config-file edits or image rebuilds to add or change a site.
-
-## Performance at a glance
-
-| Workload | Requests/sec | Mean ms | p50 ms | p99 ms |
-| --- | ---: | ---: | ---: | ---: |
-| Direct upstream | 16,206 | 0.978 | 0.787 | 3.431 |
-| Aegis · no rules | 13,676 | 1.163 | 0.959 | 3.995 |
-| Aegis · 100 custom rules | 13,359 | 1.188 | 0.979 | 4.053 |
-| Aegis · bundled CRS baseline | 10,579 | 1.501 | 1.351 | 3.802 |
-
-**2026-10-25 lab reference.** Linux/amd64, AMD Ryzen 9 7950X3D (32 available CPUs), Go 1.26.10; medians of three sequential runs of 64,000 small HTTP/1.1 keep-alive GETs per phase with 16 client threads. PostgreSQL access logging was enabled; evidence capture and bot/flood controls were off. The CRS row used the bundled PL1 baseline in Block mode, anomaly threshold 5, with no signature exclusions. Observed mean-latency increase over the direct upstream was **0.185 ms** with no rules and **0.526 ms** with CRS (median of paired runs). All three runs reported zero dropped access logs.
-
-Client, gateway, upstream and PostgreSQL shared the Docker host. These short closed-loop measurements include client scheduling and Docker networking; repeat them on target hardware. TLS handshakes, uploads, expensive custom regexes and adversarial mixed workloads require separate measurements. Tail values vary by run. See [methodology and reproduction](docs/benchmarks.md) and [raw reports](docs/benchmarks/2026-10-25/).
-
-## What it does today
-
-| Area                       | Implemented behavior                                                                                                                                                                                                                                                                            |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Certificates**           | Guided ACME issuance, automatic renewal and on-demand Renew now; Cloudflare DNS-01, including wildcards; HTTP-01; staging, production and custom ACME directories; PEM upload and replacement.                                                                                                                                 |
-| **Reverse proxy**          | Exact-host routing to HTTP(S) upstreams, TLS termination, optional HTTPS redirects, WebSockets and streaming, verified upstream TLS, and configurable request/response headers.                                                                                                                 |
-| **Managed signatures**     | Coraza with bundled OWASP CRS v4.30.0. Explicitly load a version and select it in a policy. Observe/Block modes, anomaly threshold, paranoia level, body limits, rule-ID and scoped path/parameter/client exclusions.                                                                                                         |
-| **Policies**               | Reusable bot/flood controls and custom rule groups assigned to applications. Ordered source-IP/CIDR assignments support different internal and external policies.                                                                                                                               |
-| **Custom rules and feeds** | Visual condition editor, JSON import/export, standalone rule activation/expiry, history, rollback and replay against retained facts. Public HTTPS JSON feeds sync every 12 hours or on demand and stage candidates for review.                                                                  |
-| **Bot and flood controls** | Basic scanner/headless User-Agent signals and configurable per-client/application rate limits. Reusable address objects/groups and independent bot/flood exemptions. Limits are per replica.                                                                                                                                   |
-| **Visibility**             | Global/application traffic, requests per second, connections, status codes, blocking statistics, optional local country/state lookup with map drill-down, replica CPU/RAM, access logs and administrative audit events. Click any listed request for its recorded decision, rule/signature details and retained evidence. Response status identifies its proxy host/source; a dashboard link opens the animated live traffic view. |
-| **Evidence**               | Opt-in sampled, bounded request facts with allowlists, redaction and expiry. Custom-rule replay does not send requests upstream.                                                                                                                                                                |
-| **Agent access** | Optional MCP endpoint with hashed expiring keys, read/evidence/draft/enforcement permissions and source address restrictions. Bring your own agent and model.                                                                                                                                                           |
+For custom ports, native management TLS, backups and multiple replicas, see [deployment](docs/deployment.md).
 
 ## Protect your first application
 
-1. **Get a certificate.** Open **Certificates → Request certificate**. For Cloudflare DNS-01, enter domains, email and an API token scoped to the zone with **Zone Read** and **DNS Edit**, then explicitly accept the CA terms. Aegis handles account registration, validation, issuance and renewal. DNS-01 needs no inbound port 80. [Cloudflare setup](docs/cloudflare.md) covers permissions and prerequisites. Use **Advanced options** for staging/custom CAs or HTTP-01, or **Upload PEM** for an existing certificate and key.
-2. **Connect the upstream.** When issuance succeeds, choose **Connect site**, enter the application's reachable HTTP(S) upstream URL and save. In **Proxy hosts**, set its exact hostnames, certificate, redirect and header options. Point client DNS and your port mappings/load balancer at Aegis. The upstream's `localhost` would mean the Aegis container itself.
-3. **Choose baseline protection.** New installations and upgrades include an editable **Baseline protection** policy with CRS already loaded: Block mode, paranoia level 1, anomaly threshold 5 and a 1 MiB request-body limit. Select it under **Initial protection policy** while adding a proxy host, or assign it from Policies. Bot/flood controls remain off until tuned. Existing applications are not assigned automatically.
-4. **Inspect or customize signatures.** In **Rules → Signature sets**, choose **View signatures** for searchable rule IDs, descriptions and metadata. **Apply to policy** configures a new or existing policy with the set selected. In **Policies**, use **Browse signatures and exclusions** for targeted exceptions. Start custom policies in **Observe**, then assign applications. Add custom rule groups and bot/flood settings as needed. Assign a default policy before adding higher-priority CIDR policies. If Aegis is behind a proxy, configure its trusted addresses and client-IP header first.
-5. **Review, then enforce.** Check the Dashboard and Activity for matches. Tune exclusions, body limits and rates, then explicitly choose **Block**. Policy Observe caps managed signatures at Observe; Off disables them. Policy assignments replace that application's standalone rule activation and local bot/flood settings.
+1. **Get a certificate.** In **Certificates**, request one using your domains, email and a scoped Cloudflare API token, or upload a PEM certificate and key. DNS-01 does not require inbound port 80. [Certificate setup](docs/certificates.md).
+2. **Connect your application.** Add its exact hostnames, reachable HTTP(S) upstream and certificate in **Proxy hosts**. Point client DNS and public traffic at Aegis. Configure trusted proxies first if another proxy sits in front.
+3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or customize one in **Policies**. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit. It takes effect only when assigned; review application compatibility and use Observe while tuning.
 
-Replicas check configuration versions every **2 seconds**; compilation/loading can add time for new managed signature configurations. Local bot/flood controls are Off and evidence capture is disabled. The included baseline enforces CRS only after you explicitly assign it. Deleting or editing that baseline is preserved across restarts; upgrades do not overwrite it. A wildcard certificate covers TLS names; proxy routes still require exact configured hostnames.
+See the [guided setup and investigation workflow](docs/getting-started.md) for signature browsing, exclusions and internal/external assignments. Bot/flood controls and request-content evidence require explicit configuration.
 
-## Structured security logs
+## Performance at a glance
 
-Security decisions are JSON on container stdout with a versioned event contract. Block events include a UTC timestamp, resolved client IP, namespaced rule/signature/control identifiers and an explicit action:
+| Workload                    | Requests/sec | Mean latency | p99 latency |
+| --------------------------- | -----------: | -----------: | ----------: |
+| Direct upstream             |       16,206 |     0.978 ms |    3.431 ms |
+| Aegis, no rules             |       13,676 |     1.163 ms |    3.995 ms |
+| Aegis, bundled CRS baseline |       10,579 |     1.501 ms |    3.802 ms |
 
-```json
-{
-  "schema_version": 1,
-  "timestamp": "2026-10-25T12:00:00Z",
-  "event": "waf_block",
-  "action": "blocked",
-  "client_ip": "198.51.100.24",
-  "site_id": 3,
-  "status": 403,
-  "rule_triggered": [
-    "crs:942100"
-  ],
-  "matched_payload": null,
-  "matched_payload_source": "disabled",
-  "payload_truncated": false,
-  "rule_ids": [],
-  "signature_ids": [
-    942100
-  ],
-  "signals": []
-}
-```
+**Lab reference, 2026-10-25:** AMD Ryzen 9 7950X3D, Linux/amd64, Go 1.26.10. Medians of three sequential runs, each with 64,000 small HTTP/1.1 keep-alive GETs per phase and 16 client threads. PostgreSQL access logging was on; evidence capture and bot/flood controls were off. CRS used Block mode, PL1 and threshold 5, without exclusions.
 
-`matched_payload` stays `null` when capture is disabled or unavailable. Opt-in retained context is redacted and limited to 2 KiB; `matched_payload_source` identifies context rather than promising an exact matched-byte fragment. Logging remains asynchronous and best effort. See the [schema and SIEM collection guide](docs/logging.md#security-event-schema-and-collection) and [machine-readable JSON Schema](docs/security-events.schema.json).
+All components shared a Docker host. These short tests are a reference for this workload, not production capacity; TLS handshakes, uploads and adversarial traffic need separate measurements. [Methodology, reproduction and raw reports](docs/benchmarks.md) · [Comparison with other proxies](docs/proxy-comparison.md).
 
 ## Screenshots
 
-### Live application flow
+![Live flow diagram connecting Aegis directly to protected proxy hosts](docs/screenshots/local-traffic-flow.png)
 
-![Aegis connected directly to proxy hosts, with request counts and live traffic pulses](docs/screenshots/local-traffic-flow.png)
+Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [policies](docs/screenshots/policies.png) and [agent access](docs/screenshots/agent-access.png).
 
-Open **Dashboard → Live traffic map**. The host-only flow diagram, regional gateway placement and **Hide local traffic** filter use recorded traffic; upstream endpoints are omitted from this diagram.
-
-### Connect your own agent
-
-![Agent access with an optional MCP endpoint, scoped keys and a downloadable skill](docs/screenshots/agent-access.png)
-
-### Certificates and automatic renewal
-
-![Certificate inventory showing ACME-managed and uploaded certificates with validity and renewal status](docs/screenshots/certificates-current.png)
-
-Open an ACME certificate’s **Details → Renew now** to request a replacement immediately using its saved account and verification method. The existing certificate stays active until the new certificate and key are validated and loaded. Uploaded certificates use **Replace PEM**.
-
-### Load a versioned signature set
-
-![Rules workspace with the bundled OWASP CRS loaded and its version, rule count and checksum visible](docs/screenshots/signature-sets.png)
-
-### Assign protection to applications
-
-![Policy page showing a custom rule group, CRS in Block mode and application assignments](docs/screenshots/policies.png)
-
-The dashboard supports light/dark themes and mobile layouts. See [screenshot provenance and regeneration](docs/screenshots/README.md) for the test fixture used to capture these images.
-
-## How it runs
-
-```mermaid
-flowchart TB
-    clients["Application clients"] --> entry["Port mappings or external load balancer"]
-    entry --> app1["Aegis replica 1"]
-    entry --> app2["Aegis replica 2 · optional"]
-    app1 --> upstream["Your HTTP(S) applications"]
-    app2 --> upstream
-    admin["Administrator browser · HTTPS"] -. "Separate management listener" .-> app1
-    app1 <--> db[("PostgreSQL")]
-    app2 <--> db
-    classDef gateway fill:#dff5ee,stroke:#2c8a70,color:#173c32
-    classDef storage fill:#e5eef8,stroke:#52789f,color:#1c3550
-    class app1,app2 gateway
-    class db storage
-```
-
-Each replica contains the proxy, dashboard/API, configuration refresher, logging and coordinated certificate/feed workers. PostgreSQL is authoritative for configuration, encrypted key material, sessions, jobs, logs and coordination. Routing, certificate selection and rule evaluation use cached snapshots rather than a database query for every request.
-
-The application runs as a non-root UID with unprivileged internal ports. Compose uses a read-only application root, an explicit temporary directory, dropped capabilities and no Docker socket. The default deployment needs only PostgreSQL's persistent volume. An [optional encrypted recovery cache](docs/snapshot-cache.md) adds local snapshot storage when explicitly enabled.
-
-## Current limits
-
-Aegis is under active development. Request protection and the optional MCP agent endpoint are implemented; Aegis runs no AI traffic analysis itself.
-
-- **Flood budgets are replica-local.** More replicas increase the effective aggregate allowance; budgets reset on process restart. Cluster-wide rate coordination is not implemented.
-- **CRS inspects requests only.** Response-body inspection is disabled. In Block mode, requests over the policy body limit are rejected with 413; Observe forwards them with incomplete-inspection metadata. New custom policies default to 64 KiB; the included baseline uses 1 MiB. Configurable range: 4 KiB–1 MiB. Review upload-heavy applications before enforcing. [Managed signature behavior](docs/managed-signatures.md).
-- **Bot detection is basic and spoofable.** There is no CAPTCHA, browser challenge, verified-bot identity, behavioral learning or network-layer DDoS protection.
-- **Agents are external and opt-in.** MCP provides scoped access for your agent; Aegis runs no inference or built-in AI workflow. Grant live enforcement separately from read/evidence/draft access. CRS inbound anomaly scoring is independent. [Agent setup](docs/agent-access.md).
-- **Database outages have defined limits.** Running replicas retain their last loaded routes, certificates and policies; sign-in, administrative changes and HTTP-01 lookup still require PostgreSQL. A default replica starting during an outage remains unready. [Failure and recovery behavior](docs/deployment.md#health-and-database-outages).
-- **Logs are best effort.** Forwarding/enforcement precede queued log writes. Queue saturation, outages or process crashes can lose records. Access/audit retention is manual; sampled evidence has its own automatic expiry. [Logging](docs/logging.md) · [Privacy](docs/evidence-privacy.md).
-- **Encryption covers secret values.** Private keys and saved credentials use AES-256-GCM with an external key. Public certificate chains, configuration and logs are not encrypted by that application layer. Online key rotation, MFA, password recovery and granular administrator roles are not implemented. [Encryption details](docs/encryption-at-rest.md).
-
-See [measured performance and comparison limits](docs/proxy-comparison.md). Those small-workload results do not establish production capacity or security parity with other WAFs.
-
-## Update and recover
-
-Back up PostgreSQL and retain the external encryption key before updating. From your deployment directory:
-
-```sh
-docker compose pull app
-docker compose up -d --no-deps --wait app
-```
-
-Use the same Compose overlays and environment overrides you used for deployment. In Dockge, use its update/pull-and-recreate action. CI publishes on main pushes, nightly at **07:17 UTC**, and on manual runs; publishing does not restart your installation.
-
-For reproducible deployment or rollback, pin `AEGIS_IMAGE` to a unique build tag or digest. Preserve the database and secret files, and check schema/feature compatibility before downgrading. See [image publishing](docs/image-builds.md) and [backups](docs/deployment.md#backups-and-recovery). Loaded CRS sets stay pinned until you explicitly select a different stored version.
+<a id="how-it-runs"></a>
+<a id="structured-security-logs"></a>
+<a id="update-and-recover"></a>
 
 ## Documentation
 
-| Task                                                                    | Guide                                                                                                                                                      |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deploy, configure listeners, enable HTTPS management, scale and recover | [Deployment](docs/deployment.md)                                                                                                                           |
-| Request certificates through Cloudflare                                 | [Cloudflare DNS-01](docs/cloudflare.md)                                                                                                                    |
-| Set up policies, groups and internal/external assignments               | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md)                                                                            |
-| Create rules, consume feeds and replay retained facts                   | [Custom rules](docs/rules.md) · [Rule feeds](docs/rule-feeds.md)                                                                                           |
-| Configure forwarded identity, headers and exemptions                    | [Headers and CIDRs](docs/headers-and-cidrs.md)                                                                                                             |
-| Understand metrics, logs and evidence storage                           | [Dashboard](docs/dashboard.md) · [Request investigation](docs/request-investigation.md) · [Logging](docs/logging.md) · [Privacy](docs/evidence-privacy.md) |
-| Connect your own AI agent through MCP | [Agent access, bundled skill and permissions](docs/agent-access.md) |
-| Tune exclusions and export security events | [Inspection and telemetry](docs/security-tuning.md) |
-| Reuse network definitions or configure Geo | [Address objects](docs/address-objects.md) · [Geo data and policy order](docs/geolocation.md) |
-| Automate or develop                                                     | [Management API](docs/management-api.md) · [Development and tests](docs/development.md)                                                                    |
+Start with the **[documentation index](docs/README.md)**, or go directly to:
+
+| Task                                       | Guide                                                                                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                   |
+| Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                        |
+| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Security tuning](docs/security-tuning.md)            |
+| Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Evidence privacy](docs/evidence-privacy.md) |
+| Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                               |
+
+## Current limits
+
+Aegis is under active development. CRS inspection is request-side; bot detection uses basic signals, and HTTP flood budgets are **per replica**. Logs are asynchronous and best effort. Existing replicas retain loaded configuration during database outages; a default cold start needs PostgreSQL. Aegis runs no built-in AI traffic analysis. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
 
 ## Support and contributions
 
-Maintained by [nextgridit-team](https://github.com/nextgridit-team). Use [GitHub Issues](https://github.com/nextgridit-team/Aegis-WAF/issues) for bugs and feature requests. Include the image tag/digest, reproduction steps and sanitized logs; omit passwords, API tokens, private keys and captured request secrets. For code changes, explain the behavior and run the relevant checks in the [development guide](docs/development.md).
+Maintained by [nextgridit-team](https://github.com/nextgridit-team). Use [GitHub Issues](https://github.com/nextgridit-team/Aegis-WAF/issues) for bugs and feature requests. Include your image tag/digest, reproduction steps and sanitized logs. Omit passwords, tokens, private keys and captured request secrets. For code changes, follow the [development and testing guide](docs/development.md).
 
 ## License
 
-Aegis application code is [MIT licensed](LICENSE). Distributed dependencies retain their own licenses; their [notices](third_party_licenses/) are included in the image under `/usr/share/licenses/aegis`.
+Aegis application code is [MIT licensed](LICENSE). Dependencies retain their own licenses; [third-party notices](third_party_licenses/) ship in the image under `/usr/share/licenses/aegis`.
