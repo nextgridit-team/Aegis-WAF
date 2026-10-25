@@ -1,3 +1,8 @@
+import {
+  clientAddress,
+  responseStatusPanel,
+  type ResponseStatus,
+} from "./response-status";
 import type {
   AddressSelection,
   AddressObject,
@@ -65,6 +70,7 @@ type Report = {
   series: { at: string; requests: number; blocked: number }[];
   countries: { country: string; requests: number; blocked: number }[];
   statuses: { status: number; requests: number }[];
+  response_statuses: ResponseStatus[];
   signals: { signal: string; requests: number }[];
   recent: {
     id: number;
@@ -73,6 +79,7 @@ type Report = {
     method: string;
     status: number;
     peer: string;
+    client_objects?: string[];
     country: string;
     blocked: boolean;
     signals: string[];
@@ -282,8 +289,10 @@ export function makeDashboardUI(d: Deps) {
           : undefined;
       const focusValue = focusKey ? focused!.getAttribute(focusKey) : null;
       const focusID = focused?.dataset.id;
+      const statusScroll =
+        target.querySelector(".response-status-table")?.scrollTop || 0;
       target.innerHTML = `${r.dropped_logs ? `<div class="notice error">Reporting replicas have dropped ${format(r.dropped_logs)} access logs since starting. Request statistics may be incomplete.</div>` : ""}<div class="metric-grid">${metric("Requests / second", format(t.rps), "Completed requests · trailing 10s")}${metric("Open connections", format(r.connections), `${r.reporting_replicas} reporting replica${r.reporting_replicas === 1 ? "" : "s"} · includes keep-alive`)}${metric("In-flight requests", format(r.inflight), "Currently being processed")}${metric("Total requests", format(t.requests), `Last ${r.minutes} minutes · ${format(t.clients)} clients`)}${metric("Blocked requests", format(t.blocked), `${t.requests ? format((t.blocked / t.requests) * 100) : "0"}% of traffic`)}${metric("Flagged requests", format(t.flagged), `Bot or flood signals · ${format(t.exempt || 0)} requests exempt`)}</div>
-   ${resources}<section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
+   ${resources}<section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><a class="text-button" href="#live-map">Open live traffic map</a><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
    <div class="dashboard-columns"><section class="dashboard-panel world-panel">${regions ? regions.mapPanel : `<div class="section-heading"><h2>Incoming traffic</h2><small>Select a country for regional detail</small></div><svg class="world-map" viewBox="0 5 360 160" role="group" aria-label="World map of incoming requests by country">${map}</svg>`}<div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div>${geoSyncStatus(r.geo_sources || [], esc)}<button class="text-button" data-action="geo-sync">Database sync & regions</button><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
    <section class="dashboard-panel"><h2>${regions ? "Regional traffic" : "Traffic origins"}</h2>${
      regions
@@ -296,20 +305,14 @@ export function makeDashboardUI(d: Deps) {
            "No incoming requests yet.",
          )
    }<p class="muted">Private IPs and unresolved locations are counted as unknown.</p></section></div>${regions?.recent || ""}
-   <div class="dashboard-columns"><section class="dashboard-panel"><h2>Response status</h2>${rowList(
-     r.statuses.map(
-       (s) =>
-         `<div class="dashboard-row"><span class="badge ${s.status >= 500 ? "danger" : s.status >= 400 ? "warning" : "success"}">${s.status}</span><strong>${format(s.requests)}</strong><small>${format(t.requests ? (s.requests / t.requests) * 100 : 0)}%</small></div>`,
-     ),
-     "Status codes appear as requests complete.",
-   )}<p class="muted">${format(t.errors)} server errors · ${format(t.mean_duration_ms)} ms average response time</p></section>
+   ${responseStatusPanel(r.response_statuses || [], t.requests, scope ? sites.find((s) => String(s.id) === scope)?.name || "Selected proxy host" : "All proxy hosts")}
    <section class="dashboard-panel"><h2>Bot & flood signals</h2>${rowList(
      r.signals.map(
        (s) =>
          `<div class="dashboard-row"><span>${esc(signalNames[s.signal] || s.signal)}</span><strong>${format(s.requests)}</strong></div>`,
      ),
      "No bot or flood signals in this time range.",
-   )}<p class="muted">Signals indicate suspicious requests. User-agent signals can be spoofed and do not prove a visitor is a bot.</p></section></div>
+   )}<p class="muted">Signals indicate suspicious requests. User-agent signals can be spoofed and do not prove a visitor is a bot.</p></section>
    <section class="dashboard-panel"><div class="section-heading"><h2>Application protection</h2><button class="text-button" data-action="protection">Configure protection</button></div>${rowList(
      scoped.map((s) => {
        const p =
@@ -331,7 +334,7 @@ export function makeDashboardUI(d: Deps) {
                sites.find((s) => s.id === event.site_id)?.name ||
                  `Application ${event.site_id}`,
              ),
-             esc(event.peer) +
+             clientAddress(event.peer, event.client_objects) +
                (event.policy_name
                  ? `<small>${esc(event.policy_name)} · v${event.policy_revision}</small>`
                  : "") +
@@ -375,6 +378,8 @@ export function makeDashboardUI(d: Deps) {
         }
         void update().catch(d.handleError);
       };
+      const statusTable = target.querySelector(".response-status-table");
+      if (statusTable) statusTable.scrollTop = statusScroll;
       if (focusKey) {
         const selector = `[${focusKey}="${CSS.escape(focusValue || "")}"]${focusID ? `[data-id="${CSS.escape(focusID)}"]` : ""}`;
         (

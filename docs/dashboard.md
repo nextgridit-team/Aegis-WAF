@@ -48,3 +48,17 @@ All require an administrator session; writes also require CSRF protection. Prote
 The dashboard shows CPU percentage and RAM bytes across active gateway replicas, with an expandable per-replica table and configured memory limits. Measurements are global even when traffic is filtered by application. CPU uses changes in consumed CPU time normalized to available cores and the container CPU quota. On Linux cgroup v2, RAM includes memory charged to the container; process resident memory is the fallback. PostgreSQL and other host services are excluded. Sampling runs in the background with existing telemetry and requires no additional containers, host mounts or privileges.
 
 Samples use the one-second telemetry heartbeat; the dashboard refreshes every four seconds. Replica heartbeats expire after ten seconds. Unavailable or initial CPU samples display Unavailable rather than a fabricated zero. This is live telemetry, not a historical resource monitoring service. [Linux cgroup v2 reference](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html).
+
+## Response status and address names
+
+Response status now groups the selected traffic by proxy host, response source and HTTP code. Columns label the request count and percentage of all completed requests in the current application/time range. Up to 100 most frequent groups appear; percentages may therefore sum to less than 100 when more groups exist. Proxy-host names and configured hostnames are current configuration, not reconstructed historical request hosts. Deleted hosts retain their IDs and counts.
+
+New request logs record `response_source`: `upstream`, `waf`, `redirect`, or `gateway_error`. An upstream 403/502 remains an upstream response; gateway-generated errors are identified separately. Older records without provenance show Not recorded unless a recorded block explicitly establishes a WAF response. Sources also appear in individual request details.
+
+Client displays in Dashboard, Activity, regional requests and request details use the most specific currently matching IP object (individual address before a wider CIDR), with up to eight equally specific object names. The original IP remains visible. Names are resolved on management reads, so renames appear without rewriting logs or adding any query to forwarding. A matching object is a display label, not an allowlist or trust decision.
+
+## Live traffic map
+
+Open Live traffic map from Dashboard's traffic chart. It has no separate sidebar entry. The page polls the recorded event tail once per second, animating allowed requests green and recorded WAF blocks red, with an auto-following request log, application filter, pause/resume and request details. The gateway and unknown/private source markers are explicitly logical positions; public locations use approximate country areas, not city/IP coordinates. Unknown traffic is not assigned a fabricated geographic origin.
+
+The feed shows completed requests after asynchronous logging, usually 1–2 seconds later; active long streams appear upon completion. It reads up to 200 records from the last minute per refresh, deduplicates recent IDs, retains 200 visible log rows and caps simultaneous animations at 30. This is a best-effort visualization, not an exhaustive event-delivery protocol or a TCP connection counter. Activity retains the database records. Pause affects only the view. Reduced-motion preferences disable map animations and initially disable auto-follow; users can control auto-follow explicitly.

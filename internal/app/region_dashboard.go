@@ -46,6 +46,14 @@ func (a *App) regionDashboard(w http.ResponseWriter, r *http.Request, _ identity
 	if e != nil {
 		return e
 	}
+	names, e := loadAddressNames(r.Context(), a.db)
+	if e != nil {
+		return e
+	}
+	recent, e = names.annotateList(recent)
+	if e != nil {
+		return e
+	}
 	respond(w, 200, map[string]any{"country": country, "region": selected, "regions": json.RawMessage(regions), "recent": json.RawMessage(recent), "minutes": minutes, "site_id": site})
 	return nil
 }

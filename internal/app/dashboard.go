@@ -189,7 +189,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		return e
 	}
 	since := now.Add(-time.Duration(minutes) * time.Minute)
-	var totals, series, countries, statuses, signals, recent []byte
+	var totals, series, countries, statuses, responseStatuses, signals, recent []byte
 	filter := " FROM access_logs WHERE at >= $1 AND at < $3::timestamptz AND ($2::bigint=0 OR site_id=$2)"
 	queries := []struct {
 		sql    string
@@ -199,6 +199,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.at),'[]') FROM (SELECT date_bin(interval '10 seconds',at,timestamptz '2000-01-01') at,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY 1) x`, &series},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY country) x`, &countries},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC,x.site_id,x.status,x.response_source),'[]') FROM (SELECT grouped.*,s.name site_name,coalesce(s.hostnames,'{}'::text[]) hostnames FROM (SELECT site_id,status,CASE WHEN response_source<>'' THEN response_source WHEN blocked THEN 'waf' ELSE 'unknown' END response_source,count(*) requests` + filter + ` GROUP BY site_id,status,CASE WHEN response_source<>'' THEN response_source WHEN blocked THEN 'waf' ELSE 'unknown' END) grouped LEFT JOIN sites s ON s.id=grouped.site_id ORDER BY grouped.requests DESC,grouped.site_id,grouped.status,grouped.response_source LIMIT 100) x`, &responseStatuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name,managed_signatures,network_access,region_code,region_name` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
 	}
@@ -206,6 +207,14 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		if e = tx.QueryRow(ctx, q.sql, since, site, now).Scan(q.target); e != nil {
 			return fmt.Errorf("dashboard query %d: %w", index, e)
 		}
+	}
+	names, e := loadAddressNames(ctx, tx)
+	if e != nil {
+		return e
+	}
+	recent, e = names.annotateList(recent)
+	if e != nil {
+		return e
 	}
 	rows, e := tx.Query(ctx, "SELECT id,data,dropped_logs,system FROM replica_metrics WHERE at>now()-interval '10 seconds' ORDER BY id")
 	if e != nil {
@@ -261,10 +270,11 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 	if e = a.db.QueryRow(r.Context(), "SELECT coalesce(jsonb_agg(x),'[]') FROM ("+geoStatusSQL+") x").Scan(&geoSources); e != nil {
 		return e
 	}
-	respond(w, 200, map[string]any{"geo_sources": json.RawMessage(geoSources), "at": now, "minutes": minutes, "site_id": site, "totals": json.RawMessage(totals), "series": json.RawMessage(series), "countries": json.RawMessage(countries), "statuses": json.RawMessage(statuses), "signals": json.RawMessage(signals), "recent": json.RawMessage(recent), "systems": systems, "dropped_logs": dropped, "connections": connections, "inflight": inflight, "reporting_replicas": replicas, "geo_updated_at": geoUpdated, "log_delay_seconds": 1, "connection_note": "Open gateway sockets, including keep-alive. Application sockets may be shared; do not sum application counts. Heartbeats expire after 10 seconds. Rates use completed requests over 10 seconds."})
+	respond(w, 200, map[string]any{"geo_sources": json.RawMessage(geoSources), "at": now, "minutes": minutes, "site_id": site, "totals": json.RawMessage(totals), "series": json.RawMessage(series), "countries": json.RawMessage(countries), "statuses": json.RawMessage(statuses), "response_statuses": json.RawMessage(responseStatuses), "signals": json.RawMessage(signals), "recent": json.RawMessage(recent), "systems": systems, "dropped_logs": dropped, "connections": connections, "inflight": inflight, "reporting_replicas": replicas, "geo_updated_at": geoUpdated, "log_delay_seconds": 1, "connection_note": "Open gateway sockets, including keep-alive. Application sockets may be shared; do not sum application counts. Heartbeats expire after 10 seconds. Rates use completed requests over 10 seconds."})
 	return nil
 }
 func dashboardAPI(a *App, m *http.ServeMux) {
+	m.HandleFunc("GET /api/live-traffic", a.wrap(true, a.liveTraffic))
 	m.HandleFunc("GET /api/dashboard", a.wrap(true, a.dashboard))
 	m.HandleFunc("GET /api/dashboard/regions", a.wrap(true, a.regionDashboard))
 	m.HandleFunc("POST /api/geolocation/update", a.wrap(true, a.updateGeo))

@@ -39,3 +39,7 @@ Update the source revision/date above when refreshing them. Older screenshots in
 ## Agent access, address objects and regional drill-down — 2026-10-25
 
 `agent-access.png`, `address-objects.png` and `regional-map.png` were captured from the isolated acceptance deployment using local image `aegis-waf:agent-access-test` (`eb7b332cdfc1`), source included in the accompanying scoped-MCP/address-object change. The browser verified a real downloadable skill ZIP, object/group creation and scoped key creation. Only a non-secret synthetic key prefix appears. Regional UI counts use a synthetic US/Washington API fixture; MMDB enrichment and database sync are tested separately against the licensed small MaxMind test database. The images do not establish production City-dataset accuracy or external agent reasoning quality.
+
+## Response provenance and live traffic — 2026-10-25
+
+`response-status.png` and `live-traffic-map.png` come from the isolated final browser fixture (`aegis-waf:status-labels-test`, local image `9b2291f45ad3`, `/tmp/aegis-live-release`). The table includes real fixture upstream/WAF responses; the map animates actual allowed/blocked requests sent through the fixture. Private fixture clients use an explicitly logical unknown-location marker, not invented geographic positions. IP-object names and hostnames are synthetic. The live view also passed application filtering, pause/resume, reduced-motion behavior and four responsive widths.

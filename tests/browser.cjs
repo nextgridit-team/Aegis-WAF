@@ -1119,6 +1119,47 @@ const { execFileSync } = require("node:child_process");
       await dialog().getByRole("button",{name:"Close",exact:true}).click();
     }
 
+    const loggedPeer=await page.evaluate(async()=>{const response=await fetch('/api/access-logs');return (await response.json())[0].peer;});
+    await nav("Address objects").click();
+    await page.getByRole("button",{name:"New object",exact:true}).click();
+    await dialog().getByLabel("Name",{exact:true}).fill("Recorded client");
+    await dialog().getByLabel("IP address or subnet",{exact:true}).fill(loggedPeer);
+    await dialog().getByRole("button",{name:"Save object",exact:true}).click();
+    await message("Address entry saved").waitFor();
+    await nav("Dashboard").click();
+    await page.getByLabel("Application",{exact:true}).selectOption("");
+    const namedRow=page.getByRole("region",{name:"Recent requests",exact:true}).getByRole("row").filter({hasText:"Recorded client"}).first();
+    await namedRow.waitFor();
+    await namedRow.getByRole("button",{name:"View details",exact:true}).click();
+    await dialog().getByText("Current IP objects",{exact:true}).waitFor();
+    await dialog().getByText(loggedPeer,{exact:true}).first().waitFor();
+    await dialog().getByRole("button",{name:"Close",exact:true}).click();
+    const responseBreakdown=page.getByRole("region",{name:"Response status breakdown",exact:true});
+    await responseBreakdown.waitFor();
+    for(const column of ["Proxy host","Response source","HTTP status","Requests","Share of selected traffic"]){await responseBreakdown.getByRole("columnheader",{name:column,exact:true}).waitFor();}
+    await responseBreakdown.getByText("Upstream application",{exact:true}).first().waitFor();
+    assert.ok(await responseBreakdown.evaluate(el=>el.scrollWidth<=el.clientWidth+1),"desktop response status columns should all fit");
+    await responseBreakdown.locator("..").screenshot({path:path.join(out,"response-status-breakdown.png")});
+    await page.getByRole("link",{name:"Open live traffic map",exact:true}).click();
+    await page.getByRole("heading",{name:"Live traffic map",exact:true}).waitFor();
+    assert.equal(await nav("Live traffic map").count(),0,"live page should not add a sidebar item");
+    await page.emulateMedia({reducedMotion:"no-preference"});
+    assert.equal((await httpsRequest(ports[0],"manual.example.test",null,"/safe",{"User-Agent":"curl/8"})).status,200);
+    assert.equal(await botRequest(),403);
+    await page.locator('.live-flow').first().waitFor({timeout:10000});
+    const liveLog=page.getByRole("region",{name:"Live request log",exact:true});
+    await liveLog.locator('.live-row-allowed').first().waitFor();
+    await liveLog.locator('.live-row-blocked').first().waitFor();
+    await screenshot("live-traffic-map");
+    await page.getByRole("button",{name:"Pause feed",exact:true}).click();
+    await page.getByText("Paused · WAF protection continues",{exact:true}).waitFor();
+    await page.getByLabel("Live map application",{exact:true}).selectOption({label:"Manual TLS"});
+    await page.getByRole("button",{name:"Resume feed",exact:true}).click();
+    await liveLog.getByText("Manual TLS",{exact:true}).first().waitFor();
+    await page.emulateMedia({reducedMotion:"reduce"});
+    assert.equal(await page.locator('.live-flow').count(),0,"reduced motion should clear animations");
+    for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'live map overflows at '+width);await screenshot('live-map-'+width);}
+    await page.getByRole("link",{name:"Back to dashboard",exact:true}).click();
     // Map interaction uses synthetic regional aggregates; database enrichment is
     // independently verified with a real MMDB fixture in Go integration tests.
     await page.route("**/api/dashboard/regions?**",async route=>{
@@ -1239,7 +1280,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 52 responsive checks, CPU/RAM replica telemetry, scoped agent keys, address objects, regional drill-down and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 56 responsive checks, CPU/RAM replica telemetry, scoped agent keys, address objects, regional drill-down and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

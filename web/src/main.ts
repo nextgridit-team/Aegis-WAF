@@ -1,3 +1,5 @@
+import { makeLiveMap } from "./live-map";
+import { clientAddress } from "./response-status";
 import {
   makeAddressObjects,
   emptyInventory,
@@ -184,6 +186,7 @@ function currentPage() {
       "ai",
       "rule-feeds",
       "signature-sets",
+      "live-map",
       "dashboard",
       "certificates",
       "proxy-hosts",
@@ -208,7 +211,7 @@ function shell() {
     ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -290,13 +293,15 @@ function sitesList() {
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "dashboard") await dashboardUI.mount(view, state.sites);
   if (page === "policies") {
     const stamp = epoch;
     const html = await policyPage.render();
     if (stamp === epoch) view.innerHTML = html;
   }
+  if (page !== "live-map") liveMapUI.stop();
+  if (page === "live-map") await liveMapUI.mount(view);
   if (page === "ai") await aiPage.render(view);
   if (page === "address-objects") {
     const stamp = epoch;
@@ -399,7 +404,7 @@ async function render() {
               ],
               access.map((a) => [
                 esc(dateTime(a.at)),
-                `${a.site_id}<small>${esc(a.peer)}</small>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}${managedSignatureSummary(a.managed_signatures, esc)}`,
+                `${a.site_id}<div>${clientAddress(a.peer, a.client_objects)}</div>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}${managedSignatureSummary(a.managed_signatures, esc)}`,
                 `${esc(a.method)} · ${a.status}`,
                 [
                   ...(a.rule_results || []).map(
@@ -471,6 +476,7 @@ async function poll() {
     (document.getElementById("editor") as HTMLDialogElement | null)?.open ||
     page === "activity" ||
     page === "traffic" ||
+    page === "live-map" ||
     page === "ai"
   )
     return;
@@ -873,6 +879,7 @@ const policyUI = makePolicyUI({
   refresh,
   notice,
 });
+const liveMapUI = makeLiveMap({ api, sites: () => state.sites, handleError });
 const addressUI = makeAddressObjects({
   api,
   openEditor,

@@ -100,3 +100,7 @@ CREATE TABLE IF NOT EXISTS agent_access(id boolean PRIMARY KEY DEFAULT true CHEC
 INSERT INTO agent_access(id) VALUES(true) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS agent_keys(id bigserial PRIMARY KEY,name text NOT NULL,prefix text NOT NULL,token_hash text UNIQUE NOT NULL,scopes jsonb NOT NULL,allowed_addresses jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL,revoked_at timestamptz);
 INSERT INTO schema_version VALUES(12) ON CONFLICT DO NOTHING;
+
+-- Version 13: record response provenance independently of HTTP status.
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS response_source text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES(13) ON CONFLICT DO NOTHING;

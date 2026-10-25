@@ -1,3 +1,4 @@
+import { clientAddress } from "./response-status";
 import { usStates } from "./us-states";
 export type GeoSource = {
   kind: string;
@@ -23,6 +24,7 @@ export type RegionReport = {
     method: string;
     status: number;
     peer: string;
+    client_objects?: string[];
     blocked: boolean;
     region_code: string;
     region_name: string;
@@ -82,7 +84,7 @@ export function regionPanels(
     '<p class="muted">No regional request records in this scope.</p>';
   const mapPanel = `<div class="section-heading"><h2 id="region-title" tabindex="-1">${esc(countryName)} · regions</h2><button type="button" class="text-button" data-map-back>Back to world</button></div>${map}<p class="muted">IP location is approximate. Older country-only logs and unresolved regions remain unknown. Enable regional data to record state detail on future requests.</p>`;
   const recent = report.region
-    ? `<section class="dashboard-panel"><div class="section-heading"><h2>${esc(report.region === "unknown" ? "Unknown region" : usStates.find((state) => report.country === "US" && state.code === report.region)?.name || report.region)} · recent requests</h2><button type="button" class="text-button" data-map-clear-region>All regions</button></div>${report.recent.length ? `<div class="table-wrap" role="region" aria-label="Regional requests"><table><thead><tr><th>Time</th><th>Client</th><th>Request</th><th>Outcome</th><th></th></tr></thead><tbody>${report.recent.map((event) => `<tr><td>${esc(new Date(event.at).toLocaleTimeString())}</td><td>${esc(event.peer)}</td><td>${esc(event.method)} · ${event.status}</td><td>${event.blocked ? "Blocked" : "Allowed"}</td><td><button type="button" class="secondary compact" data-action="request-details" data-id="${event.id}">View details</button></td></tr>`).join("")}</tbody></table></div>` : '<p class="muted">No requests for this region in the selected application/time range.</p>'}</section>`
+    ? `<section class="dashboard-panel"><div class="section-heading"><h2>${esc(report.region === "unknown" ? "Unknown region" : usStates.find((state) => report.country === "US" && state.code === report.region)?.name || report.region)} · recent requests</h2><button type="button" class="text-button" data-map-clear-region>All regions</button></div>${report.recent.length ? `<div class="table-wrap" role="region" aria-label="Regional requests"><table><thead><tr><th>Time</th><th>Client</th><th>Request</th><th>Outcome</th><th></th></tr></thead><tbody>${report.recent.map((event) => `<tr><td>${esc(new Date(event.at).toLocaleTimeString())}</td><td>${clientAddress(event.peer, event.client_objects)}</td><td>${esc(event.method)} · ${event.status}</td><td>${event.blocked ? "Blocked" : "Allowed"}</td><td><button type="button" class="secondary compact" data-action="request-details" data-id="${event.id}">View details</button></td></tr>`).join("")}</tbody></table></div>` : '<p class="muted">No requests for this region in the selected application/time range.</p>'}</section>`
     : "";
   return { mapPanel, counts, recent };
 }

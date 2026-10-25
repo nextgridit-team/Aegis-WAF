@@ -369,7 +369,20 @@ func (a *App) listAudit(w http.ResponseWriter, r *http.Request, _ identity) erro
 	return a.list(w, r, "SELECT * FROM audit_events ORDER BY id DESC LIMIT 200")
 }
 func (a *App) listAccess(w http.ResponseWriter, r *http.Request, _ identity) error {
-	return a.list(w, r, "SELECT * FROM access_logs ORDER BY id DESC LIMIT 200")
+	var raw []byte
+	if e := a.db.QueryRow(r.Context(), "SELECT coalesce(jsonb_agg(x),'[]') FROM (SELECT * FROM access_logs ORDER BY id DESC LIMIT 200) x").Scan(&raw); e != nil {
+		return e
+	}
+	names, e := loadAddressNames(r.Context(), a.db)
+	if e != nil {
+		return e
+	}
+	raw, e = names.annotateList(raw)
+	if e != nil {
+		return e
+	}
+	respond(w, 200, json.RawMessage(raw))
+	return nil
 }
 func resourceID(r *http.Request) (int64, error) {
 	id, e := strconv.ParseInt(r.PathValue("id"), 10, 64)

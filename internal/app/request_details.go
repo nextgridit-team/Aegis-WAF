@@ -38,6 +38,14 @@ func (a *App) requestDetails(w http.ResponseWriter, r *http.Request, _ identity)
 	if e != nil {
 		return e
 	}
+	names, e := loadAddressNames(r.Context(), tx)
+	if e != nil {
+		return e
+	}
+	raw, e = names.annotate(raw)
+	if e != nil {
+		return e
+	}
 	var event struct {
 		PolicyID       int64                  `json:"policy_id"`
 		PolicyRevision int64                  `json:"policy_revision"`

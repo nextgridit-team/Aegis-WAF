@@ -69,6 +69,7 @@ type snapshot struct {
 }
 type accessEvent struct {
 	securityDisabled, securitySamples bool
+	responseSource                    string
 	regions                           *regionCache
 	regionCode, regionName            string
 	network                           networkAccessResult
@@ -330,6 +331,9 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 			pr.Out.Host = pr.In.Host
 		}
 	}, ModifyResponse: func(response *http.Response) error { settings.applyResponse(response.Header); return nil }, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
+		if status, ok := w.(*statusWriter); ok {
+			status.responseSource = "gateway_error"
+		}
 		http.Error(w, "upstream unavailable", http.StatusBadGateway)
 	}}
 	return p
@@ -378,7 +382,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	start := time.Now()
-	rec := &statusWriter{ResponseWriter: w, status: 200, beforeHeader: rt.site.Headers.applyResponse, onHijack: func(c net.Conn) net.Conn {
+	rec := &statusWriter{ResponseWriter: w, status: 200, responseSource: "waf", beforeHeader: rt.site.Headers.applyResponse, onHijack: func(c net.Conn) net.Conn {
 		return &trackedConnection{Conn: c, closed: func() { a.ConnectionState(c, http.StateClosed) }}
 	}}
 	policy := s.protection[rt.site.ID]
@@ -435,7 +439,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		peer := clientIP.String()
-		event := accessEvent{regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
 			event.securitySamples = capture.Settings.SecuritySamples
@@ -484,14 +488,17 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.TLS == nil && rt.site.RedirectHTTPS {
+		rec.responseSource = "redirect"
 		http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
 		return
 	}
 	r = r.WithContext(context.WithValue(r.Context(), proxyIdentityKey{}, proxyIdentity{clientIP, policy.forwardedProto(r)}))
+	rec.responseSource = "upstream"
 	rt.proxy.ServeHTTP(rec, r)
 }
 
 type statusWriter struct {
+	responseSource string
 	http.ResponseWriter
 	status       int
 	wrote        bool
