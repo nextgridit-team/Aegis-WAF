@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="610" viewBox="0 0 1200 610" role="img" aria-labelledby="title description">
+  <title id="title">How Aegis handles traffic</title>
+  <desc id="description">Clients send HTTP or HTTPS requests to Aegis. It applies the selected application policy before forwarding allowed requests upstream. Optional response inspection checks eligible response bodies before they reach clients. Rejected traffic stops at Aegis. Access logs are queued asynchronously to PostgreSQL after the decision. Routing and certificates use cached configuration; flood budgets are per replica.</desc>
+  <defs>
+    <marker id="allowed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#78d8bc"/></marker>
+    <marker id="blocked" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#ed7777"/></marker>
+    <marker id="queued" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#a3b4be"/></marker>
+  </defs>
+  <style>
+    text{font-family:Arial,Helvetica,sans-serif;fill:#e4edf1} .title{font-size:34px;font-weight:700}.subtitle{font-size:22px;fill:#a3b4be}.heading{font-size:30px;font-weight:700}.body{font-size:24px}.small{font-size:20px;fill:#a3b4be}.label{font-size:18px;fill:#78d8bc}.card{fill:#18232b;stroke:#30414b;stroke-width:2}.line{fill:none;stroke:#78d8bc;stroke-width:3;marker-end:url(#allowed)}.return{stroke-dasharray:7 6;stroke-width:2}
+  </style>
+  <rect width="1200" height="610" rx="20" fill="#10181e"/>
+  <text x="42" y="58" class="title">How Aegis handles traffic</text>
+  <text x="42" y="94" class="subtitle">Inspect before forwarding. Record the decision asynchronously.</text>
+  <rect class="card" x="40" y="150" width="200" height="165" rx="16"/>
+  <text x="140" y="216" class="heading" text-anchor="middle">Clients</text>
+  <text x="140" y="257" class="body" text-anchor="middle">HTTP(S)</text>
+  <rect x="350" y="126" width="440" height="240" rx="18" fill="#182c2b" stroke="#78d8bc" stroke-width="2"/>
+  <text x="570" y="173" class="heading" text-anchor="middle">Aegis WAF</text>
+  <text x="570" y="213" class="body" text-anchor="middle">TLS + application policy</text>
+  <text x="570" y="249" class="small" text-anchor="middle">CIDR / Geo · bot / flood · CRS</text>
+  <path d="M382 271H758" stroke="#365854"/>
+  <text x="570" y="309" class="body" text-anchor="middle">Optional response CRS</text>
+  <text x="570" y="341" class="small" text-anchor="middle">Bounded checks for eligible bodies</text>
+  <rect class="card" x="940" y="150" width="220" height="165" rx="16"/>
+  <text x="1050" y="216" class="heading" text-anchor="middle">Applications</text>
+  <text x="1050" y="257" class="small" text-anchor="middle">HTTP(S) upstreams</text>
+  <path class="line" d="M244 194H342"/>
+  <text x="291" y="179" class="label" text-anchor="middle">Request</text>
+  <path class="line" d="M794 194H930"/>
+  <text x="863" y="179" class="label" text-anchor="middle">Allowed</text>
+  <path class="line return" d="M936 294H800"/>
+  <text x="863" y="279" class="label" text-anchor="middle">Response</text>
+  <path class="line return" d="M346 294H250"/>
+  <path d="M430 370V429H285" fill="none" stroke="#ed7777" stroke-width="2" marker-end="url(#blocked)"/>
+  <rect x="40" y="395" width="235" height="68" rx="14" fill="#33232a" stroke="#ed7777"/>
+  <text x="157" y="437" class="body" text-anchor="middle" style="fill:#edaaaa">Rejected traffic</text>
+  <path d="M720 370V458H888" fill="none" stroke="#a3b4be" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#queued)"/>
+  <text x="797" y="439" class="small" text-anchor="middle">Queued logs</text>
+  <rect class="card" x="900" y="402" width="260" height="132" rx="16"/>
+  <text x="1030" y="443" class="heading" text-anchor="middle">PostgreSQL</text>
+  <text x="1030" y="478" class="small" text-anchor="middle">Async access logs</text>
+  <text x="1030" y="510" class="small" text-anchor="middle">State and coordination</text>
+  <text x="42" y="559" class="small">Routes and certificates use cached configuration.</text>
+  <text x="42" y="588" class="small">HTTP flood budgets are per replica. Response inspection is opt-in.</text>
+</svg>

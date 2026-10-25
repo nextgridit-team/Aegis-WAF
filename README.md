@@ -7,22 +7,9 @@
 
 Aegis is a self-hosted web application firewall and reverse proxy for HTTP(S) applications. It combines Coraza and OWASP Core Rule Set (CRS) signatures, automatic certificates and reusable protection policies. Inspection runs inside your deployment: **one application container plus PostgreSQL**, configured through a web interface.
 
-![Aegis dashboard showing application traffic, protection outcomes and system metrics](docs/screenshots/overview.png)
-
-_Real application screens with isolated test traffic and example domains. [Screenshot provenance](docs/screenshots/README.md)._
+![Aegis WAF: automatic TLS with ACME or PEM, application policies with Coraza and OWASP CRS, and traffic investigation; one application container plus PostgreSQL](docs/graphics/aegis-overview.png)
 
 [Get started](#quickstart) · [Documentation](docs/README.md) · [Security](docs/security.md) · [Performance](#performance-at-a-glance) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
-
-<a id="what-it-does-today"></a>
-
-## Why Aegis
-
-- **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
-- **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
-- **See what happened.** Inspect any listed request's recorded decision and matched rules. Follow allowed and blocked traffic on the live map and application flow diagram, with global or application filters.
-- **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions, basic bot signals and HTTP flood rates.
-- **Connect your own agent.** An optional management MCP endpoint offers scoped, expiring keys and a downloadable skill. Your agent and model run outside Aegis; no built-in inference is required.
-- **Own the deployment.** The app runs as non-root with a read-only root filesystem. Private keys and saved provider credentials are encrypted before storage with an external encryption key. [Security boundaries](docs/security.md).
 
 <a id="deploy-with-docker-compose"></a>
 
@@ -57,6 +44,17 @@ Choose a unique 14–72-byte password. There are no default credentials; the set
 
 For custom ports, native management TLS, backups and multiple replicas, see [deployment](docs/deployment.md).
 
+<a id="what-it-does-today"></a>
+
+## Why Aegis
+
+- **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
+- **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
+- **See what happened.** Inspect any listed request's recorded decision and matched rules. Follow allowed and blocked traffic on the live map and application flow diagram, with global or application filters.
+- **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions, basic bot signals and HTTP flood rates.
+- **Connect your own agent.** An optional management MCP endpoint offers scoped, expiring keys and a downloadable skill. Your agent and model run outside Aegis; no built-in inference is required.
+- **Own the deployment.** The app runs as non-root with a read-only root filesystem. Private keys and saved provider credentials are encrypted before storage with an external encryption key. [Security boundaries](docs/security.md).
+
 ## Protect your first application
 
 1. **Get a certificate.** In **Certificates**, request one using your domains, email and a scoped Cloudflare API token, or upload a PEM certificate and key. DNS-01 does not require inbound port 80. [Certificate setup](docs/certificates.md).
@@ -64,6 +62,12 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or customize one in **Policies**. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit. It takes effect only when assigned; review application compatibility and use Observe while tuning.
 
 See the [guided setup and investigation workflow](docs/getting-started.md) for signature browsing, exclusions and internal/external assignments. Bot/flood controls and request-content evidence require explicit configuration.
+
+## How it runs
+
+![Request and response flow through Aegis, with policy enforcement before forwarding, optional bounded response inspection, rejected traffic and asynchronous PostgreSQL access logging](docs/graphics/traffic-flow.svg)
+
+Each replica runs the complete application. PostgreSQL holds authoritative state; routing and certificate selection use memory snapshots. See [architecture and failure behavior](docs/architecture.md) and [inspection limits](docs/body-inspection.md). The graphics illustrate shipped capabilities; [design notes](docs/graphics/README.md) explain their scope.
 
 ## Performance at a glance
 
@@ -79,11 +83,14 @@ All components shared a Docker host. These short tests are a reference for this 
 
 ## Screenshots
 
+![Aegis dashboard showing application traffic, protection outcomes and system metrics](docs/screenshots/overview.png)
+
+_Actual application screens with isolated test traffic and example domains. [Screenshot provenance](docs/screenshots/README.md)._
+
 ![Live flow diagram connecting Aegis directly to protected proxy hosts](docs/screenshots/local-traffic-flow.png)
 
 Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [policies](docs/screenshots/policies.png) and [agent access](docs/screenshots/agent-access.png).
 
-<a id="how-it-runs"></a>
 <a id="structured-security-logs"></a>
 <a id="update-and-recover"></a>
 
@@ -91,13 +98,13 @@ Open **Dashboard → Live traffic map** to follow recorded traffic on the world 
 
 Start with the **[documentation index](docs/README.md)**, or go directly to:
 
-| Task                                       | Guide                                                                                                                                   |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                   |
-| Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                        |
-| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md)            |
-| Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Evidence privacy](docs/evidence-privacy.md) |
-| Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                               |
+| Task                                       | Guide                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                                                     |
+| Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                                                          |
+| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md) |
+| Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Evidence privacy](docs/evidence-privacy.md)                                   |
+| Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                                                                 |
 
 ## Current limits
 
