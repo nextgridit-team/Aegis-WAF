@@ -1121,7 +1121,23 @@ const { execFileSync } = require("node:child_process");
 
     await nav("Address objects").click();
     await page.getByRole("button",{name:"Set local network location",exact:true}).click();
+    const originalReference=(await (await page.request.get(base+"/api/geolocation/local")).json()).public_ip;
+    let detectionCalls=0;
+    await page.route("**/api/geolocation/local/detect",async route=>{
+      detectionCalls++;
+      await route.fulfill(detectionCalls===1?{json:{public_ip:"8.8.8.8",source:"replica_egress",provider:"ipify"}}:{status:503,json:{error:"Public IP detection unavailable. Enter the address manually or try again."}});
+    });
+    await dialog().getByRole("button",{name:"Detect public IP",exact:true}).click();
+    await dialog().getByText("Detected outbound IP. Review the address, then save to apply.",{exact:true}).waitFor();
+    assert.equal(await dialog().getByLabel("Gateway public IP",{exact:true}).inputValue(),"8.8.8.8");
+    assert.equal((await (await page.request.get(base+"/api/geolocation/local")).json()).public_ip,originalReference,"detection must not save settings");
     await dialog().getByLabel("Gateway public IP",{exact:true}).fill("216.160.83.56");
+    await dialog().getByRole("button",{name:"Detect public IP",exact:true}).click();
+    await dialog().getByText(/Public IP detection unavailable/).waitFor();
+    assert.equal(await dialog().getByLabel("Gateway public IP",{exact:true}).inputValue(),"216.160.83.56");
+    assert.equal(await dialog().getByRole("button",{name:"Save local location",exact:true}).isEnabled(),true);
+    await page.unroute("**/api/geolocation/local/detect");
+    await screenshot("detect-gateway-public-ip");
     await dialog().getByRole("button",{name:"Save local location",exact:true}).click();
     await message("Local location saved").waitFor();
     assert.equal((await (await page.request.get(base+"/api/geolocation/local")).json()).public_ip,"216.160.83.56");

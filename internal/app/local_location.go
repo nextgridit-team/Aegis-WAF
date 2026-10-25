@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/oschwald/maxminddb-golang/v2"
@@ -82,7 +84,44 @@ func (a *App) loadLocalGeo(ctx context.Context, tx pgx.Tx, s *snapshot) error {
 	}
 	return nil
 }
+
+// Only explicit administrator requests contact this fixed HTTPS endpoint. No
+// visitor IPs, browser headers, credentials or saved settings are sent.
+func detectGatewayPublicIP(ctx context.Context, transport http.RoundTripper) (string, error) {
+	client := &http.Client{Transport: transport, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, e := http.NewRequestWithContext(ctx, http.MethodGet, "https://api64.ipify.org", nil)
+	if e != nil {
+		return "", e
+	}
+	req.Header.Set("Accept", "text/plain")
+	response, e := client.Do(req)
+	failure := apiError{503, "Public IP detection unavailable. Enter the address manually or try again."}
+	if e != nil {
+		return "", failure
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", failure
+	}
+	raw, e := io.ReadAll(io.LimitReader(response.Body, 129))
+	if e != nil || len(raw) > 128 {
+		return "", failure
+	}
+	ip, e := normalizeLocalPublicIP(string(raw))
+	if e != nil || ip == "" {
+		return "", failure
+	}
+	return ip, nil
+}
 func localLocationAPI(a *App, m *http.ServeMux) {
+	m.HandleFunc("POST /api/geolocation/local/detect", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
+		ip, e := detectGatewayPublicIP(r.Context(), a.publicIPHTTP)
+		if e != nil {
+			return e
+		}
+		respond(w, 200, map[string]string{"public_ip": ip, "provider": "ipify", "source": "replica_egress"})
+		return nil
+	}))
 	m.HandleFunc("GET /api/geolocation/local", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		var public string
 		if e := a.db.QueryRow(r.Context(), "SELECT public_ip FROM local_location WHERE id").Scan(&public); e != nil {

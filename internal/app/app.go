@@ -97,6 +97,7 @@ type accessEvent struct {
 	exemptions                                           []string
 }
 type App struct {
+	publicIPHTTP                  http.RoundTripper
 	regions                       atomic.Pointer[regionCache]
 	geoHTTP                       http.RoundTripper
 	managedSlots                  chan struct{}

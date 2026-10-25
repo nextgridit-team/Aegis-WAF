@@ -227,3 +227,7 @@ Final real-browser/Pebble checks passed 56 responsive checks, including all resp
 ## Local network display location — 2026-10-25
 
 Full PostgreSQL integration, race detection and vet passed (89.675s). Regressions cover most-specific IPv4/IPv6 object matching, conservative equal-prefix handling, optional-flag update compatibility, replica refresh, public-IP validation, encrypted snapshot round-trip, idempotent post-forward enrichment, region enrichment, stored/live provenance, and unchanged client identity/Geo decisions. TypeScript production build passed. Browser/Pebble passed 56 responsive checks including saving the shared reference, marking a local IP object, the prominent Dashboard live-map button, and certificate/proxy flows across two replicas. All services and credentials used for these tests were disposable; production local objects/reference remain opt-in.
+
+## Gateway public-IP detection — 2026-10-25
+
+PostgreSQL integration/race/vet passed (89.331s); strict TypeScript build and final browser/Pebble suite passed (56 responsive checks). Detection tests cover IPv4/IPv6, invalid/private/empty/oversized responses, non-200 responses, redirects, cancellation, session/CSRF checks, and detection without changing the saved reference. Browser checks cover successful field population, failed lookup preserving manual input, and explicit save. The fixed HTTPS provider was reachable from the Nexus runtime network without changing any settings. Browser artifacts are in `/tmp/aegis-detect-public-ip` on the build host.

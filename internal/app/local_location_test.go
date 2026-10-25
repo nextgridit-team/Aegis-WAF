@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/oschwald/maxminddb-golang/v2"
+	"io"
+	"net/http"
 	"net/netip"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,4 +95,40 @@ func decodeLocalSetting(t *testing.T, raw []byte) string {
 		t.Fatal(err)
 	}
 	return v["public_ip"]
+}
+
+func TestGatewayPublicIPDetection(t *testing.T) {
+	for _, test := range []struct {
+		name, body, want string
+		status           int
+	}{
+		{"ipv4", "8.8.8.8\n", "8.8.8.8", 200},
+		{"ipv6", "2606:4700:4700::1111", "2606:4700:4700::1111", 200},
+		{"empty", "", "", 200}, {"private", "10.1.2.3", "", 200},
+		{"html", "<html>unavailable</html>", "", 200},
+		{"oversized", strings.Repeat(" ", 129) + "8.8.8.8", "", 200},
+		{"upstream error", "8.8.8.8", "", 502},
+		{"redirect", "", "", 302},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			calls := 0
+			transport := dnsTestTransport(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if r.URL.String() != "https://api64.ipify.org" || r.Method != "GET" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+					t.Fatalf("unexpected external request: %s %s", r.Method, r.URL)
+				}
+				return &http.Response{StatusCode: test.status, Header: http.Header{"Location": []string{"https://example.com"}}, Body: io.NopCloser(strings.NewReader(test.body))}, nil
+			})
+			got, e := detectGatewayPublicIP(context.Background(), transport)
+			if got != test.want || (e != nil) != (test.want == "") || calls != 1 {
+				t.Fatalf("got=%q err=%v calls=%d", got, e, calls)
+			}
+		})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, e := detectGatewayPublicIP(ctx, dnsTestTransport(func(r *http.Request) (*http.Response, error) { return nil, r.Context().Err() }))
+	if e == nil {
+		t.Fatal("cancelled lookup succeeded")
+	}
 }

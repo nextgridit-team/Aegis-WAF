@@ -74,8 +74,49 @@ export function makeAddressObjects(c: C) {
       const location = await c.api<{ public_ip: string }>("/geolocation/local");
       c.openEditor(
         "Local network location",
-        `<form id="local-location-form"><label class="field">Gateway public IP<input name="public_ip" aria-label="Gateway public IP" value="${esc(location.public_ip)}" placeholder="Your gateway's public IPv4 or IPv6 address"></label><p>Local objects use this IP's cached country/region for future log/map entries. Original client IPs and observed Geo data remain available; Geo enforcement always uses the actual client IP. Leave empty to clear. This is not an automatic WAN-IP discovery service.</p><button class="primary" type="submit">Save local location</button></form>`,
+        `<form id="local-location-form"><label class="field">Gateway public IP<input name="public_ip" aria-label="Gateway public IP" value="${esc(location.public_ip)}" placeholder="Your gateway's public IPv4 or IPv6 address"></label><button class="secondary" type="button" data-detect-public-ip>Detect public IP</button><p data-detect-status role="status" aria-live="polite"></p><small>Detection contacts ipify from this Aegis replica. It finds the outbound IP; NAT, a VPN or an outbound proxy can make this differ from your inbound public IP. Review before saving.</small><p>Local objects use this IP's cached country/region for future log/map entries. Original client IPs and observed Geo data remain available; Geo enforcement always uses the actual client IP. Leave empty to clear. Detection fills this field only; settings change when you save.</p><button class="primary" type="submit">Save local location</button></form>`,
       );
+      const form = document.querySelector<HTMLFormElement>(
+        "#local-location-form",
+      )!;
+      const detect = form.querySelector<HTMLButtonElement>(
+        "[data-detect-public-ip]",
+      )!;
+      const field = form.querySelector<HTMLInputElement>("[name=public_ip]")!;
+      const status = form.querySelector<HTMLElement>("[data-detect-status]")!;
+      const save = form.querySelector<HTMLButtonElement>("[type=submit]")!;
+      detect.onclick = async () => {
+        const previous = field.value;
+        detect.disabled = true;
+        save.disabled = true;
+        status.textContent = "Detecting public IP…";
+        try {
+          const result = await c.api<{ public_ip: string }>(
+            "/geolocation/local/detect",
+            "POST",
+          );
+          if (!form.isConnected) return;
+          if (field.value !== previous) {
+            status.textContent =
+              "Detected " + result.public_ip + ". Your edited value was kept.";
+          } else {
+            field.value = result.public_ip;
+            status.textContent =
+              "Detected outbound IP. Review the address, then save to apply.";
+          }
+        } catch (error) {
+          if (form.isConnected)
+            status.textContent =
+              error instanceof Error
+                ? error.message
+                : "Detection failed. Enter the address manually.";
+        } finally {
+          if (form.isConnected) {
+            detect.disabled = false;
+            save.disabled = false;
+          }
+        }
+      };
       c.formHandler("local-location-form", async (f) => {
         await c.api("/geolocation/local", "PUT", {
           public_ip: String(f.get("public_ip") || ""),

@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -31,10 +33,24 @@ func TestAddressObjectsIntegration(t *testing.T) {
 	jar, _ := cookiejar.New(nil)
 	c := testAPI{t, &http.Client{Jar: jar}, management.URL, ""}
 	c.call("GET", "/api/address-objects", nil, 401)
+	c.call("POST", "/api/geolocation/local/detect", nil, 401)
 	c.call("POST", "/api/setup", map[string]string{"username": "admin", "password": "address objects test password", "secret": cfg.BootstrapSecret}, 201)
 	var login map[string]string
 	json.Unmarshal(c.call("POST", "/api/login", map[string]string{"username": "admin", "password": "address objects test password"}, 200), &login)
 	c.csrf = login["csrf"]
+	a.publicIPHTTP = dnsTestTransport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("8.8.8.8"))}, nil
+	})
+	c.csrf = ""
+	c.call("POST", "/api/geolocation/local/detect", nil, 403)
+	c.csrf = login["csrf"]
+	if decodeLocalSetting(t, c.call("POST", "/api/geolocation/local/detect", nil, 200)) != "8.8.8.8" {
+		t.Fatal("detected IP not returned")
+	}
+	if decodeLocalSetting(t, c.call("GET", "/api/geolocation/local", nil, 200)) != "" {
+		t.Fatal("detection changed saved reference")
+	}
+
 	obj := mustID(t, c.call("POST", "/api/address-objects", map[string]any{"name": "F5", "value": "192.0.2.1"}, 200))
 	c.call("GET", "/api/geolocation/local", nil, 200)
 	c.call("PUT", "/api/geolocation/local", map[string]string{"public_ip": "192.168.1.1"}, 400)
