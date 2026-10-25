@@ -104,3 +104,12 @@ INSERT INTO schema_version VALUES(12) ON CONFLICT DO NOTHING;
 -- Version 13: record response provenance independently of HTTP status.
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS response_source text NOT NULL DEFAULT '';
 INSERT INTO schema_version VALUES(13) ON CONFLICT DO NOTHING;
+
+-- Version 14: explicit local-network display location, independent of Geo enforcement.
+ALTER TABLE address_objects ADD COLUMN IF NOT EXISTS is_local boolean NOT NULL DEFAULT false;
+CREATE TABLE IF NOT EXISTS local_location(id boolean PRIMARY KEY DEFAULT true CHECK(id),public_ip text NOT NULL DEFAULT '');
+INSERT INTO local_location(id) VALUES(true) ON CONFLICT DO NOTHING;
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS observed_country text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location_source text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location_reference_ip text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES(14) ON CONFLICT DO NOTHING;

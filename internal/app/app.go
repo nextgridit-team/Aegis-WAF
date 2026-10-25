@@ -55,6 +55,7 @@ type sitePolicySummary struct {
 	Priority    int      `json:"priority"`
 }
 type snapshot struct {
+	localGeo       *localGeoPolicy
 	managedSets    map[string]signatureSet
 	managedWAFs    map[string]*managedSignatureRuntime
 	geoData        []byte
@@ -68,30 +69,32 @@ type snapshot struct {
 	geo            *maxminddb.Reader
 }
 type accessEvent struct {
-	securityDisabled, securitySamples bool
-	responseSource                    string
-	regions                           *regionCache
-	regionCode, regionName            string
-	network                           networkAccessResult
-	managed                           managedSignatureResult
-	prepareEvidence                   func() *evidenceEvent
-	releaseEvidence                   func()
-	geo                               *maxminddb.Reader
-	clientIP                          netip.Addr
-	policyID, policyRevision          int64
-	policyName                        string
-	at                                time.Time
-	site                              int64
-	method                            string
-	status                            int
-	duration                          int64
-	peer                              string
-	results                           []RuleResult
-	evidence                          *evidenceEvent
-	country                           string
-	blocked                           bool
-	signals                           []string
-	exemptions                        []string
+	localGeo                                             *localGeoPolicy
+	observedCountry, locationSource, locationReferenceIP string
+	securityDisabled, securitySamples                    bool
+	responseSource                                       string
+	regions                                              *regionCache
+	regionCode, regionName                               string
+	network                                              networkAccessResult
+	managed                                              managedSignatureResult
+	prepareEvidence                                      func() *evidenceEvent
+	releaseEvidence                                      func()
+	geo                                                  *maxminddb.Reader
+	clientIP                                             netip.Addr
+	policyID, policyRevision                             int64
+	policyName                                           string
+	at                                                   time.Time
+	site                                                 int64
+	method                                               string
+	status                                               int
+	duration                                             int64
+	peer                                                 string
+	results                                              []RuleResult
+	evidence                                             *evidenceEvent
+	country                                              string
+	blocked                                              bool
+	signals                                              []string
+	exemptions                                           []string
 }
 type App struct {
 	regions                       atomic.Pointer[regionCache]
@@ -305,6 +308,9 @@ func (a *App) refresh(ctx context.Context) error {
 	if e = a.loadGeo(ctx, tx, next); e != nil {
 		return e
 	}
+	if e = a.loadLocalGeo(ctx, tx, next); e != nil {
+		return e
+	}
 	if e = tx.Commit(ctx); e != nil {
 		return e
 	}
@@ -439,7 +445,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		peer := clientIP.String()
-		event := accessEvent{responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
 			event.securitySamples = capture.Settings.SecuritySamples

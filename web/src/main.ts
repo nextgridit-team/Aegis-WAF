@@ -626,6 +626,9 @@ root.addEventListener("click", async (e) => {
     if (await feedsUI.handle(action, id)) return;
     if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
+      case "live-map":
+        location.hash = "live-map";
+        break;
       case "request-details":
         await requestDetails(id);
         break;

@@ -36,6 +36,29 @@ func TestAddressObjectsIntegration(t *testing.T) {
 	json.Unmarshal(c.call("POST", "/api/login", map[string]string{"username": "admin", "password": "address objects test password"}, 200), &login)
 	c.csrf = login["csrf"]
 	obj := mustID(t, c.call("POST", "/api/address-objects", map[string]any{"name": "F5", "value": "192.0.2.1"}, 200))
+	c.call("GET", "/api/geolocation/local", nil, 200)
+	c.call("PUT", "/api/geolocation/local", map[string]string{"public_ip": "192.168.1.1"}, 400)
+	c.call("PUT", "/api/geolocation/local", map[string]string{"public_ip": "216.160.83.56"}, 200)
+	if decodeLocalSetting(t, c.call("GET", "/api/geolocation/local", nil, 200)) != "216.160.83.56" {
+		t.Fatal("reference not persisted")
+	}
+	localID := mustID(t, c.call("POST", "/api/address-objects", map[string]any{"name": "LAN", "value": "10.0.0.0/8", "is_local": true}, 200))
+	for _, replica := range []*App{a, b} {
+		assertLocalReplica(t, replica, "10.2.3.4", true)
+	}
+	c.call("PUT", fmt.Sprintf("/api/address-objects/%d", localID), map[string]any{"name": "LAN renamed", "value": "10.0.0.0/8"}, 200)
+	assertLocalReplica(t, b, "10.2.3.4", true)
+	// Ambiguous equal-prefix flags stay unmapped.
+	duplicate := mustID(t, c.call("POST", "/api/address-objects", map[string]any{"name": "Other LAN", "value": "10.0.0.0/8"}, 200))
+	assertLocalReplica(t, b, "10.2.3.4", false)
+	c.call("DELETE", fmt.Sprintf("/api/address-objects/%d", duplicate), nil, 200)
+	assertLocalReplica(t, b, "10.2.3.4", true)
+	c.call("PUT", fmt.Sprintf("/api/address-objects/%d", localID), map[string]any{"name": "LAN", "value": "10.0.0.0/8", "is_local": false}, 200)
+	assertLocalReplica(t, b, "10.2.3.4", false)
+	c.call("PUT", "/api/geolocation/local", map[string]string{"public_ip": ""}, 200)
+	if decodeLocalSetting(t, c.call("GET", "/api/geolocation/local", nil, 200)) != "" {
+		t.Fatal("reference not cleared")
+	}
 	group := mustID(t, c.call("POST", "/api/address-groups", map[string]any{"name": "Trusted edge", "object_ids": []int64{obj}}, 200))
 	c.call("POST", "/api/address-objects", map[string]any{"name": "f5", "value": "192.0.2.2"}, 409)
 	c.call("POST", "/api/address-groups", map[string]any{"name": "missing", "object_ids": []int64{99999}}, 409)

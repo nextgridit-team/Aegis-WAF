@@ -1119,13 +1119,21 @@ const { execFileSync } = require("node:child_process");
       await dialog().getByRole("button",{name:"Close",exact:true}).click();
     }
 
+    await nav("Address objects").click();
+    await page.getByRole("button",{name:"Set local network location",exact:true}).click();
+    await dialog().getByLabel("Gateway public IP",{exact:true}).fill("216.160.83.56");
+    await dialog().getByRole("button",{name:"Save local location",exact:true}).click();
+    await message("Local location saved").waitFor();
+    assert.equal((await (await page.request.get(base+"/api/geolocation/local")).json()).public_ip,"216.160.83.56");
     const loggedPeer=await page.evaluate(async()=>{const response=await fetch('/api/access-logs');return (await response.json())[0].peer;});
     await nav("Address objects").click();
     await page.getByRole("button",{name:"New object",exact:true}).click();
     await dialog().getByLabel("Name",{exact:true}).fill("Recorded client");
+    await dialog().getByRole("checkbox",{name:/Local network/}).check();
     await dialog().getByLabel("IP address or subnet",{exact:true}).fill(loggedPeer);
     await dialog().getByRole("button",{name:"Save object",exact:true}).click();
     await message("Address entry saved").waitFor();
+    await page.waitForTimeout(2200); // Configuration refresh applies local flags to future logs.
     await nav("Dashboard").click();
     await page.getByLabel("Application",{exact:true}).selectOption("");
     const namedRow=page.getByRole("region",{name:"Recent requests",exact:true}).getByRole("row").filter({hasText:"Recorded client"}).first();
@@ -1140,7 +1148,7 @@ const { execFileSync } = require("node:child_process");
     await responseBreakdown.getByText("Upstream application",{exact:true}).first().waitFor();
     assert.ok(await responseBreakdown.evaluate(el=>el.scrollWidth<=el.clientWidth+1),"desktop response status columns should all fit");
     await responseBreakdown.locator("..").screenshot({path:path.join(out,"response-status-breakdown.png")});
-    await page.getByRole("link",{name:"Open live traffic map",exact:true}).click();
+    await page.getByRole("button",{name:"Live traffic map",exact:true}).click();
     await page.getByRole("heading",{name:"Live traffic map",exact:true}).waitFor();
     assert.equal(await nav("Live traffic map").count(),0,"live page should not add a sidebar item");
     await page.emulateMedia({reducedMotion:"no-preference"});
@@ -1150,6 +1158,14 @@ const { execFileSync } = require("node:child_process");
     const liveLog=page.getByRole("region",{name:"Live request log",exact:true});
     await liveLog.locator('.live-row-allowed').first().waitFor();
     await liveLog.locator('.live-row-blocked').first().waitFor();
+    await eventually(async()=>{
+      const events=await (await page.request.get(base+"/api/access-logs")).json();
+      const local=events.find(event=>event.peer===loggedPeer&&event.location_source?.startsWith("local_"));
+      assert.ok(local,"new requests should carry local display-location provenance");
+      assert.equal(local.location_reference_ip,"216.160.83.56");
+      assert.ok(local.client_objects.includes("Recorded client"));
+    });
+    await liveLog.getByText(/Local network ·/).first().waitFor();
     await screenshot("live-traffic-map");
     await page.getByRole("button",{name:"Pause feed",exact:true}).click();
     await page.getByText("Paused · WAF protection continues",{exact:true}).waitFor();

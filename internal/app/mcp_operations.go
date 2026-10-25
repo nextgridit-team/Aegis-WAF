@@ -76,6 +76,8 @@ func agentOperations() []agentOperation {
 		"GET /api/dashboard/regions",
 		"GET /api/dns/credentials",
 		"GET /api/geolocation/status",
+		"GET /api/geolocation/local",
+		"PUT /api/geolocation/local",
 		"GET /api/live-traffic",
 		"GET /api/policies",
 		"GET /api/policies/{id}/history",

@@ -320,9 +320,9 @@ func (a *App) storeAccessBatch(ctx context.Context, batch []accessEvent) error {
 		}
 		managedJSON, _ := json.Marshal(event.managed)
 		networkJSON, _ := json.Marshal(event.network)
-		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON, networkJSON, event.regionCode, event.regionName, event.responseSource}
+		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON, networkJSON, event.regionCode, event.regionName, event.responseSource, event.observedCountry, event.locationSource, event.locationReferenceIP}
 	}
-	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures", "network_access", "region_code", "region_name", "response_source"}, pgx.CopyFromRows(items)); e != nil {
+	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures", "network_access", "region_code", "region_name", "response_source", "observed_country", "location_source", "location_reference_ip"}, pgx.CopyFromRows(items)); e != nil {
 		return e
 	}
 	if len(evidenceRows) > 0 {

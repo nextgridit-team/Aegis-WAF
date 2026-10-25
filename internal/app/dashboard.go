@@ -201,7 +201,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC,x.site_id,x.status,x.response_source),'[]') FROM (SELECT grouped.*,s.name site_name,coalesce(s.hostnames,'{}'::text[]) hostnames FROM (SELECT site_id,status,CASE WHEN response_source<>'' THEN response_source WHEN blocked THEN 'waf' ELSE 'unknown' END response_source,count(*) requests` + filter + ` GROUP BY site_id,status,CASE WHEN response_source<>'' THEN response_source WHEN blocked THEN 'waf' ELSE 'unknown' END) grouped LEFT JOIN sites s ON s.id=grouped.site_id ORDER BY grouped.requests DESC,grouped.site_id,grouped.status,grouped.response_source LIMIT 100) x`, &responseStatuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},
-		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name,managed_signatures,network_access,region_code,region_name` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name,managed_signatures,network_access,region_code,region_name,observed_country,location_source,location_reference_ip` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
 	}
 	for index, q := range queries {
 		if e = tx.QueryRow(ctx, q.sql, since, site, now).Scan(q.target); e != nil {
@@ -274,6 +274,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 	return nil
 }
 func dashboardAPI(a *App, m *http.ServeMux) {
+	localLocationAPI(a, m)
 	m.HandleFunc("GET /api/live-traffic", a.wrap(true, a.liveTraffic))
 	m.HandleFunc("GET /api/dashboard", a.wrap(true, a.dashboard))
 	m.HandleFunc("GET /api/dashboard/regions", a.wrap(true, a.regionDashboard))

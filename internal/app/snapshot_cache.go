@@ -45,6 +45,7 @@ type cachedBinding struct {
 	Rules          []cachedRule
 }
 type cachedSnapshot struct {
+	LocalGeo     *localGeoPolicy
 	ManagedSets  map[string]signatureSet
 	Format       int
 	At           time.Time
@@ -91,7 +92,7 @@ func (a *App) cacheAAD() string {
 	return a.cfg.KeyID + ":snapshot-cache:v1:" + hex.EncodeToString(identity[:])
 }
 func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
-	cache := cachedSnapshot{ManagedSets: s.managedSets, Format: 1, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
+	cache := cachedSnapshot{LocalGeo: s.localGeo, ManagedSets: s.managedSets, Format: 1, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
 	for id, cert := range s.certificates {
 		key, e := x509.MarshalPKCS8PrivateKey(cert.PrivateKey)
 		if e != nil {
@@ -304,6 +305,21 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 			return nil, e
 		}
 		s.geoData = cached.Geo
+	}
+	if cached.LocalGeo != nil {
+		if _, e := normalizeLocalPublicIP(cached.LocalGeo.PublicIP); e != nil {
+			return nil, e
+		}
+		if len(cached.LocalGeo.Prefixes) > 1024 {
+			return nil, errors.New("invalid cached local object count")
+		}
+		for prefix := range cached.LocalGeo.Prefixes {
+			if !prefix.IsValid() || prefix.Bits() == 0 {
+				return nil, errors.New("invalid cached local object")
+			}
+		}
+		s.localGeo = cached.LocalGeo
+		s.localGeo.reader = s.geo
 	}
 	return s, nil
 }

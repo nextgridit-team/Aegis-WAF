@@ -1,3 +1,4 @@
+import { localLocationNote } from "./location";
 import {
   clientAddress,
   responseStatusPanel,
@@ -80,6 +81,8 @@ type Report = {
     status: number;
     peer: string;
     client_objects?: string[];
+    location_source?: string;
+    location_reference_ip?: string;
     country: string;
     blocked: boolean;
     signals: string[];
@@ -147,7 +150,7 @@ export function makeDashboardUI(d: Deps) {
       heading(
         "Dashboard",
         "A live view of your applications and the traffic reaching them.",
-        '<button class="secondary" data-action="protection">Protection settings</button>',
+        '<button class="primary" data-action="live-map">Live traffic map</button><button class="secondary" data-action="protection">Protection settings</button>',
       ) +
       `<div class="dashboard-controls"><label>Application<select id="dashboard-site" aria-label="Application"><option value="">All applications</option>${sites.map((s) => `<option value="${s.id}" ${site === String(s.id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label><label>Time range<select id="dashboard-range" aria-label="Time range">${[5, 15, 60].map((n) => `<option value="${n}" ${minutes === String(n) ? "selected" : ""}>Last ${n} minutes</option>`).join("")}</select></label><span id="dashboard-freshness" class="muted" role="status">Loading traffic…</span></div><div id="dashboard-data" aria-busy="true"></div>`;
     view
@@ -335,6 +338,9 @@ export function makeDashboardUI(d: Deps) {
                  `Application ${event.site_id}`,
              ),
              clientAddress(event.peer, event.client_objects) +
+               (localLocationNote(event)
+                 ? `<small>${esc(localLocationNote(event))}</small>`
+                 : "") +
                (event.policy_name
                  ? `<small>${esc(event.policy_name)} · v${event.policy_revision}</small>`
                  : "") +

@@ -1,3 +1,4 @@
+import { localLocationNote } from "./location";
 import { world } from "./world";
 import { esc, heading } from "./ui";
 import { clientAddress, responseSource } from "./response-status";
@@ -14,6 +15,8 @@ type Event = {
   region_name: string;
   client_objects?: string[];
   response_source: string;
+  location_source?: string;
+  location_reference_ip?: string;
 };
 type C = {
   api: <T>(p: string) => Promise<T>;
@@ -108,7 +111,7 @@ export function makeLiveMap(c: C) {
         events
           .map(
             (event) =>
-              `<tr class="${event.blocked ? "live-row-blocked" : "live-row-allowed"}"><td>${esc(new Date(event.at).toLocaleTimeString())}</td><td>${esc(event.site_name || "Deleted proxy host #" + event.site_id)}</td><td>${clientAddress(event.peer, event.client_objects)}</td><td>${esc(countryNames.get(event.country) || "Unknown location")}${event.region_name ? `<small>${esc(event.region_name)}</small>` : ""}</td><td><span class="badge ${event.blocked ? "danger" : "success"}">${event.blocked ? "Blocked" : "Allowed"}</span></td><td>${esc(event.method)} · ${event.status}<small>${esc(responseSource(event.response_source))}</small></td><td><button type="button" class="secondary compact" data-action="request-details" data-id="${event.id}">View details</button></td></tr>`,
+              `<tr class="${event.blocked ? "live-row-blocked" : "live-row-allowed"}"><td>${esc(new Date(event.at).toLocaleTimeString())}</td><td>${esc(event.site_name || "Deleted proxy host #" + event.site_id)}</td><td>${clientAddress(event.peer, event.client_objects)}</td><td>${esc(countryNames.get(event.country) || (event.location_source?.startsWith("local_") ? "Local network · location unavailable" : "Unknown location"))}${localLocationNote(event) ? `<small>${esc(localLocationNote(event))}</small>` : ""}${event.region_name ? `<small>${esc(event.region_name)}</small>` : ""}</td><td><span class="badge ${event.blocked ? "danger" : "success"}">${event.blocked ? "Blocked" : "Allowed"}</span></td><td>${esc(event.method)} · ${event.status}<small>${esc(responseSource(event.response_source))}</small></td><td><button type="button" class="secondary compact" data-action="request-details" data-id="${event.id}">View details</button></td></tr>`,
           )
           .join(""),
       );

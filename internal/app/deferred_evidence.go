@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"strings"
@@ -161,6 +162,7 @@ func (w *deferredEvidence) finish() func() *evidenceEvent {
 	}
 }
 func (e *accessEvent) enrich() {
+	city := e.regions
 	if release := e.releaseEvidence; release != nil {
 		e.releaseEvidence = nil
 		defer release()
@@ -184,5 +186,29 @@ func (e *accessEvent) enrich() {
 	if e.geo != nil {
 		e.country = countryFor(e.geo, e.clientIP)
 		e.geo = nil
+	}
+	if e.locationSource == "" {
+		e.observedCountry = e.country
+	}
+	if p := e.localGeo; p != nil && p.matches(e.clientIP) {
+		e.localGeo = nil
+		e.locationSource = "local_unlocated"
+		e.locationReferenceIP = p.PublicIP
+		e.country = ""
+		e.regionCode = ""
+		e.regionName = ""
+		if ip, err := netip.ParseAddr(p.PublicIP); err == nil {
+			e.country = countryFor(p.reader, ip)
+			if e.country != "" {
+				e.locationSource = "local_reference"
+				if city != nil {
+					location := regionFor(city.db, ip)
+					if location.Country == e.country {
+						e.regionCode = location.Code
+						e.regionName = location.Name
+					}
+				}
+			}
+		}
 	}
 }

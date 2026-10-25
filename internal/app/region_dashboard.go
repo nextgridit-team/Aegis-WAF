@@ -42,7 +42,7 @@ func (a *App) regionDashboard(w http.ResponseWriter, r *http.Request, _ identity
 	if e != nil {
 		return e
 	}
-	e = a.db.QueryRow(r.Context(), `SELECT coalesce(jsonb_agg(x ORDER BY x.at DESC),'[]') FROM (SELECT id,at,site_id,method,status,peer,blocked,region_code,region_name`+filter+` AND ($4='' OR region_code=CASE WHEN $4='unknown' THEN '' ELSE $4 END) ORDER BY at DESC LIMIT 20) x`, country, minutes, site, selected).Scan(&recent)
+	e = a.db.QueryRow(r.Context(), `SELECT coalesce(jsonb_agg(x ORDER BY x.at DESC),'[]') FROM (SELECT id,at,site_id,method,status,peer,blocked,region_code,region_name,observed_country,location_source,location_reference_ip`+filter+` AND ($4='' OR region_code=CASE WHEN $4='unknown' THEN '' ELSE $4 END) ORDER BY at DESC LIMIT 20) x`, country, minutes, site, selected).Scan(&recent)
 	if e != nil {
 		return e
 	}

@@ -239,6 +239,7 @@ func addressAPI(a *App, m *http.ServeMux) {
 					Description string  `json:"description"`
 					Value       string  `json:"value"`
 					ObjectIDs   []int64 `json:"object_ids"`
+					IsLocal     *bool   `json:"is_local"`
 				}
 				var id int64
 				var e error
@@ -320,6 +321,11 @@ func addressAPI(a *App, m *http.ServeMux) {
 							if tag.RowsAffected() == 0 {
 								return apiError{404, "address entry not found"}
 							}
+						}
+					}
+					if kind == "objects" && method != "DELETE" && in.IsLocal != nil {
+						if _, e := tx.Exec(r.Context(), "UPDATE address_objects SET is_local=$2 WHERE id=$1", id, *in.IsLocal); e != nil {
+							return e
 						}
 					}
 					if e := validateAddressConsumers(r.Context(), tx); e != nil {

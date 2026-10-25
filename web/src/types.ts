@@ -61,6 +61,9 @@ export type Audit = {
   resource: string;
 };
 export type Access = {
+  location_source?: string;
+  location_reference_ip?: string;
+  observed_country?: string;
   response_source?: string;
   client_objects?: string[];
   network_access?: NetworkDecision;

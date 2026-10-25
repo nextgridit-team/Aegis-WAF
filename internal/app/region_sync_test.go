@@ -110,6 +110,41 @@ func TestGeoSyncIntegration(t *testing.T) {
 	if len(parsed.Regions) != 1 || parsed.Regions[0].Code != "WA" || len(parsed.Recent) != 1 {
 		t.Fatalf("regional report %s", report)
 	}
+
+	// Local display enrichment is persisted independently from the real Geo decision.
+	c.call("PUT", "/api/geolocation/local", map[string]string{"public_ip": "216.160.83.56"}, 200)
+	c.call("POST", "/api/address-objects", map[string]any{"name": "Local client", "value": "10.0.0.0/8", "is_local": true}, 200)
+	for _, replica := range []*App{a, b} {
+		assertLocalReplica(t, replica, "10.2.3.4", true)
+		local := accessEvent{localGeo: replica.active.Load().localGeo, regions: replica.regions.Load(), geo: replica.active.Load().geo, clientIP: netip.MustParseAddr("10.2.3.4"), peer: "10.2.3.4", at: time.Now(), method: "GET", status: 403, blocked: true, network: networkAccessResult{GeoChecked: true, Blocked: true, Decision: "geo_unknown"}}
+		local.enrich() // Logger enrichment followed by the store must remain idempotent.
+		if e = replica.storeAccessBatch(ctx, []accessEvent{local}); e != nil {
+			t.Fatal(e)
+		}
+	}
+	var localCount int
+	if e = a.db.QueryRow(ctx, `SELECT count(*) FROM access_logs WHERE peer='10.2.3.4' AND country='US' AND region_code='WA' AND observed_country='' AND location_source='local_reference' AND location_reference_ip='216.160.83.56' AND blocked AND network_access->>'country' IS NULL`).Scan(&localCount); e != nil || localCount != 2 {
+		t.Fatalf("local stored provenance: %d %v", localCount, e)
+	}
+	var live struct {
+		Events []struct {
+			Peer    string
+			Country string
+			Source  string `json:"location_source"`
+		}
+	}
+	if e = json.Unmarshal(c.call("GET", "/api/live-traffic", nil, 200), &live); e != nil {
+		t.Fatal(e)
+	}
+	found := 0
+	for _, event := range live.Events {
+		if event.Peer == "10.2.3.4" && event.Country == "US" && event.Source == "local_reference" {
+			found++
+		}
+	}
+	if found != 2 {
+		t.Fatalf("local live events: %+v", live)
+	}
 	// Failed replacement keeps the exact successfully loaded reader and database.
 	if _, e = a.db.Exec(ctx, "UPDATE geo_sources SET status='queued',next_sync=now() WHERE kind='city'"); e != nil {
 		t.Fatal(e)
