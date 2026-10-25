@@ -1,21 +1,23 @@
 # Aegis WAF
 
-**Self-hosted reverse proxy, TLS certificate management and application protection in one dashboard.**
+**A self-hosted web application firewall: OWASP CRS protection, automatic TLS and a reverse proxy in one dashboard — without sending your traffic through a third party.**
 
 [![Build and publish](https://github.com/nextgridit-team/Aegis-WAF/actions/workflows/image.yml/badge.svg?branch=main)](https://github.com/nextgridit-team/Aegis-WAF/actions/workflows/image.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-167565)](LICENSE)
 
-Aegis sits between clients and your HTTP(S) applications. Use its web interface to request certificates, configure upstreams, load OWASP CRS signatures and assign protection policies. It runs as one application container plus PostgreSQL, with a separate management listener and an embedded TypeScript dashboard.
+Aegis sits between clients and the HTTP(S) applications you host. Use its web interface to request certificates, configure upstreams, load OWASP CRS signatures and assign protection policies. It runs as one application container plus PostgreSQL, with a separate management listener and an embedded TypeScript dashboard. See [current limits](#current-limits) before deploying.
 
-**Under active development.** Request protection and an optional MCP agent endpoint are implemented; Aegis runs no AI traffic analysis itself. See [current limits](#current-limits) before deploying.
+![Aegis traffic dashboard showing synthetic requests, protection outcomes, CPU and memory usage](docs/screenshots/overview.png)
 
-[Quickstart](#quickstart) · [Performance](#performance-at-a-glance) · [Configure your first application](#protect-your-first-application) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
+_Actual application screens with isolated test traffic and example domains. Screenshots are illustrative, not performance measurements._
+
+[Quickstart](#quickstart) · [Why Aegis](#why-aegis) · [Performance](#performance-at-a-glance) · [Protect your first application](#protect-your-first-application) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
 
 <a id="deploy-with-docker-compose"></a>
 
 ## Quickstart
 
-You need **Docker Engine with Compose v2+**, **Git** and **Python 3**. The published image currently targets **Linux/amd64**. Ports 80 and 443 must be available on the Docker host for the default mappings.
+Bring a Linux/amd64 Docker host with **Compose v2+**, **Git** and **Python 3**, and ports 80/443 free for the default mappings.
 
 ```sh
 git clone https://github.com/nextgridit-team/Aegis-WAF.git
@@ -23,6 +25,24 @@ cd Aegis-WAF
 python3 scripts/bootstrap-secrets.py
 docker compose up -d --wait
 ```
+
+The script creates deployment secrets once and refuses to overwrite a nonempty `secrets/` directory. Compose pulls the public image `ghcr.io/nextgridit-team/aegis-waf:latest`; no Go/Node build or registry login is required.
+
+Open **http://localhost:9090 on the Docker host**, then read the generated setup code:
+
+```sh
+cat secrets/bootstrap_secret
+```
+
+Complete setup in the browser with that code, your chosen administrator name and a unique 14–72-byte password. There are no default credentials, and the bootstrap code cannot reset an existing account.
+
+| Listener     | Default host mapping    | Purpose                                            |
+| ------------ | ----------------------- | -------------------------------------------------- |
+| Public HTTP  | `0.0.0.0:80 → 8080`     | Application HTTP, redirects and HTTP-01 challenges |
+| Public HTTPS | `0.0.0.0:443 → 8443`    | TLS termination and protected applications         |
+| Management   | `127.0.0.1:9090 → 9090` | Dashboard, management API, `/livez` and `/readyz`  |
+
+**Deploying on a server or through Dockge?** Localhost means the Docker host, not your laptop. Keep management separate and use HTTPS for remote browser access. Aegis supports an existing HTTPS management proxy or native management TLS after a matching certificate is stored. Follow [remote HTTPS management](docs/deployment.md#remote-https-management) before publishing port 9090 to your LAN. Plain HTTP on a remote IP cannot retain the required Secure session cookie.
 
 <details>
 <summary>Two-container compose.yaml example</summary>
@@ -92,25 +112,19 @@ volumes:
 
 </details>
 
-The script creates deployment secrets once and refuses to overwrite a nonempty `secrets/` directory. Compose pulls the public image `ghcr.io/nextgridit-team/aegis-waf:latest`; no Go/Node build or registry login is required.
-
-Open **http://localhost:9090 on the Docker host**. Read the generated setup code locally:
-
-```sh
-cat secrets/bootstrap_secret
-```
-
-Complete setup in the browser with that code, your chosen administrator name and a unique 14–72-byte password. Then sign in. There are no default credentials, and the bootstrap code cannot reset an existing account.
-
-| Listener     | Default host mapping    | Purpose                                            |
-| ------------ | ----------------------- | -------------------------------------------------- |
-| Public HTTP  | `0.0.0.0:80 → 8080`     | Application HTTP, redirects and HTTP-01 challenges |
-| Public HTTPS | `0.0.0.0:443 → 8443`    | TLS termination and protected applications         |
-| Management   | `127.0.0.1:9090 → 9090` | Dashboard, management API, `/livez` and `/readyz`  |
-
-**Deploying on a server or through Dockge?** Localhost means the Docker host, not your laptop. Keep management separate and use HTTPS for remote browser access. Aegis supports an existing HTTPS management proxy or native management TLS after a matching certificate is stored. Follow [remote HTTPS management](docs/deployment.md#remote-https-management) before publishing port 9090 to your LAN. Plain HTTP on a remote IP cannot retain the required Secure session cookie.
-
 For custom port mappings, source builds, secret inputs, backups and multiple replicas, see the [deployment guide](docs/deployment.md).
+
+## Why Aegis
+
+Protecting applications you host yourself usually means one of two trade-offs: stitch nginx, certbot, ModSecurity and fail2ban together and maintain them by hand — or push all your traffic through a third-party CDN and trust it with your logs. Aegis is the third path: a web application firewall you operate yourself, without giving up the dashboard.
+
+- **Protection you own.** OWASP CRS v4.30.0 runs on Coraza inside your deployment. Start in Observe, tune exclusions, then enforce — per application.
+- **TLS on autopilot.** ACME issuance and renewal with Cloudflare DNS-01 (including wildcards) or HTTP-01, staging and custom directories, or upload your existing PEM.
+- **Decisions you can audit.** Every block ships as a versioned JSON event on container stdout — ready for your SIEM or `jq`.
+- **Hardened by default.** Read-only container root, dropped capabilities, non-root process, no Docker socket, AES-256-GCM for private keys and saved credentials, no default credentials.
+- **Bring your own AI agent.** An optional MCP endpoint with hashed, expiring, scoped keys. Aegis runs no inference or built-in AI workflow itself.
+
+Sites, certificates, policies and application settings are managed through the dashboard or management API — no config-file edits or image rebuilds to add or change a site.
 
 ## Performance at a glance
 
@@ -125,10 +139,6 @@ For custom port mappings, source builds, secret inputs, backups and multiple rep
 
 Client, gateway, upstream and PostgreSQL shared the Docker host. These short closed-loop measurements include client scheduling and Docker networking; repeat them on target hardware. TLS handshakes, uploads, expensive custom regexes and adversarial mixed workloads require separate measurements. Tail values vary by run. See [methodology and reproduction](docs/benchmarks.md) and [raw reports](docs/benchmarks/2026-10-25/).
 
-![Aegis traffic dashboard showing synthetic requests, protection outcomes, CPU and memory usage](docs/screenshots/overview.png)
-
-_Actual application screens with isolated test traffic and example domains. Screenshots are illustrative, not performance measurements._
-
 ## What it does today
 
 | Area                       | Implemented behavior                                                                                                                                                                                                                                                                            |
@@ -142,8 +152,6 @@ _Actual application screens with isolated test traffic and example domains. Scre
 | **Visibility**             | Global/application traffic, requests per second, connections, status codes, blocking statistics, optional local country/state lookup with map drill-down, replica CPU/RAM, access logs and administrative audit events. Click any listed request for its recorded decision, rule/signature details and retained evidence. Response status identifies its proxy host/source; a dashboard link opens the animated live traffic view. |
 | **Evidence**               | Opt-in sampled, bounded request facts with allowlists, redaction and expiry. Custom-rule replay does not send requests upstream.                                                                                                                                                                |
 | **Agent access** | Optional MCP endpoint with hashed expiring keys, read/evidence/draft/enforcement permissions and source address restrictions. Bring your own agent and model.                                                                                                                                                           |
-
-Sites, certificates, policies and application settings are managed through the dashboard or management API. Site changes do not require configuration-file edits or image rebuilds.
 
 ## Protect your first application
 
@@ -235,6 +243,8 @@ Each replica contains the proxy, dashboard/API, configuration refresher, logging
 The application runs as a non-root UID with unprivileged internal ports. Compose uses a read-only application root, an explicit temporary directory, dropped capabilities and no Docker socket. The default deployment needs only PostgreSQL's persistent volume. An [optional encrypted recovery cache](docs/snapshot-cache.md) adds local snapshot storage when explicitly enabled.
 
 ## Current limits
+
+Aegis is under active development. Request protection and the optional MCP agent endpoint are implemented; Aegis runs no AI traffic analysis itself.
 
 - **Flood budgets are replica-local.** More replicas increase the effective aggregate allowance; budgets reset on process restart. Cluster-wide rate coordination is not implemented.
 - **CRS inspects requests only.** Response-body inspection is disabled. In Block mode, requests over the policy body limit are rejected with 413; Observe forwards them with incomplete-inspection metadata. New custom policies default to 64 KiB; the included baseline uses 1 MiB. Configurable range: 4 KiB–1 MiB. Review upload-heavy applications before enforcing. [Managed signature behavior](docs/managed-signatures.md).
