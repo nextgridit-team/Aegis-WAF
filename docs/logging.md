@@ -30,7 +30,7 @@ Aegis emits one-line JSON security decisions to application stdout from the boun
 | `rule_ids`, `signature_ids`, `signals` | Stable arrays, including empty arrays. Legacy fields remain for collectors. |
 | `response_source`, `status`, `duration_ms` | Actual response origin, HTTP status and recorded duration. |
 
-For payload context, explicitly enable **Traffic → Capture settings → Include retained redacted request samples** (`security_samples`), plus evidence capture and field allowlists. Existing sampling budgets, redaction and retention still apply. No request bodies, authorization headers, cookies or credentials are added to stdout by default. `request_sample` remains a compatibility alias when context exists. Review [privacy and redaction limits](security-tuning.md#structured-events-and-privacy) before exporting samples.
+For payload context, explicitly enable **Traffic → Capture settings → Include retained redacted samples in security events** (`security_samples`), plus evidence capture and field allowlists. Existing sampling budgets, redaction and retention still apply. No request bodies, authorization headers, cookies or credentials are added to stdout by default. `request_sample` remains a compatibility alias when context exists. Review [privacy and redaction limits](security-tuning.md#structured-events-and-privacy) before exporting samples.
 
 The contract applies to every emitted block source: native rules, managed signatures, bot/flood decisions, CIDR/Geo rules and inspection bounds. Normal unmatched allowed requests remain in PostgreSQL access logs without generating a security stdout record. Administrators can disable stdout security events per application; that existing preference is respected.
 

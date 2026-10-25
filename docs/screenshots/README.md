@@ -43,3 +43,5 @@ Update the source revision/date above when refreshing them. Older screenshots in
 ## Response provenance and live traffic — 2026-10-25
 
 `response-status.png` and `live-traffic-map.png` come from the isolated final browser fixture (`aegis-waf:status-labels-test`, local image `9b2291f45ad3`, `/tmp/aegis-live-release`). The table includes real fixture upstream/WAF responses; the map animates actual allowed/blocked requests sent through the fixture. Private fixture clients use an explicitly logical unknown-location marker, not invented geographic positions. IP-object names and hostnames are synthetic. The live view also passed application filtering, pause/resume, reduced-motion behavior and four responsive widths.
+
+`local-traffic-flow.png` is the `animated-local-flow.png` component capture from `tests/browser.cjs`, using isolated proxy hosts and observed test requests. It shows the host-only live diagram; no production traffic or credentials are used.

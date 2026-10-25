@@ -1,5 +1,31 @@
 # Performance measurements
 
+## Current forwarding and CRS baseline — 2026-10-25
+
+| Workload | Requests/sec | Mean ms | p50 ms | p99 ms |
+| --- | ---: | ---: | ---: | ---: |
+| Direct upstream | 16,206 | 0.978 | 0.787 | 3.431 |
+| Aegis · no rules | 13,676 | 1.163 | 0.959 | 3.995 |
+| Aegis · 10 custom rules | 13,578 | 1.169 | 0.947 | 4.069 |
+| Aegis · 100 custom rules | 13,359 | 1.188 | 0.979 | 4.053 |
+| Aegis · bundled CRS baseline | 10,579 | 1.501 | 1.351 | 3.802 |
+
+Linux/amd64, AMD Ryzen 9 7950X3D (32 available CPUs), Go 1.26.10; medians of three sequential runs of 64,000 small HTTP/1.1 keep-alive GETs per phase with 16 client threads. PostgreSQL access logging was enabled; evidence capture and bot/flood controls were off. The CRS row used the bundled PL1 baseline in Block mode, anomaly threshold 5, with no signature exclusions.
+
+Client, gateway, upstream and PostgreSQL shared the Docker host. These short closed-loop measurements include client scheduling and Docker networking; repeat them on target hardware. TLS handshakes, uploads, expensive custom regexes and adversarial mixed workloads require separate measurements. Tail values vary by run. Median paired mean-latency deltas were 0.185 ms for forwarding without rules and 0.526 ms for CRS. Every measured response was successful, with zero dropped access logs and worker panics. The fixture verifies a real XSS canary is blocked by CRS on both replicas before measuring benign traffic, and validates its actual JSON stdout block event.
+
+Exact measured implementation: [bf53d68](https://github.com/nextgridit-team/Aegis-WAF/commit/bf53d68071569ccd4c96aa42bf5f4401ba06af03), image ID and host details in [run 1](benchmarks/2026-10-25/adoption-1.json), [run 2](benchmarks/2026-10-25/adoption-2.json) and [run 3](benchmarks/2026-10-25/adoption-3.json). Custom-rule cases use nonmatching Observe path conditions. Assigning the CRS baseline selects that policy instead of the standalone custom rules. Phases last approximately 4–6 seconds; this is a local reference, not a saturation result or production capacity guarantee.
+
+Reproduce sequentially after building an image:
+
+```sh
+AEGIS_BENCHMARK_REPORT=/tmp/aegis-result.json python3 tests/container-smoke.py <image>
+```
+
+The disposable fixture also verifies non-root/read-only deployment, real stdout security schema, database loss/recovery, optional sealed snapshots, native management TLS and graceful shutdown. It stops/removes only its own test stack. Do not run competing benchmarks on the host while measuring.
+
+## Earlier forwarding and engine measurements
+
 Run engine measurements with `go test ./internal/app -run '^$' -bench 'BenchmarkRuleEvaluation|BenchmarkResolvedProtection' -benchmem -count=3`. The engine fixtures use simple nonmatching path conditions and reuse a request, with a virtual clock for protection. They isolate matching/allocation cost rather than reporting proxy latency. The 1000-rule case is synthetic engine scaling; the supported standalone per-application limit is 100.
 
 For external HTTP latency, build an image and set `AEGIS_BENCHMARK_REPORT=/tmp/aegis-latency.json` when running `python3 tests/container-smoke.py <image>`. The disposable fixture measures a direct upstream and the gateway with 0, 10 and 100 active nonmatching Observe rules. It uses 64,000 successful HTTP/1.1 keep-alive GETs per phase, sixteen concurrent client threads and a small fixed response. PostgreSQL access logging is active; evidence capture and flood protection are off. The report includes percentiles, throughput, configuration health and dropped-log counts. Only its test stack is stopped/removed.

@@ -1,0 +1,87 @@
+{
+  "image": "aegis-waf:polish-measurement",
+  "workload": "HTTP/1.1 keep-alive GET, small fixed body; local closed-loop client and Docker ports",
+  "phases": [
+    {
+      "name": "direct_upstream",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 3.949,
+      "requests_per_second": 16205.8,
+      "mean_ms": 0.978,
+      "p50_ms": 0.783,
+      "p95_ms": 2.373,
+      "p99_ms": 3.431
+    },
+    {
+      "name": "gateway_0_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.656,
+      "requests_per_second": 13745.6,
+      "mean_ms": 1.155,
+      "p50_ms": 0.936,
+      "p95_ms": 2.797,
+      "p99_ms": 4.009
+    },
+    {
+      "name": "gateway_10_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.713,
+      "requests_per_second": 13578.4,
+      "mean_ms": 1.169,
+      "p50_ms": 0.947,
+      "p95_ms": 2.83,
+      "p99_ms": 4.071
+    },
+    {
+      "name": "gateway_100_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.791,
+      "requests_per_second": 13359.1,
+      "mean_ms": 1.185,
+      "p50_ms": 0.976,
+      "p95_ms": 2.818,
+      "p99_ms": 4.021
+    },
+    {
+      "name": "gateway_crs_baseline",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 6.056,
+      "requests_per_second": 10568.7,
+      "mean_ms": 1.504,
+      "p50_ms": 1.35,
+      "p95_ms": 2.847,
+      "p99_ms": 3.857
+    }
+  ],
+  "crs_policy": {
+    "mode": "block",
+    "set_id": "owasp-crs-v4.30.0-12a403fcc18d",
+    "paranoia_level": 1,
+    "body_limit_bytes": 1048576,
+    "excluded_rule_ids": [],
+    "inbound_threshold": 5
+  },
+  "image_id": "sha256:5d6157271548b5f10bd00d051265d90b7298f038dcc5997495f2badb25138abe",
+  "source_revision": "bf53d68071569ccd4c96aa42bf5f4401ba06af03",
+  "host": {
+    "cpu_model": "AMD Ryzen 9 7950X3D 16-Core Processor",
+    "available_cpus": 32,
+    "platform": "Linux-7.3.0-2-cachyos-x86_64-with-glibc2.44"
+  },
+  "status_after_load": {
+    "background_worker_panics": 0,
+    "configuration_version": 205,
+    "database_available": true,
+    "dropped_access_logs": 0,
+    "dropped_evidence_samples": 0,
+    "propagation_seconds": 2,
+    "snapshot_cache_available": false,
+    "snapshot_cache_enabled": false,
+    "snapshot_cache_restored": false
+  }
+}
