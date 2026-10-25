@@ -28,12 +28,13 @@ import (
 const maxSignatureBundleBytes = 8 << 20
 
 type managedSignatureOptions struct {
-	SetID      string `json:"set_id"`
-	Mode       string `json:"mode"`
-	Paranoia   int    `json:"paranoia_level"`
-	Threshold  int    `json:"inbound_threshold"`
-	BodyLimit  int    `json:"body_limit_bytes"`
-	Exclusions []int  `json:"excluded_rule_ids"`
+	ScopedExclusions []signatureException `json:"scoped_exclusions,omitempty"`
+	SetID            string               `json:"set_id"`
+	Mode             string               `json:"mode"`
+	Paranoia         int                  `json:"paranoia_level"`
+	Threshold        int                  `json:"inbound_threshold"`
+	BodyLimit        int                  `json:"body_limit_bytes"`
+	Exclusions       []int                `json:"excluded_rule_ids"`
 }
 type signatureSet struct {
 	ID        string      `json:"id"`
@@ -101,6 +102,11 @@ func normalizeManagedSignatures(o managedSignatureOptions) (managedSignatureOpti
 	}
 	sort.Ints(out)
 	o.Exclusions = out
+	var e error
+	o.ScopedExclusions, e = normalizeSignatureExceptions(o.ScopedExclusions)
+	if e != nil {
+		return o, e
+	}
 	return o, nil
 }
 func effectiveManagedOptions(o managedSignatureOptions, policyMode string) managedSignatureOptions {
@@ -220,6 +226,13 @@ func compileManagedSignatures(set signatureSet, options managedSignatureOptions)
 			return nil, invalid(fmt.Sprintf("rule %d is not in this signature set", id))
 		}
 	}
+	for _, exception := range options.ScopedExclusions {
+		for _, id := range exception.RuleIDs {
+			if !known[id] {
+				return nil, invalid("scoped exception rule is not in this set")
+			}
+		}
+	}
 	engineMode := "DetectionOnly"
 	limitAction := "ProcessPartial"
 	if options.Mode == "block" {
@@ -227,7 +240,7 @@ func compileManagedSignatures(set signatureSet, options managedSignatureOptions)
 		limitAction = "Reject"
 	}
 	settings := fmt.Sprintf("SecRuleEngine %s\nSecAuditEngine Off\nSecDebugLogLevel 0\nSecResponseBodyAccess Off\nSecRequestBodyAccess On\nSecRequestBodyLimit %d\nSecRequestBodyNoFilesLimit %d\nSecRequestBodyInMemoryLimit %d\nSecRequestBodyLimitAction %s\nSecAction \"id:100000,phase:1,pass,nolog,t:none,setvar:tx.paranoia_level=%d,setvar:tx.blocking_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d\"", engineMode, options.BodyLimit, options.BodyLimit, options.BodyLimit, limitAction, options.Paranoia, options.Paranoia, options.Threshold)
-	configuration := coraza.NewWAFConfig().WithRootFS(set.Files).WithDebugLogger(debuglog.Noop()).WithErrorCallback(func(types.MatchedRule) {}).WithDirectivesFromFile("@coraza.conf-recommended").WithDirectivesFromFile("@crs-setup.conf.example").WithDirectives(settings).WithDirectivesFromFile("@owasp_crs/REQUEST-*.conf")
+	configuration := coraza.NewWAFConfig().WithRootFS(set.Files).WithDebugLogger(debuglog.Noop()).WithErrorCallback(func(types.MatchedRule) {}).WithDirectivesFromFile("@coraza.conf-recommended").WithDirectivesFromFile("@crs-setup.conf.example").WithDirectives(settings + "\n" + exceptionDirectives(options.ScopedExclusions)).WithDirectivesFromFile("@owasp_crs/REQUEST-*.conf")
 	if len(options.Exclusions) > 0 {
 		ids := []string{}
 		for _, id := range options.Exclusions {

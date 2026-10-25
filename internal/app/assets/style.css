@@ -1908,3 +1908,14 @@ dialog:has(.request-detail) { width:min(1080px,calc(100% - 32px)); }
 .request-summary dt {font-size:12px;color:var(--muted);}.request-summary dd {margin:4px 0 0;overflow-wrap:anywhere;}
 .request-detail h3 {margin-top:24px;}.request-detail pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;padding:14px;background:var(--soft);border-radius:8px;}
 @media(max-width:600px) {.request-summary {grid-template-columns:minmax(0,1fr);}}
+
+.region-map {display:block;width:100%;height:auto;max-height:380px;}.region-map path {stroke:var(--line);stroke-width:1;cursor:pointer;}
+.world-map [data-map-country] {cursor:pointer;}.region-map path:focus,.world-map path:focus,.map-selected {outline:none;stroke:var(--accent)!important;stroke-width:2!important;}
+.geo-status small {display:block;margin:4px 0;}
+
+/* Native keyboard-operable switch for agent access. */
+input[type="checkbox"][role="switch"]{appearance:none;width:42px;height:24px;flex:0 0 42px;border:1px solid var(--line);border-radius:20px;background:var(--muted);position:relative;cursor:pointer;vertical-align:middle;margin-right:8px}
+input[type="checkbox"][role="switch"]::before{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--surface)}
+input[type="checkbox"][role="switch"]:checked{background:var(--accent);border-color:var(--accent)}
+input[type="checkbox"][role="switch"]:checked::before{transform:translateX(18px)}
+input[type="checkbox"][role="switch"]:focus-visible{outline:2px solid var(--accent);outline-offset:3px}

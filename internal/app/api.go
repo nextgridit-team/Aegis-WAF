@@ -68,7 +68,15 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-store")
 		var who identity
 		var e error
-		if auth {
+		invocation, internal := ctx.Value(agentInvocationKey{}).(agentInvocation)
+		if internal {
+			if !auth || r.Pattern != invocation.Pattern || !invocation.Principal.has(invocation.Scope) {
+				respond(w, 403, map[string]string{"error": "agent operation rejected"})
+				return
+			}
+			who = identity{Username: fmt.Sprintf("agent-key:%d", invocation.Principal.ID)}
+		}
+		if auth && !internal {
 			var cookie *http.Cookie
 			cookie, e = r.Cookie("aegis_waf_session")
 			if e != nil {
@@ -85,7 +93,7 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 				return
 			}
 		}
-		if r.Method != "GET" && r.Method != "HEAD" {
+		if !internal && r.Method != "GET" && r.Method != "HEAD" {
 			if origin := r.Header.Get("Origin"); origin != "" {
 				u, er := url.Parse(origin)
 				if er != nil || u.Host != r.Host || (u.Scheme != "http" && u.Scheme != "https") {
@@ -118,6 +126,7 @@ func (a *App) Management() http.Handler {
 	dashboardAPI(a, m)
 	signatureAPI(a, m)
 	aiAPI(a, m)
+	agentAPI(a, m)
 	policyAPI(a, m)
 	feedAPI(a, m)
 	m.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]bool{"alive": true}) })
@@ -169,6 +178,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
 	m.HandleFunc("GET /api/access-logs", a.wrap(true, a.listAccess))
 	m.HandleFunc("GET /api/access-logs/{id}", a.wrap(true, a.requestDetails))
+	addressAPI(a, m)
 	ruleAPI(a, m)
 	dnsAPI(a, m)
 	f, _ := fs.Sub(assets, "assets")
@@ -522,6 +532,9 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 			if e := audit(r.Context(), tx, i.Username, "policy.application_assigned", strconv.FormatInt(input.InitialPolicyID, 10)); e != nil {
 				return e
 			}
+		}
+		if e := validateAddressConsumers(r.Context(), tx); e != nil {
+			return e
 		}
 		return audit(r.Context(), tx, i.Username, "site.saved", strconv.FormatInt(s.ID, 10))
 	})

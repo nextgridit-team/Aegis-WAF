@@ -1013,20 +1013,34 @@ const { execFileSync } = require("node:child_process");
     await page.getByRole("region",{name:"Loaded signature sets",exact:true}).getByText("OWASP Core Rule Set",{exact:true}).waitFor();
     assert.equal(await page.getByRole("navigation",{name:"Rule workspace",exact:true}).evaluate(el=>getComputedStyle(el).flexDirection),"row","rule workspace tabs should stay horizontal");
     await screenshot("signature-set-loaded");
-    // Discover a real local keyless provider without invoking inference.
-    await nav("AI backend").click();
-    await page.getByLabel("API base URL", {exact:true}).fill(upstream + "/v1");
-    await page.getByLabel("No API key · clear any saved key", {exact:true}).check();
-    await page.getByRole("button", {name:"Check connection & load models",exact:true}).click();
-    await page.getByText("Connected · 1 models available. Select a model and save.", {exact:true}).waitFor();
-    await page.getByLabel("Model", {exact:true}).selectOption("test-chat-model");
-    await page.getByRole("button", {name:"Save provider",exact:true}).click();
-    await message("AI provider saved").waitFor();
-    await page.reload();
-    await page.getByLabel("Model", {exact:true}).waitFor();
-    assert.equal(await page.getByLabel("Model",{exact:true}).inputValue(),"test-chat-model");
-    assert.equal(await page.getByLabel("API key",{exact:true}).inputValue(),"");
-    await screenshot("ai-provider-configured");
+    // Address objects and MCP access are managed entirely in the dashboard.
+    await nav("Address objects").click();
+    await page.getByRole("button",{name:"New object",exact:true}).click();
+    await dialog().getByLabel("Name",{exact:true}).fill("Agent localhost");
+    await dialog().getByLabel("IP address or subnet",{exact:true}).fill("127.0.0.1");
+    await dialog().getByRole("button",{name:"Save object",exact:true}).click();
+    await message("Address entry saved").waitFor();
+    await page.getByRole("button",{name:"New group",exact:true}).click();
+    await dialog().getByLabel("Name",{exact:true}).fill("Automation sources");
+    await dialog().getByLabel("Agent localhost · 127.0.0.1",{exact:true}).check();
+    await dialog().getByRole("button",{name:"Save group",exact:true}).click();
+    await message("Address entry saved").waitFor();
+    await screenshot("address-objects");
+    await nav("Agent access").click();
+    assert.equal(await page.getByRole("switch").isChecked(),false);
+    const skillDownload=page.waitForEvent("download");
+    await page.getByRole("link",{name:"Download agent skill",exact:true}).click();
+    const downloadedSkill=await skillDownload;
+    assert.equal(downloadedSkill.suggestedFilename(),"aegis-waf.zip");
+    await downloadedSkill.saveAs(path.join(out,"aegis-waf.zip"));
+    await page.getByRole("button",{name:"Create API key",exact:true}).click();
+    await dialog().getByLabel("Key name",{exact:true}).fill("Browser review agent");
+    await dialog().getByLabel("Allowed source objects / groups",{exact:true}).selectOption({label:"Automation sources · 1 objects"});
+    await dialog().getByRole("button",{name:"Generate key",exact:true}).click();
+    await dialog().getByRole("heading",{name:"Save your API key",exact:true}).waitFor();
+    assert.ok((await dialog().getByLabel("API key",{exact:true}).inputValue()).startsWith("aegis_mcp_"));
+    await dialog().getByRole("button",{name:"Done",exact:true}).click();
+    await screenshot("agent-access");
     await nav("Signature sets").click();
     await page.getByRole("region",{name:"Loaded signature sets",exact:true}).getByRole("button",{name:"Apply to policy",exact:true}).click();
     await dialog().getByLabel("Policy",{exact:true}).selectOption("");
@@ -1105,6 +1119,21 @@ const { execFileSync } = require("node:child_process");
       await dialog().getByRole("button",{name:"Close",exact:true}).click();
     }
 
+    // Map interaction uses synthetic regional aggregates; database enrichment is
+    // independently verified with a real MMDB fixture in Go integration tests.
+    await page.route("**/api/dashboard/regions?**",async route=>{
+      const target=new URL(route.request().url());
+      await route.fulfill({json:{country:"US",region:target.searchParams.get("region")||"",minutes:15,site_id:0,regions:[{region_code:"WA",region_name:"Washington",requests:7,blocked:2}],recent:[]}});
+    });
+    await nav("Dashboard").click();
+    await page.locator('[data-map-country="US"]').click();
+    await page.getByRole("heading",{name:"United States · regions",exact:true}).waitFor();
+    await page.getByRole("button",{name:"View Washington requests",exact:true}).click();
+    await page.getByRole("heading",{name:"Washington · recent requests",exact:true}).waitFor();
+    await screenshot("regional-map");
+    await page.getByRole("button",{name:"Back to world",exact:true}).click();
+    await page.locator('[data-map-country="US"]').waitFor();
+    await page.unroute("**/api/dashboard/regions?**");
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const label of [
@@ -1118,7 +1147,8 @@ const { execFileSync } = require("node:child_process");
         "Signature sets",
         "Traffic",
         "Policies",
-        "AI backend",
+        "Address objects",
+        "Agent access",
       ]) {
         await nav(label).click();
         await page
@@ -1209,7 +1239,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 52 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 52 responsive checks, CPU/RAM replica telemetry, scoped agent keys, address objects, regional drill-down and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

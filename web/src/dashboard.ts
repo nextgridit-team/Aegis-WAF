@@ -1,9 +1,27 @@
-import { managedSignatureSummary, type ManagedSignatureResult } from "./signature-sets";
+import type {
+  AddressSelection,
+  AddressObject,
+  AddressGroup,
+} from "./address-objects";
+import {
+  regionPanels,
+  geoSyncStatus,
+  makeGeoSyncForm,
+  type GeoSource,
+  type RegionReport,
+} from "./geo-dashboard";
+import {
+  managedSignatureSummary,
+  type ManagedSignatureResult,
+} from "./signature-sets";
 import { policySummary, type PolicySummary } from "./policy-page";
 import { protectionOptions, readProtectionOptions } from "./protection-options";
 import { world } from "./world";
 type Site = { id: number; name: string; policies?: PolicySummary[] };
 export type Protection = {
+  trusted_addresses?: AddressSelection;
+  flood_exempt_addresses?: AddressSelection;
+  bot_exempt_addresses?: AddressSelection;
   mode: string;
   requests_per_second: number;
   burst: number;
@@ -17,6 +35,7 @@ export type Protection = {
   bot_exempt_cidrs?: string[];
 };
 type Report = {
+  geo_sources?: GeoSource[];
   systems?: {
     id: string;
     cpu_percent: number | null;
@@ -57,7 +76,7 @@ type Report = {
     country: string;
     blocked: boolean;
     signals: string[];
-    managed_signatures?:ManagedSignatureResult;
+    managed_signatures?: ManagedSignatureResult;
     policy_name?: string;
     policy_revision?: number;
     protection_exemptions?: string[];
@@ -107,6 +126,9 @@ const countryName = (code: string) => {
 };
 export function makeDashboardUI(d: Deps) {
   const { api, esc, heading, table } = d;
+  let selectedCountry = "",
+    selectedRegion = "";
+  const geoSyncForm = makeGeoSyncForm(d);
   let site = "",
     minutes = "15",
     serial = 0,
@@ -141,15 +163,31 @@ export function makeDashboardUI(d: Deps) {
     const stamp = ++serial;
     const scope = site;
     try {
-      const r = await api<Report>(
-        `/dashboard?minutes=${minutes}${scope ? `&site_id=${scope}` : ""}`,
-      );
+      const country = selectedCountry,
+        region = selectedRegion;
+      const query = `minutes=${minutes}${scope ? `&site_id=${scope}` : ""}`;
+      const [r, regional] = await Promise.all([
+        api<Report>(`/dashboard?${query}`),
+        country
+          ? api<RegionReport>(
+              `/dashboard/regions?${query}&country=${country}${region ? `&region=${encodeURIComponent(region)}` : ""}`,
+            )
+          : Promise.resolve(null),
+      ]);
+      const regions = regional
+        ? regionPanels(regional, countryName(country), esc)
+        : null;
       if (stamp !== serial || !target.isConnected) return;
-      const resourcesOpen = target.querySelector<HTMLDetailsElement>("[data-replica-resources]")?.open || false;
+      const resourcesOpen =
+        target.querySelector<HTMLDetailsElement>("[data-replica-resources]")
+          ?.open || false;
       const t = r.totals;
       const systems = r.systems || [];
       const cpus = systems.filter(
-        (s) => typeof s.cpu_percent === "number" && Number.isFinite(s.cpu_percent) && s.cpu_cores > 0,
+        (s) =>
+          typeof s.cpu_percent === "number" &&
+          Number.isFinite(s.cpu_percent) &&
+          s.cpu_cores > 0,
       );
       const cpuCores = cpus.reduce((n, s) => n + s.cpu_cores, 0);
       const cpu = cpuCores
@@ -167,8 +205,12 @@ export function makeDashboardUI(d: Deps) {
         ["Replica", "CPU", "RAM", "Memory limit"],
         systems.map((s) => [
           esc(s.id),
-          typeof s.cpu_percent !== "number" ? "Unavailable" : `${format(s.cpu_percent)}%`,
-          typeof s.memory_bytes !== "number" ? "Unavailable" : bytes(s.memory_bytes),
+          typeof s.cpu_percent !== "number"
+            ? "Unavailable"
+            : `${format(s.cpu_percent)}%`,
+          typeof s.memory_bytes !== "number"
+            ? "Unavailable"
+            : bytes(s.memory_bytes),
           s.memory_limit_bytes ? bytes(s.memory_limit_bytes) : "Not configured",
         ]),
         "Replica resources",
@@ -191,7 +233,7 @@ export function makeDashboardUI(d: Deps) {
                   ),
               )
             : 0;
-          return `<path d="${c.path}" class="map-level-${level}"><title>${esc(c.name)}: ${format(value?.requests || 0)} requests · ${format(value?.blocked || 0)} blocked</title></path>`;
+          return `<path d="${c.path}" class="map-level-${level}" ${/^[A-Z]{2}$/.test(c.code) ? `tabindex="0" role="button" data-map-country="${c.code}" aria-label="View regions in ${esc(c.name)}"` : ""}><title>${esc(c.name)}: ${format(value?.requests || 0)} requests · ${format(value?.blocked || 0)} blocked</title></path>`;
         })
         .join("");
       const now = Date.parse(r.at);
@@ -226,16 +268,34 @@ export function makeDashboardUI(d: Deps) {
       const scoped = scope
         ? sites.filter((s) => String(s.id) === scope)
         : sites;
+      const focused = document.activeElement as HTMLElement | null;
+      const focusKeys = [
+        "data-map-country",
+        "data-map-region",
+        "data-map-back",
+        "data-map-clear-region",
+        "data-action",
+      ];
+      const focusKey =
+        focused && target.contains(focused)
+          ? focusKeys.find((key) => focused.hasAttribute(key))
+          : undefined;
+      const focusValue = focusKey ? focused!.getAttribute(focusKey) : null;
+      const focusID = focused?.dataset.id;
       target.innerHTML = `${r.dropped_logs ? `<div class="notice error">Reporting replicas have dropped ${format(r.dropped_logs)} access logs since starting. Request statistics may be incomplete.</div>` : ""}<div class="metric-grid">${metric("Requests / second", format(t.rps), "Completed requests · trailing 10s")}${metric("Open connections", format(r.connections), `${r.reporting_replicas} reporting replica${r.reporting_replicas === 1 ? "" : "s"} · includes keep-alive`)}${metric("In-flight requests", format(r.inflight), "Currently being processed")}${metric("Total requests", format(t.requests), `Last ${r.minutes} minutes · ${format(t.clients)} clients`)}${metric("Blocked requests", format(t.blocked), `${t.requests ? format((t.blocked / t.requests) * 100) : "0"}% of traffic`)}${metric("Flagged requests", format(t.flagged), `Bot or flood signals · ${format(t.exempt || 0)} requests exempt`)}</div>
    ${resources}<section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
-   <div class="dashboard-columns"><section class="dashboard-panel world-panel"><div class="section-heading"><h2>Incoming traffic</h2><small>Requests by country</small></div><svg class="world-map" viewBox="0 5 360 160" role="img" aria-label="World map of incoming requests by country">${map}</svg><div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
-   <section class="dashboard-panel"><h2>Traffic origins</h2>${rowList(
-     topCountries.map(
-       (c) =>
-         `<div class="dashboard-row"><span>${esc(countryName(c.country))}</span><strong>${format(c.requests)}</strong><small>${format(c.blocked)} blocked</small></div>`,
-     ),
-     "No incoming requests yet.",
-   )}<p class="muted">Private IPs and unresolved locations are counted as unknown.</p></section></div>
+   <div class="dashboard-columns"><section class="dashboard-panel world-panel">${regions ? regions.mapPanel : `<div class="section-heading"><h2>Incoming traffic</h2><small>Select a country for regional detail</small></div><svg class="world-map" viewBox="0 5 360 160" role="group" aria-label="World map of incoming requests by country">${map}</svg>`}<div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div>${geoSyncStatus(r.geo_sources || [], esc)}<button class="text-button" data-action="geo-sync">Database sync & regions</button><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
+   <section class="dashboard-panel"><h2>${regions ? "Regional traffic" : "Traffic origins"}</h2>${
+     regions
+       ? regions.counts
+       : rowList(
+           topCountries.map(
+             (c) =>
+               `<div class="dashboard-row"><span>${esc(countryName(c.country))}</span><strong>${format(c.requests)}</strong><small>${format(c.blocked)} blocked</small></div>`,
+           ),
+           "No incoming requests yet.",
+         )
+   }<p class="muted">Private IPs and unresolved locations are counted as unknown.</p></section></div>${regions?.recent || ""}
    <div class="dashboard-columns"><section class="dashboard-panel"><h2>Response status</h2>${rowList(
      r.statuses.map(
        (s) =>
@@ -274,7 +334,8 @@ export function makeDashboardUI(d: Deps) {
              esc(event.peer) +
                (event.policy_name
                  ? `<small>${esc(event.policy_name)} · v${event.policy_revision}</small>`
-                 : "") + managedSignatureSummary(event.managed_signatures,esc),
+                 : "") +
+               managedSignatureSummary(event.managed_signatures, esc),
              String(event.status),
              (event.blocked
                ? '<span class="badge danger">Blocked</span>'
@@ -290,6 +351,39 @@ export function makeDashboardUI(d: Deps) {
          )
        : '<p class="muted">Requests will appear here as traffic arrives.</p>'
    }</section><p class="page-note">Open connections count gateway sockets. A socket serving several applications appears in each application view; application counts cannot be summed. Requests refresh every 4 seconds with a short logging delay.</p>`;
+      const mapAction = (event: Event) => {
+        if (
+          event.type === "keydown" &&
+          !["Enter", " "].includes((event as KeyboardEvent).key)
+        )
+          return;
+        const element = (event.target as Element).closest<HTMLElement>(
+          "[data-map-country],[data-map-region],[data-map-back],[data-map-clear-region]",
+        );
+        if (!element) return;
+        event.preventDefault();
+        if (element.hasAttribute("data-map-back")) {
+          selectedCountry = "";
+          selectedRegion = "";
+        } else if (element.hasAttribute("data-map-clear-region")) {
+          selectedRegion = "";
+        } else if (element.dataset.mapCountry) {
+          selectedCountry = element.dataset.mapCountry;
+          selectedRegion = "";
+        } else if (element.dataset.mapRegion) {
+          selectedRegion = element.dataset.mapRegion;
+        }
+        void update().catch(d.handleError);
+      };
+      if (focusKey) {
+        const selector = `[${focusKey}="${CSS.escape(focusValue || "")}"]${focusID ? `[data-id="${CSS.escape(focusID)}"]` : ""}`;
+        (
+          target.querySelector<HTMLElement>(selector) ||
+          target.querySelector<HTMLElement>("#region-title")
+        )?.focus();
+      }
+      target.onclick = mapAction;
+      target.onkeydown = mapAction;
       target.removeAttribute("aria-busy");
       const freshness = document.getElementById("dashboard-freshness");
       if (freshness)
@@ -309,6 +403,10 @@ export function makeDashboardUI(d: Deps) {
       d.notice("Add a proxy host before configuring protection.", true);
       return;
     }
+    const [objects, groups] = await Promise.all([
+      api<AddressObject[]>("/address-objects"),
+      api<AddressGroup[]>("/address-groups"),
+    ]);
     const settings = await api<{ site_id: number; settings: Protection }[]>(
       "/protection-settings",
     );
@@ -329,7 +427,7 @@ export function makeDashboardUI(d: Deps) {
       const assigned =
         sites.find((site) => String(site.id) === select.value)?.policies || [];
       document.getElementById("protection-fields")!.innerHTML =
-        `${policySummary(assigned, esc)}<div ${assigned.length ? "hidden" : ""}><h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p></div>${protectionOptions(p)}`;
+        `${policySummary(assigned, esc)}<div ${assigned.length ? "hidden" : ""}><h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p></div>${protectionOptions(p, { objects, groups })}`;
     };
     fill();
     select.addEventListener("change", fill);
@@ -368,5 +466,5 @@ export function makeDashboardUI(d: Deps) {
       );
     });
   }
-  return { mount, update, protectionForm, geoForm };
+  return { mount, update, protectionForm, geoForm, geoSyncForm };
 }

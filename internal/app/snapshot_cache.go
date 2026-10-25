@@ -34,6 +34,8 @@ type cachedRule struct {
 	GroupMethods             []string
 }
 type cachedBinding struct {
+	NetworkAccess  networkAccessSettings
+	NetworkMode    string
 	ManagedOptions managedSignatureOptions
 	ID, Revision   int64
 	Name           string
@@ -116,6 +118,10 @@ func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
 	for site, bindings := range s.policyBindings {
 		for _, b := range bindings {
 			binding := cachedBinding{ManagedOptions: b.ManagedOptions, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
+			if b.Protection.network != nil {
+				binding.NetworkAccess = b.Protection.network.Settings
+				binding.NetworkMode = b.Protection.network.Mode
+			}
 			for _, cidr := range b.CIDRs {
 				binding.CIDRs = append(binding.CIDRs, cidr.String())
 			}
@@ -237,6 +243,10 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 				return nil, e
 			}
 			p.budgetScope = b.ID
+			p.network, e = compileNetworkAccess(b.NetworkAccess, b.NetworkMode)
+			if e != nil {
+				return nil, e
+			}
 			options, e := normalizeManagedSignatures(b.ManagedOptions)
 			if e != nil {
 				return nil, e

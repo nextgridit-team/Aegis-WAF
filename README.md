@@ -7,7 +7,7 @@
 
 Aegis sits between clients and your HTTP(S) applications. Use its web interface to request certificates, configure upstreams, load OWASP CRS signatures and assign protection policies. It runs as one application container plus PostgreSQL, with a separate management listener and an embedded TypeScript dashboard.
 
-**Under active development.** Request protection is implemented; AI traffic analysis and automatic rule generation are future work. See [current limits](#current-limits) before deploying.
+**Under active development.** Request protection and an optional MCP agent endpoint are implemented; Aegis runs no AI traffic analysis itself. See [current limits](#current-limits) before deploying.
 
 [Deploy](#deploy-with-docker-compose) · [Configure your first application](#protect-your-first-application) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
 
@@ -21,13 +21,13 @@ _Actual application screens with isolated test traffic and example domains. Scre
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Certificates**           | Guided ACME issuance and renewal; Cloudflare DNS-01, including wildcards; HTTP-01; staging, production and custom ACME directories; PEM upload and replacement.                                                                                                                                 |
 | **Reverse proxy**          | Exact-host routing to HTTP(S) upstreams, TLS termination, optional HTTPS redirects, WebSockets and streaming, verified upstream TLS, and configurable request/response headers.                                                                                                                 |
-| **Managed signatures**     | Coraza with bundled OWASP CRS v4.30.0. Explicitly load a version and select it in a policy. Observe/Block modes, anomaly threshold, paranoia level, body limits and rule-ID exclusions.                                                                                                         |
+| **Managed signatures**     | Coraza with bundled OWASP CRS v4.30.0. Explicitly load a version and select it in a policy. Observe/Block modes, anomaly threshold, paranoia level, body limits, rule-ID and scoped path/parameter/client exclusions.                                                                                                         |
 | **Policies**               | Reusable bot/flood controls and custom rule groups assigned to applications. Ordered source-IP/CIDR assignments support different internal and external policies.                                                                                                                               |
 | **Custom rules and feeds** | Visual condition editor, JSON import/export, standalone rule activation/expiry, history, rollback and replay against retained facts. Public HTTPS JSON feeds sync every 12 hours or on demand and stage candidates for review.                                                                  |
-| **Bot and flood controls** | Basic scanner/headless User-Agent signals and configurable per-client/application rate limits. Independent bot/flood CIDR exemptions. Limits are per replica.                                                                                                                                   |
-| **Visibility**             | Global/application traffic, requests per second, connections, status codes, blocking statistics, optional local country lookup, replica CPU/RAM, access logs and administrative audit events. Click any listed request for its recorded decision, rule/signature details and retained evidence. |
+| **Bot and flood controls** | Basic scanner/headless User-Agent signals and configurable per-client/application rate limits. Reusable address objects/groups and independent bot/flood exemptions. Limits are per replica.                                                                                                                                   |
+| **Visibility**             | Global/application traffic, requests per second, connections, status codes, blocking statistics, optional local country/state lookup with map drill-down, replica CPU/RAM, access logs and administrative audit events. Click any listed request for its recorded decision, rule/signature details and retained evidence. |
 | **Evidence**               | Opt-in sampled, bounded request facts with allowlists, redaction and expiry. Custom-rule replay does not send requests upstream.                                                                                                                                                                |
-| **AI connection setup**    | OpenAI-compatible endpoint, optional encrypted API key, model-list discovery and model selection. No inference or traffic submission.                                                                                                                                                           |
+| **Agent access** | Optional MCP endpoint with hashed expiring keys, read/evidence/draft/enforcement permissions and source address restrictions. Bring your own agent and model.                                                                                                                                                           |
 
 Sites, certificates, policies and application settings are managed through the dashboard or management API. Site changes do not require configuration-file edits or image rebuilds.
 
@@ -74,6 +74,10 @@ Replicas check configuration versions every **2 seconds**; compilation/loading c
 
 ## Screenshots
 
+### Connect your own agent
+
+![Agent access with an optional MCP endpoint, scoped keys and a downloadable skill](docs/screenshots/agent-access.png)
+
 ### Certificates and automatic renewal
 
 ![Certificate inventory showing ACME-managed and uploaded certificates with validity and renewal status](docs/screenshots/certificates-current.png)
@@ -115,7 +119,7 @@ The application runs as a non-root UID with unprivileged internal ports. Compose
 - **Flood budgets are replica-local.** More replicas increase the effective aggregate allowance; budgets reset on process restart. Cluster-wide rate coordination is not implemented.
 - **CRS inspects requests only.** Response-body inspection is disabled. In Block mode, requests over the policy body limit are rejected with 413; Observe forwards them with incomplete-inspection metadata. New custom policies default to 64 KiB; the included baseline uses 1 MiB. Configurable range: 4 KiB–1 MiB. Review upload-heavy applications before enforcing. [Managed signature behavior](docs/managed-signatures.md).
 - **Bot detection is basic and spoofable.** There is no CAPTCHA, browser challenge, verified-bot identity, behavioral learning or network-layer DDoS protection.
-- **AI setup is configuration only.** No background traffic review, generated signatures, automated policy changes or cross-signal weighted scoring is active. CRS's own inbound anomaly scoring is implemented separately.
+- **Agents are external and opt-in.** MCP provides scoped access for your agent; Aegis runs no inference or built-in AI workflow. Grant live enforcement separately from read/evidence/draft access. CRS inbound anomaly scoring is independent. [Agent setup](docs/agent-access.md).
 - **Database outages have defined limits.** Running replicas retain their last loaded routes, certificates and policies; sign-in, administrative changes and HTTP-01 lookup still require PostgreSQL. A default replica starting during an outage remains unready. [Failure and recovery behavior](docs/deployment.md#health-and-database-outages).
 - **Logs are best effort.** Forwarding/enforcement precede queued log writes. Queue saturation, outages or process crashes can lose records. Access/audit retention is manual; sampled evidence has its own automatic expiry. [Logging](docs/logging.md) · [Privacy](docs/evidence-privacy.md).
 - **Encryption covers secret values.** Private keys and saved credentials use AES-256-GCM with an external key. Public certificate chains, configuration and logs are not encrypted by that application layer. Online key rotation, MFA, password recovery and granular administrator roles are not implemented. [Encryption details](docs/encryption-at-rest.md).
@@ -145,7 +149,9 @@ For reproducible deployment or rollback, pin `AEGIS_IMAGE` to a unique build tag
 | Create rules, consume feeds and replay retained facts                   | [Custom rules](docs/rules.md) · [Rule feeds](docs/rule-feeds.md)                                                                                           |
 | Configure forwarded identity, headers and exemptions                    | [Headers and CIDRs](docs/headers-and-cidrs.md)                                                                                                             |
 | Understand metrics, logs and evidence storage                           | [Dashboard](docs/dashboard.md) · [Request investigation](docs/request-investigation.md) · [Logging](docs/logging.md) · [Privacy](docs/evidence-privacy.md) |
-| Configure an AI endpoint or read the proposed AI workflow               | [Provider setup](docs/ai-provider.md) · [Build-sheet review](docs/ai-use-cases-review.md)                                                                  |
+| Connect your own AI agent through MCP | [Agent access, bundled skill and permissions](docs/agent-access.md) |
+| Tune exclusions and export security events | [Inspection and telemetry](docs/security-tuning.md) |
+| Reuse network definitions or configure Geo | [Address objects](docs/address-objects.md) · [Geo data and policy order](docs/geolocation.md) |
 | Automate or develop                                                     | [Management API](docs/management-api.md) · [Development and tests](docs/development.md)                                                                    |
 
 ## Support and contributions

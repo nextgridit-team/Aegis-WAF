@@ -15,15 +15,17 @@ import (
 
 // Capture is disabled by default. Field values require a per-site allowlist.
 type TrafficSettings struct {
-	RedactPatterns []string `json:"redact_patterns,omitempty"`
-	Enabled        bool     `json:"enabled"`
-	CapturePath    bool     `json:"capture_path"`
-	QueryKeys      []string `json:"query_keys"`
-	HeaderKeys     []string `json:"header_keys"`
-	JSONBodyKeys   []string `json:"json_body_keys"`
-	SampleEvery    int      `json:"sample_every"`
-	MaxPerMinute   int      `json:"max_per_minute"`
-	RetentionHours int      `json:"retention_hours"`
+	SecurityEventsDisabled bool     `json:"security_events_disabled"`
+	SecuritySamples        bool     `json:"security_samples"`
+	RedactPatterns         []string `json:"redact_patterns,omitempty"`
+	Enabled                bool     `json:"enabled"`
+	CapturePath            bool     `json:"capture_path"`
+	QueryKeys              []string `json:"query_keys"`
+	HeaderKeys             []string `json:"header_keys"`
+	JSONBodyKeys           []string `json:"json_body_keys"`
+	SampleEvery            int      `json:"sample_every"`
+	MaxPerMinute           int      `json:"max_per_minute"`
+	RetentionHours         int      `json:"retention_hours"`
 }
 type captureBudget struct {
 	mu          sync.Mutex
@@ -317,9 +319,10 @@ func (a *App) storeAccessBatch(ctx context.Context, batch []accessEvent) error {
 			exemptJSON = []byte("[]")
 		}
 		managedJSON, _ := json.Marshal(event.managed)
-		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON}
+		networkJSON, _ := json.Marshal(event.network)
+		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON, networkJSON, event.regionCode, event.regionName}
 	}
-	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures"}, pgx.CopyFromRows(items)); e != nil {
+	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures", "network_access", "region_code", "region_name"}, pgx.CopyFromRows(items)); e != nil {
 		return e
 	}
 	if len(evidenceRows) > 0 {

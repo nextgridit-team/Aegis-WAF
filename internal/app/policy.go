@@ -23,6 +23,7 @@ type policyGroup struct {
 	Rules      []policyRule `json:"rules"`
 }
 type policySpec struct {
+	NetworkAccess         networkAccessSettings   `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
 	Name                  string                  `json:"name"`
 	Description           string                  `json:"description"`
@@ -43,6 +44,7 @@ type policyGroupInput struct {
 	RuleIDs    []int64  `json:"rule_ids"`
 }
 type policySpecInput struct {
+	NetworkAccess         networkAccessSettings   `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
 	Name                  string                  `json:"name"`
 	Description           string                  `json:"description"`
@@ -114,6 +116,7 @@ func policyProtection(base *protectionPolicy, s policySpec, id int64) (*protecti
 	compiled, e := compileProtection(p)
 	if e == nil {
 		compiled.budgetScope = id
+		compiled.network, e = compileNetworkAccess(s.NetworkAccess, s.Mode)
 	}
 	return compiled, e
 }
@@ -186,7 +189,20 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 			return policySpec{}, e
 		}
 	}
-	s := policySpec{ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
+	network, e := compileNetworkAccess(in.NetworkAccess, in.Mode)
+	if e != nil {
+		return policySpec{}, e
+	}
+	if network.Settings.GeoMode != "off" {
+		var available bool
+		if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM geo_database WHERE id)").Scan(&available); e != nil {
+			return policySpec{}, e
+		}
+		if !available {
+			return policySpec{}, invalid("download a country database before enabling Geo blocking")
+		}
+	}
+	s := policySpec{NetworkAccess: network.Settings, ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
 	if len(in.Groups) > 10 {
 		return s, invalid("at most 10 groups per policy")
 	}
@@ -423,6 +439,9 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 		if _, e = tx.Exec(ctx, "INSERT INTO policy_revisions(policy_id,revision,spec,actor) SELECT id,revision,spec,$2 FROM policies WHERE id=$1", id, i.Username); e != nil {
 			return e
 		}
+		if e := validateAddressConsumers(ctx, tx); e != nil {
+			return e
+		}
 		return audit(ctx, tx, i.Username, "policy.saved", strconv.FormatInt(id, 10))
 	})
 	if e != nil {
@@ -432,6 +451,10 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 	return nil
 }
 func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot) error {
+	catalog, e := loadAddressCatalog(ctx, tx)
+	if e != nil {
+		return e
+	}
 	next.policyBindings = map[int64][]compiledPolicyBinding{}
 	rows, e := tx.Query(ctx, "SELECT b.site_id,b.source_cidrs,b.priority,p.id,p.revision,p.spec FROM policy_assignments b JOIN policies p ON p.id=b.policy_id JOIN sites s ON s.id=b.site_id WHERE s.enabled ORDER BY b.site_id,b.priority")
 	if e != nil {
@@ -460,6 +483,10 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 			return e
 		}
 		binding.ManagedOptions = effectiveManagedOptions(binding.ManagedOptions, spec.Mode)
+		spec.NetworkAccess, e = catalog.network(spec.NetworkAccess)
+		if e != nil {
+			return e
+		}
 		binding.Protection, e = policyProtection(next.protection[site], spec, binding.ID)
 		if e != nil {
 			return e
@@ -564,6 +591,9 @@ func policyAPI(a *App, m *http.ServeMux) {
 				return e
 			}
 			if _, e = tx.Exec(ctx, "INSERT INTO policy_revisions(policy_id,revision,spec,actor) SELECT id,revision,spec,$2 FROM policies WHERE id=$1", id, i.Username); e != nil {
+				return e
+			}
+			if e := validateAddressConsumers(ctx, tx); e != nil {
 				return e
 			}
 			return audit(ctx, tx, i.Username, "policy.rolled_back", strconv.FormatInt(id, 10))

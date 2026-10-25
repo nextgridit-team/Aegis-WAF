@@ -16,19 +16,23 @@ import (
 
 // Limits are local to each replica. No database round trip occurs on the request path.
 type ProtectionSettings struct {
-	Mode                  string   `json:"mode"`
-	RequestsPerSecond     int      `json:"requests_per_second"`
-	Burst                 int      `json:"burst"`
-	SiteRequestsPerSecond int      `json:"site_requests_per_second"`
-	SiteBurst             int      `json:"site_burst"`
-	BotMode               string   `json:"bot_mode"`
-	BlockEmptyUA          bool     `json:"block_empty_user_agent"`
-	TrustedProxies        []string `json:"trusted_proxies"`
-	ClientIPHeader        string   `json:"client_ip_header"`
-	FloodExemptCIDRs      []string `json:"flood_exempt_cidrs"`
-	BotExemptCIDRs        []string `json:"bot_exempt_cidrs"`
+	TrustedAddresses      addressSelection `json:"trusted_addresses"`
+	FloodExemptAddresses  addressSelection `json:"flood_exempt_addresses"`
+	BotExemptAddresses    addressSelection `json:"bot_exempt_addresses"`
+	Mode                  string           `json:"mode"`
+	RequestsPerSecond     int              `json:"requests_per_second"`
+	Burst                 int              `json:"burst"`
+	SiteRequestsPerSecond int              `json:"site_requests_per_second"`
+	SiteBurst             int              `json:"site_burst"`
+	BotMode               string           `json:"bot_mode"`
+	BlockEmptyUA          bool             `json:"block_empty_user_agent"`
+	TrustedProxies        []string         `json:"trusted_proxies"`
+	ClientIPHeader        string           `json:"client_ip_header"`
+	FloodExemptCIDRs      []string         `json:"flood_exempt_cidrs"`
+	BotExemptCIDRs        []string         `json:"bot_exempt_cidrs"`
 }
 type protectionPolicy struct {
+	network     *networkAccessPolicy
 	budgetScope int64
 	ProtectionSettings
 	trusted                []netip.Prefix
@@ -283,6 +287,10 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 	return signals, blocked, status
 }
 func (a *App) loadProtection(ctx context.Context, tx pgx.Tx, s *snapshot) error {
+	catalog, e := loadAddressCatalog(ctx, tx)
+	if e != nil {
+		return e
+	}
 	s.protection = map[int64]*protectionPolicy{}
 	rows, e := tx.Query(ctx, "SELECT site_id,settings FROM protection_settings")
 	if e != nil {
@@ -297,6 +305,10 @@ func (a *App) loadProtection(ctx context.Context, tx pgx.Tx, s *snapshot) error 
 		}
 		var p ProtectionSettings
 		if e = json.Unmarshal(raw, &p); e != nil {
+			return e
+		}
+		p, e = catalog.protection(p)
+		if e != nil {
 			return e
 		}
 		compiled, e := compileProtection(p)
@@ -331,6 +343,9 @@ func (a *App) saveProtection(w http.ResponseWriter, r *http.Request, i identity)
 			return apiError{404, "application not found"}
 		}
 		if _, e := tx.Exec(r.Context(), "INSERT INTO protection_settings(site_id,settings) VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET settings=excluded.settings", id, raw); e != nil {
+			return e
+		}
+		if e := validateAddressConsumers(r.Context(), tx); e != nil {
 			return e
 		}
 		return audit(r.Context(), tx, i.Username, "protection.saved", strconv.FormatInt(id, 10))

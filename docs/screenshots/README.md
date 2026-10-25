@@ -35,3 +35,7 @@ cp /tmp/aegis-readme-shots/managed-signature-policy.png docs/screenshots/policie
 ```
 
 Update the source revision/date above when refreshing them. Older screenshots in this directory remain available to the feature documents that link to them.
+
+## Agent access, address objects and regional drill-down — 2026-10-25
+
+`agent-access.png`, `address-objects.png` and `regional-map.png` were captured from the isolated acceptance deployment using local image `aegis-waf:agent-access-test` (`eb7b332cdfc1`), source included in the accompanying scoped-MCP/address-object change. The browser verified a real downloadable skill ZIP, object/group creation and scoped key creation. Only a non-secret synthetic key prefix appears. Regional UI counts use a synthetic US/Washington API fixture; MMDB enrichment and database sync are tested separately against the licensed small MaxMind test database. The images do not establish production City-dataset accuracy or external agent reasoning quality.

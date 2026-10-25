@@ -14,6 +14,12 @@ export type ManagedSignatures = {
   inbound_threshold: number;
   body_limit_bytes: number;
   excluded_rule_ids: number[];
+  scoped_exclusions?: {
+    rule_ids: number[];
+    path_prefix?: string;
+    client_cidrs?: string[];
+    parameters?: string[];
+  }[];
 };
 export const defaultManagedSignatures = (): ManagedSignatures => ({
   set_id: "",

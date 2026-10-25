@@ -6,11 +6,14 @@ COPY web/ ./
 RUN npm run build
 
 FROM golang:1.26-alpine AS backend
+ARG GOPROXY=https://proxy.golang.org,direct
+RUN apk add --no-cache git
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
+COPY skills/ skills/
 COPY --from=dashboard /build/internal/app/assets/ internal/app/assets/
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/aegis-waf ./cmd/aegis-waf
 

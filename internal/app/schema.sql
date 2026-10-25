@@ -77,3 +77,26 @@ INSERT INTO schema_version VALUES(8) ON CONFLICT DO NOTHING;
 -- Version 9: one-time provisioned baseline policy, editable and removable.
 CREATE TABLE IF NOT EXISTS built_in_policies(key text PRIMARY KEY,policy_id bigint REFERENCES policies ON DELETE SET NULL,created_at timestamptz NOT NULL DEFAULT now());
 INSERT INTO schema_version VALUES(9) ON CONFLICT DO NOTHING;
+
+-- Version 10: explicit per-policy network decisions and regional telemetry.
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS network_access jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS region_code text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS region_name text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES(10) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS geo_region_database(id boolean PRIMARY KEY DEFAULT true CHECK(id),data bytea NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS geo_sources(kind text PRIMARY KEY CHECK(kind IN ('country','city')),enabled boolean NOT NULL DEFAULT true,auto_sync boolean NOT NULL DEFAULT false,status text NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','running','ready','retry','disabled')),owner text NOT NULL DEFAULT '',lease_until timestamptz,next_sync timestamptz NOT NULL DEFAULT now(),last_attempt timestamptz,last_success timestamptz,source_month text NOT NULL DEFAULT '',attempts int NOT NULL DEFAULT 0,error text NOT NULL DEFAULT '');
+
+-- Version 11: reusable address objects and flat groups. Membership is validated
+-- transactionally under config_version's write lock alongside every consumer.
+CREATE TABLE IF NOT EXISTS address_objects(id bigserial PRIMARY KEY,name text NOT NULL,description text NOT NULL DEFAULT '',value text NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX IF NOT EXISTS address_objects_name ON address_objects(lower(name));
+CREATE TABLE IF NOT EXISTS address_groups(id bigserial PRIMARY KEY,name text NOT NULL,description text NOT NULL DEFAULT '',object_ids bigint[] NOT NULL,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX IF NOT EXISTS address_groups_name ON address_groups(lower(name));
+INSERT INTO schema_version VALUES(11) ON CONFLICT DO NOTHING;
+
+-- Version 12: opt-in agent endpoint and hashed, scoped, expiring bearer keys.
+CREATE TABLE IF NOT EXISTS agent_access(id boolean PRIMARY KEY DEFAULT true CHECK(id),enabled boolean NOT NULL DEFAULT false);
+INSERT INTO agent_access(id) VALUES(true) ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS agent_keys(id bigserial PRIMARY KEY,name text NOT NULL,prefix text NOT NULL,token_hash text UNIQUE NOT NULL,scopes jsonb NOT NULL,allowed_addresses jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL,revoked_at timestamptz);
+INSERT INTO schema_version VALUES(12) ON CONFLICT DO NOTHING;

@@ -1,3 +1,4 @@
+import type {NetworkDecision} from "./network-access";
 import type { ManagedSignatureResult } from "./signature-sets";
 import type { PolicySummary } from "./policy-page";
 import type { HeaderSettings } from "./headers";
@@ -60,6 +61,9 @@ export type Audit = {
   resource: string;
 };
 export type Access = {
+ network_access?:NetworkDecision;
+ region_code?:string;
+ region_name?:string;
  managed_signatures?:ManagedSignatureResult;
   id: number;
   at: string;

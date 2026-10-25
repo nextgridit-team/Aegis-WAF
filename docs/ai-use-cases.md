@@ -1,5 +1,7 @@
 # Aegis AI Use Cases — Build Sheet
 
+> Architecture update: these remain workflow ideas for an external agent connected through [MCP](agent-access.md). Built-in inference jobs/provider selection are superseded by the agent-access direction. The original proposal below is retained for context; it is not a list of shipped features.
+
 Ground rules that apply to every use case here:
 
 1. No model on the request path. The data plane stays deterministic (208ns). AI runs on the

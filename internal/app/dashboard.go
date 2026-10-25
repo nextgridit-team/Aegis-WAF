@@ -200,7 +200,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY country) x`, &countries},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},
-		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name,managed_signatures` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name,managed_signatures,network_access,region_code,region_name` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
 	}
 	for index, q := range queries {
 		if e = tx.QueryRow(ctx, q.sql, since, site, now).Scan(q.target); e != nil {
@@ -257,12 +257,19 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 	if e = tx.Commit(ctx); e != nil {
 		return e
 	}
-	respond(w, 200, map[string]any{"at": now, "minutes": minutes, "site_id": site, "totals": json.RawMessage(totals), "series": json.RawMessage(series), "countries": json.RawMessage(countries), "statuses": json.RawMessage(statuses), "signals": json.RawMessage(signals), "recent": json.RawMessage(recent), "systems": systems, "dropped_logs": dropped, "connections": connections, "inflight": inflight, "reporting_replicas": replicas, "geo_updated_at": geoUpdated, "log_delay_seconds": 1, "connection_note": "Open gateway sockets, including keep-alive. Application sockets may be shared; do not sum application counts. Heartbeats expire after 10 seconds. Rates use completed requests over 10 seconds."})
+	var geoSources []byte
+	if e = a.db.QueryRow(r.Context(), "SELECT coalesce(jsonb_agg(x),'[]') FROM ("+geoStatusSQL+") x").Scan(&geoSources); e != nil {
+		return e
+	}
+	respond(w, 200, map[string]any{"geo_sources": json.RawMessage(geoSources), "at": now, "minutes": minutes, "site_id": site, "totals": json.RawMessage(totals), "series": json.RawMessage(series), "countries": json.RawMessage(countries), "statuses": json.RawMessage(statuses), "signals": json.RawMessage(signals), "recent": json.RawMessage(recent), "systems": systems, "dropped_logs": dropped, "connections": connections, "inflight": inflight, "reporting_replicas": replicas, "geo_updated_at": geoUpdated, "log_delay_seconds": 1, "connection_note": "Open gateway sockets, including keep-alive. Application sockets may be shared; do not sum application counts. Heartbeats expire after 10 seconds. Rates use completed requests over 10 seconds."})
 	return nil
 }
 func dashboardAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/dashboard", a.wrap(true, a.dashboard))
+	m.HandleFunc("GET /api/dashboard/regions", a.wrap(true, a.regionDashboard))
 	m.HandleFunc("POST /api/geolocation/update", a.wrap(true, a.updateGeo))
+	m.HandleFunc("POST /api/geolocation/sync", a.wrap(true, a.queueGeoSync))
+	m.HandleFunc("GET /api/geolocation/status", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error { return a.list(w, r, geoStatusSQL) }))
 	m.HandleFunc("GET /api/protection-settings", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		return a.list(w, r, "SELECT site_id,settings FROM protection_settings ORDER BY site_id")
 	}))

@@ -20,6 +20,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		addr := os.Getenv("MANAGEMENT_ADDR")
 		if addr == "" {
@@ -108,10 +109,12 @@ func run() error {
 		}
 		servers = append(servers, s)
 	}
-	wg.Add(3)
+	wg.Add(5)
 	go func() { defer wg.Done(); a.RunWorker(ctx, "configuration", a.Background) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "acme", a.ACMEWorker) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "rule-feeds", a.FeedWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "geolocation-sync", a.GeoSyncWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "region-cache", a.RegionCacheWorker) }()
 	errs := make(chan error, 3)
 	for i, s := range servers {
 		go func(i int, s *http.Server) {

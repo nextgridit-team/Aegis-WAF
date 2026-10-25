@@ -64,7 +64,7 @@ func managedInterruption(interruption *types.Interruption) (bool, int) {
 	}
 	return true, status
 }
-func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, ip netip.Addr) (result managedSignatureResult, blocked bool, status int) {
+func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, ip netip.Addr, resolved ...bool) (result managedSignatureResult, blocked bool, status int) {
 	result = managedSignatureResult{SetID: runtime.Set.ID, Version: runtime.Set.Version, Mode: runtime.Options.Mode, Inspection: "complete", RuleIDs: []int{}}
 	select {
 	case a.managedSlots <- struct{}{}:
@@ -121,6 +121,11 @@ func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, 
 	_, port, _ := net.SplitHostPort(r.RemoteAddr)
 	clientPort, _ := strconv.Atoi(port)
 	transaction.ProcessConnection(ip.String(), clientPort, "", 0)
+	reliable := len(resolved) > 0 && resolved[0]
+	if e := applySignatureExceptions(transaction, runtime.Options.ScopedExclusions, r, ip, reliable); e != nil {
+		result.Inspection = "error"
+		return result, true, http.StatusServiceUnavailable
+	}
 	transaction.ProcessURI(r.URL.RequestURI(), r.Method, r.Proto)
 	transaction.SetServerName(requestHost(r.Host))
 	for key, values := range r.Header {

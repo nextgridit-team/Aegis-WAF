@@ -169,6 +169,18 @@ func (e *accessEvent) enrich() {
 		e.evidence = e.prepareEvidence()
 		e.prepareEvidence = nil
 	}
+	if e.regions != nil {
+		location := regionFor(e.regions.db, e.clientIP)
+		if !e.network.GeoChecked && location.Country != "" {
+			e.country = location.Country
+			e.geo = nil
+		}
+		if location.Country == e.country {
+			e.regionCode = location.Code
+			e.regionName = location.Name
+		}
+		e.regions = nil
+	}
 	if e.geo != nil {
 		e.country = countryFor(e.geo, e.clientIP)
 		e.geo = nil

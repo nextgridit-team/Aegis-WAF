@@ -1,0 +1,1 @@
+Synthetic MaxMind-DB test fixture from https://github.com/maxmind/MaxMind-DB/tree/main/test-data, downloaded 2026-10-25. Dual MIT/Apache-2.0 licensed; notices included. This is a small test fixture, not a production Geo database. Tests do not download production City data.

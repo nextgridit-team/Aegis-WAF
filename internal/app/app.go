@@ -68,27 +68,33 @@ type snapshot struct {
 	geo            *maxminddb.Reader
 }
 type accessEvent struct {
-	managed                  managedSignatureResult
-	prepareEvidence          func() *evidenceEvent
-	releaseEvidence          func()
-	geo                      *maxminddb.Reader
-	clientIP                 netip.Addr
-	policyID, policyRevision int64
-	policyName               string
-	at                       time.Time
-	site                     int64
-	method                   string
-	status                   int
-	duration                 int64
-	peer                     string
-	results                  []RuleResult
-	evidence                 *evidenceEvent
-	country                  string
-	blocked                  bool
-	signals                  []string
-	exemptions               []string
+	securityDisabled, securitySamples bool
+	regions                           *regionCache
+	regionCode, regionName            string
+	network                           networkAccessResult
+	managed                           managedSignatureResult
+	prepareEvidence                   func() *evidenceEvent
+	releaseEvidence                   func()
+	geo                               *maxminddb.Reader
+	clientIP                          netip.Addr
+	policyID, policyRevision          int64
+	policyName                        string
+	at                                time.Time
+	site                              int64
+	method                            string
+	status                            int
+	duration                          int64
+	peer                              string
+	results                           []RuleResult
+	evidence                          *evidenceEvent
+	country                           string
+	blocked                           bool
+	signals                           []string
+	exemptions                        []string
 }
 type App struct {
+	regions                       atomic.Pointer[regionCache]
+	geoHTTP                       http.RoundTripper
 	managedSlots                  chan struct{}
 	cacheMu                       sync.Mutex
 	cacheAt                       time.Time
@@ -394,17 +400,32 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	if reliableIdentity {
 		exemptions = policy.exemptions(clientIP)
 	}
-	signals, protectionBlocked, protectionStatus := a.protectResolved(policy, rt.site.ID, r, clientIP, start, reliableIdentity)
+	network := networkAccessResult{}
+	if policy != nil {
+		network = policy.network.evaluate(clientIP, reliableIdentity, func() string { return countryFor(s.geo, clientIP) })
+	}
+	signals := []string{}
+	protectionBlocked, protectionStatus := false, 0
+	if !network.Blocked && !network.BypassWAF {
+		signals, protectionBlocked, protectionStatus = a.protectResolved(policy, rt.site.ID, r, clientIP, start, reliableIdentity)
+	}
+	if network.WouldBlock {
+		signals = append(signals, network.Decision)
+	}
 	done := a.metrics.begin(r, rt.site.ID)
 	defer done()
 	facts := newRequestFacts(r)
 	facts.facts["client_ip"] = Fact{State: "present", Values: []string{clientIP.String()}}
-	results, blocked := evaluateRules(activeRules, facts, start)
+	results := []RuleResult{}
+	blocked := false
+	if !network.Blocked && !network.BypassWAF {
+		results, blocked = evaluateRules(activeRules, facts, start)
+	}
 	evidence := a.deferEvidence(s.capture[rt.site.ID], facts, results, start, rt.site.ID)
 	managedResult := managedSignatureResult{}
 	managedBlocked, managedStatus := false, 0
-	if managed != nil && !protectionBlocked && !blocked {
-		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP)
+	if managed != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked {
+		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP, reliableIdentity)
 		if len(managedResult.RuleIDs) > 0 {
 			signals = append(signals, "managed_signature")
 		}
@@ -414,7 +435,15 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		peer := clientIP.String()
-		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		if capture := s.capture[rt.site.ID]; capture != nil {
+			event.securityDisabled = capture.Settings.SecurityEventsDisabled
+			event.securitySamples = capture.Settings.SecuritySamples
+		}
+		if network.GeoChecked {
+			event.country = network.Country
+			event.geo = nil
+		}
 		if len(a.access) >= cap(a.access) {
 			evidence.discard()
 			a.dropped.Add(1)
@@ -431,6 +460,11 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			a.dropped.Add(1)
 		}
 	}()
+	if network.Blocked {
+		rec.Header().Set("Cache-Control", "no-store")
+		http.Error(rec, "request blocked by network access policy", http.StatusForbidden)
+		return
+	}
 	if managedBlocked {
 		rec.Header().Set("Cache-Control", "no-store")
 		http.Error(rec, "request rejected by managed signature protection", managedStatus)
@@ -545,6 +579,10 @@ func (a *App) logWorker(ctx context.Context) {
 		}
 		c, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
+		for n := range batch {
+			batch[n].enrich()
+			emitSecurityEvent(slog.Default(), batch[n])
+		}
 		if e := a.storeAccessBatch(c, batch); e != nil {
 			a.dropped.Add(uint64(len(batch)))
 			slog.Warn("access/evidence log batch unavailable")
