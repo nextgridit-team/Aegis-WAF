@@ -200,7 +200,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY country) x`, &countries},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},
-		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name,managed_signatures` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
 	}
 	for index, q := range queries {
 		if e = tx.QueryRow(ctx, q.sql, since, site, now).Scan(q.target); e != nil {

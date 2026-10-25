@@ -149,6 +149,7 @@ func (w *deferredEvidence) finish() func() *evidenceEvent {
 		facts.bodyState = "unavailable"
 	}
 	w.facts = nil
+	w.tap = nil
 	return func() *evidenceEvent {
 		defer w.release()
 		p := capturePolicy{Settings: w.settings, redactors: w.redactors}
@@ -160,8 +161,9 @@ func (w *deferredEvidence) finish() func() *evidenceEvent {
 	}
 }
 func (e *accessEvent) enrich() {
-	if e.releaseEvidence != nil {
-		defer e.releaseEvidence()
+	if release := e.releaseEvidence; release != nil {
+		e.releaseEvidence = nil
+		defer release()
 	}
 	if e.prepareEvidence != nil {
 		e.evidence = e.prepareEvidence()

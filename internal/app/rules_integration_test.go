@@ -236,7 +236,7 @@ func TestRulesSchemaUpgrade(t *testing.T) {
 		t.Fatal("legacy row changed", results, event, e)
 	}
 	var version int
-	if e = a.db.QueryRow(ctx, "SELECT max(version) FROM schema_version").Scan(&version); e != nil || version != 7 {
+	if e = a.db.QueryRow(ctx, "SELECT max(version) FROM schema_version").Scan(&version); e != nil || version != 8 {
 		t.Fatal(version, e)
 	}
 }

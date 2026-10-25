@@ -1,0 +1,15 @@
+# Managed signature sets
+
+Open **Rules → Signature sets → Load signature set** to load the bundled OWASP Core Rule Set into PostgreSQL. Then edit a policy in **Policies**, select the loaded version and choose Observe. Assign the policy to applications on the same page. Review matches before choosing Block. The policy editor can also load the bundle inline without discarding entered form values.
+
+Loaded sets are immutable: a policy references a specific identifier, version and checksum. Image updates do not replace those stored bytes. New bundled versions must be explicitly loaded and selected. Custom JSON signatures and URL feeds remain available in rule groups alongside the managed set. No model output or URL feed can supply arbitrary Coraza/SecLang directives through this feature.
+
+The implementation uses Coraza v3.8.1 and bundled CRS v4.30.0 for request headers, URI/query parameters and bounded request bodies. Response-body inspection is not enabled; response streaming and upgrades remain transparent. Configuration and compiled WAF instances load with the background snapshot. Routing, certificate selection and signature matching make no per-request database or model calls.
+
+Each policy chooses Off, Observe or Block, paranoia level 1–4, inbound anomaly threshold, request-body inspection limit (default 64 KiB, configurable 4 KiB–1 MiB), and up to 100 targeted known rule-ID exclusions. Global policy Off disables signatures; global Observe caps their mode to Observe. Block rejects bodies over the selected limit with 413. Observe forwards the entire body and marks capped inspection; incomplete data is not a clean verdict. At most eight distinct managed configurations can be active, and inspection/buffer reservations are bounded per replica. Observe saturation is recorded and allowed; enforcing saturation fails with 503 rather than skipping inspection.
+
+Logs record policy/version, set/version, effective mode, inspection status and bounded rule IDs. Matched values, request collections and Coraza audit/debug logs are not persisted by this integration. Optional evidence remains governed by its independent allowlist and redaction settings. Existing fact replay evaluates the custom DSL; it cannot faithfully replay all CRS transformations from incomplete/redacted samples.
+
+The optional sealed recovery cache includes active signature bundles and compiled settings, so an explicitly cached replica can restore protection without PostgreSQL at startup. All serving replicas must run a build supporting managed signatures before policies enable them. Rolling back to an older build without this feature removes its enforcement; use a compatible rollback build or explicitly disable it first.
+
+CRS broadens request-signature coverage but does not provide verified-bot identity, CAPTCHA, behavioral learning or guaranteed attack/false-positive coverage. Application-specific tuning is still required. Stored corpus versions can be reused by later compatible builds, with replay/testing required when the Coraza implementation itself changes.

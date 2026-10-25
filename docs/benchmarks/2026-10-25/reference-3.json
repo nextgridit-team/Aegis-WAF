@@ -1,0 +1,90 @@
+{
+  "image": "aegis-waf:review-hardening-test",
+  "workload": "HTTP/1.1 keep-alive GET, small fixed body; local closed-loop client and Docker ports",
+  "phases": [
+    {
+      "name": "reference_haproxy",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.266,
+      "requests_per_second": 15003.0,
+      "p50_ms": 0.825,
+      "p95_ms": 2.651,
+      "p99_ms": 3.916
+    },
+    {
+      "name": "reference_nginx",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.527,
+      "requests_per_second": 14137.8,
+      "p50_ms": 0.889,
+      "p95_ms": 2.834,
+      "p99_ms": 4.142
+    },
+    {
+      "name": "direct_upstream",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.176,
+      "requests_per_second": 15327.3,
+      "p50_ms": 0.814,
+      "p95_ms": 2.61,
+      "p99_ms": 3.942
+    },
+    {
+      "name": "gateway_0_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.819,
+      "requests_per_second": 13280.1,
+      "p50_ms": 0.984,
+      "p95_ms": 2.869,
+      "p99_ms": 4.135
+    },
+    {
+      "name": "gateway_10_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.988,
+      "requests_per_second": 12830.3,
+      "p50_ms": 1.006,
+      "p95_ms": 3.03,
+      "p99_ms": 4.355
+    },
+    {
+      "name": "gateway_100_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.805,
+      "requests_per_second": 13319.0,
+      "p50_ms": 0.966,
+      "p95_ms": 2.926,
+      "p99_ms": 4.268
+    }
+  ],
+  "reference_images": {
+    "reference_haproxy": {
+      "tag": "haproxy:3.2-alpine",
+      "image_id": "sha256:5893840576071e6217cd52ebdcc14f454c6f7a631056fa6f4e0f40d3cac4215b"
+    },
+    "reference_nginx": {
+      "tag": "nginx:stable-alpine",
+      "image_id": "sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951"
+    }
+  },
+  "status_after_load": {
+    "background_worker_panics": 0,
+    "configuration_version": 203,
+    "database_available": true,
+    "dropped_access_logs": 0,
+    "dropped_evidence_samples": 0,
+    "propagation_seconds": 2,
+    "snapshot_cache_available": false,
+    "snapshot_cache_enabled": false,
+    "snapshot_cache_restored": false
+  },
+  "source_revision": "be217d6113ca4772a4d0dda6b6533cd277c4e75c",
+  "image_id": "sha256:83c28c4b7de145faf141b63f46eea1e03df2a083105947cac3130f34d7fb1eaa",
+  "notes": "Same-host, sixteen-client closed-loop HTTP/1.1 GET. Aegis PostgreSQL access logging enabled; reference access logs disabled. Raw NGINX is not NGINX Proxy Manager. Not a maximum-capacity test."
+}

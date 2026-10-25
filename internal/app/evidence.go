@@ -316,9 +316,10 @@ func (a *App) storeAccessBatch(ctx context.Context, batch []accessEvent) error {
 		if event.exemptions == nil {
 			exemptJSON = []byte("[]")
 		}
-		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName}
+		managedJSON, _ := json.Marshal(event.managed)
+		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON}
 	}
-	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name"}, pgx.CopyFromRows(items)); e != nil {
+	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures"}, pgx.CopyFromRows(items)); e != nil {
 		return e
 	}
 	if len(evidenceRows) > 0 {

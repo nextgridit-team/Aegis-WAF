@@ -31,7 +31,7 @@ const { execFileSync } = require("node:child_process");
     page.screenshot({ path: path.join(out, name + ".png"), fullPage: true });
   const message = (text) => page.getByRole("status").filter({ hasText: text });
   const dialog = () => page.getByRole("dialog");
-  const nav = (label) => label === "Rule feeds" ? { click: async () => { await nav("Rules").click(); await page.getByRole("navigation", {name: "Rule workspace"}).getByRole("link", {name: "Rule feeds", exact:true}).click(); } } :
+  const nav = (label) => (label === "Rule feeds" || label === "Signature sets") ? { click: async () => { await nav("Rules").click(); await page.getByRole("navigation", {name: "Rule workspace"}).getByRole("link", {name: label, exact:true}).click(); } } :
     page
       .getByRole("navigation", { name: "Main navigation" })
       .getByRole("link", { name: label, exact: true });
@@ -988,6 +988,12 @@ const { execFileSync } = require("node:child_process");
       .filter({ hasText: "3 draft rules imported" })
       .waitFor();
     await screenshot("rule-feeds-live");
+    await nav("Signature sets").click();
+    await page.getByRole("button",{name:"Load signature set",exact:true}).click();
+    await message("Signature set loaded").waitFor();
+    await page.getByRole("region",{name:"Loaded signature sets",exact:true}).getByText("OWASP Core Rule Set",{exact:true}).waitFor();
+    assert.equal(await page.getByRole("navigation",{name:"Rule workspace",exact:true}).evaluate(el=>getComputedStyle(el).flexDirection),"row","rule workspace tabs should stay horizontal");
+    await screenshot("signature-set-loaded");
     // Discover a real local keyless provider without invoking inference.
     await nav("AI backend").click();
     await page.getByLabel("API base URL", {exact:true}).fill(upstream + "/v1");
@@ -1007,6 +1013,8 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByLabel("Policy name",{exact:true}).fill("External test policy");
     await dialog().getByLabel("Policy mode",{exact:true}).selectOption("block");
     await dialog().getByLabel("Enable anti-bot signals",{exact:true}).check();
+    await dialog().getByLabel("Signature mode",{exact:true}).selectOption("observe");
+    await dialog().getByLabel("Signature set",{exact:true}).selectOption({index:1});
     await dialog().getByRole("button",{name:"Add rule group",exact:true}).click();
     await dialog().getByLabel("Group name",{exact:true}).fill("Imported signatures");
     await dialog().getByRole("group",{name:"Group signatures",exact:true}).getByRole("checkbox").first().check();
@@ -1017,6 +1025,18 @@ const { execFileSync } = require("node:child_process");
     await page.getByRole("heading",{name:"Policies",exact:true}).waitFor();
     await screenshot("policies-assigned");
     await eventually(async()=>assert.equal((await httpsRequest(Number(process.env.BROWSER_HTTPS_PORT),"manual.example.test",null,"/",{"User-Agent":"sqlmap"})).status,403));
+    const managedAttack="/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --");
+    const managedHeaders={"User-Agent":"browser","Accept":"text/html"};
+    await eventually(async()=>assert.equal((await httpsRequest(Number(process.env.BROWSER_HTTPS_PORT),"manual.example.test",null,managedAttack,managedHeaders)).status,200));
+    const policyRow=page.locator("tbody tr").filter({hasText:"External test policy"}).filter({has:page.getByRole("button",{name:"Edit",exact:true})});
+    await policyRow.getByRole("button",{name:"Edit",exact:true}).click();
+    await dialog().getByLabel("Signature mode",{exact:true}).selectOption("block");
+    await dialog().getByRole("button",{name:"Save policy",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    for(const port of [process.env.BROWSER_HTTPS_PORT,process.env.BROWSER_ALT_HTTPS_PORT]){
+      await eventually(async()=>assert.equal((await httpsRequest(Number(port),"manual.example.test",null,managedAttack,managedHeaders)).status,403));
+    }
+    await screenshot("managed-signature-policy");
     await nav("Dashboard").click();
     const resources=page.locator("section").filter({has:page.getByRole("heading",{name:"System performance",exact:true})});
     await resources.waitFor();
@@ -1036,6 +1056,7 @@ const { execFileSync } = require("node:child_process");
         "Certificate authorities",
         "Rules",
         "Rule feeds",
+        "Signature sets",
         "Traffic",
         "Policies",
         "AI backend",
@@ -1043,7 +1064,7 @@ const { execFileSync } = require("node:child_process");
         await nav(label).click();
         await page
           .getByRole("heading", {
-            name: label === "Traffic" ? "Traffic evidence" : label === "Rule feeds" ? "Rules" : label,
+            name: label === "Traffic" ? "Traffic evidence" : (label === "Rule feeds" || label === "Signature sets") ? "Rules" : label,
             exact: true,
           })
           .waitFor();
@@ -1074,7 +1095,7 @@ const { execFileSync } = require("node:child_process");
         await nav(label).click();
         await page
           .getByRole("heading", {
-            name: label === "Traffic" ? "Traffic evidence" : label === "Rule feeds" ? "Rules" : label,
+            name: label === "Traffic" ? "Traffic evidence" : (label === "Rule feeds" || label === "Signature sets") ? "Rules" : label,
             exact: true,
           })
           .waitFor();
@@ -1115,7 +1136,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 40 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 44 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

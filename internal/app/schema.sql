@@ -68,3 +68,8 @@ ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS policy_name text NOT NULL DEFAU
 INSERT INTO schema_version VALUES(7) ON CONFLICT DO NOTHING;
 
 ALTER TABLE replica_metrics ADD COLUMN IF NOT EXISTS system jsonb NOT NULL DEFAULT '{}';
+
+-- Version 8: immutable managed signature bundles and request-inspection metadata.
+CREATE TABLE IF NOT EXISTS signature_sets(id text PRIMARY KEY,name text NOT NULL,version text NOT NULL,digest text NOT NULL,rule_count int NOT NULL,files jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS managed_signatures jsonb NOT NULL DEFAULT '{}';
+INSERT INTO schema_version VALUES(8) ON CONFLICT DO NOTHING;

@@ -1,3 +1,4 @@
+import { managedSignatureSummary, type ManagedSignatureResult } from "./signature-sets";
 import { policySummary, type PolicySummary } from "./policy-page";
 import { protectionOptions, readProtectionOptions } from "./protection-options";
 import { world } from "./world";
@@ -56,6 +57,7 @@ type Report = {
     country: string;
     blocked: boolean;
     signals: string[];
+    managed_signatures?:ManagedSignatureResult;
     policy_name?: string;
     policy_revision?: number;
     protection_exemptions?: string[];
@@ -272,7 +274,7 @@ export function makeDashboardUI(d: Deps) {
              esc(event.peer) +
                (event.policy_name
                  ? `<small>${esc(event.policy_name)} · v${event.policy_revision}</small>`
-                 : ""),
+                 : "") + managedSignatureSummary(event.managed_signatures,esc),
              String(event.status),
              (event.blocked
                ? '<span class="badge danger">Blocked</span>'

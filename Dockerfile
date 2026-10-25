@@ -17,6 +17,9 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/aegis-waf ./cmd/ae
 FROM alpine:3.23
 RUN mkdir -p /var/cache/aegis && chmod 0777 /var/cache/aegis && apk add --no-cache ca-certificates && addgroup -g 10001 aegis-waf && adduser -D -u 10001 -G aegis-waf aegis-waf
 COPY --from=backend /out/aegis-waf /usr/local/bin/aegis-waf
+COPY third_party_licenses/ /usr/share/licenses/aegis/dependencies/
+COPY LICENSE /usr/share/licenses/aegis/LICENSE
+COPY --from=backend /usr/local/go/LICENSE /usr/share/licenses/aegis/GO-LICENSE
 USER 10001:10001
 ENV TMPDIR=/tmp
 EXPOSE 8080 8443 9090

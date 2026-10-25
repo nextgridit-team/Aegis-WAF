@@ -55,6 +55,8 @@ type sitePolicySummary struct {
 	Priority    int      `json:"priority"`
 }
 type snapshot struct {
+	managedSets    map[string]signatureSet
+	managedWAFs    map[string]*managedSignatureRuntime
 	geoData        []byte
 	policyBindings map[int64][]compiledPolicyBinding
 	certificates   map[int64]*tls.Certificate
@@ -66,6 +68,7 @@ type snapshot struct {
 	geo            *maxminddb.Reader
 }
 type accessEvent struct {
+	managed                  managedSignatureResult
 	prepareEvidence          func() *evidenceEvent
 	releaseEvidence          func()
 	geo                      *maxminddb.Reader
@@ -86,6 +89,7 @@ type accessEvent struct {
 	exemptions               []string
 }
 type App struct {
+	managedSlots                  chan struct{}
 	cacheMu                       sync.Mutex
 	cacheAt                       time.Time
 	cacheVersion                  int64
@@ -122,7 +126,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	a := &App{captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a := &App{managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {
 			slog.Warn("snapshot cache unavailable; database startup required")
@@ -285,6 +289,9 @@ func (a *App) refresh(ctx context.Context) error {
 	if e = a.loadPolicyBindings(ctx, tx, next); e != nil {
 		return e
 	}
+	if e = a.loadManagedSignatures(ctx, tx, next); e != nil {
+		return e
+	}
 	if e = a.loadGeo(ctx, tx, next); e != nil {
 		return e
 	}
@@ -371,12 +378,14 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	activeRules := s.rules[rt.site.ID]
 	var policyID, policyRevision int64
 	var policyName string
+	var managed *managedSignatureRuntime
 	if selected != nil {
 		policy = selected.Protection
 		activeRules = selected.Rules
 		policyID = selected.ID
 		policyRevision = selected.Revision
 		policyName = selected.Name
+		managed = selected.Managed
 	}
 	exemptions := []string{}
 	if reliableIdentity {
@@ -389,9 +398,20 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	facts.facts["client_ip"] = Fact{State: "present", Values: []string{clientIP.String()}}
 	results, blocked := evaluateRules(activeRules, facts, start)
 	evidence := a.deferEvidence(s.capture[rt.site.ID], facts, results, start, rt.site.ID)
+	managedResult := managedSignatureResult{}
+	managedBlocked, managedStatus := false, 0
+	if managed != nil && !protectionBlocked && !blocked {
+		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP)
+		if len(managedResult.RuleIDs) > 0 {
+			signals = append(signals, "managed_signature")
+		}
+		if managedResult.Inspection != "complete" && managedResult.Inspection != "headers" {
+			signals = append(signals, "signature_inspection_incomplete")
+		}
+	}
 	defer func() {
 		peer := clientIP.String()
-		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: blocked || protectionBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName}
+		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		if len(a.access) >= cap(a.access) {
 			evidence.discard()
 			a.dropped.Add(1)
@@ -408,6 +428,11 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			a.dropped.Add(1)
 		}
 	}()
+	if managedBlocked {
+		rec.Header().Set("Cache-Control", "no-store")
+		http.Error(rec, "request rejected by managed signature protection", managedStatus)
+		return
+	}
 	if protectionBlocked {
 		rec.Header().Set("Cache-Control", "no-store")
 		if protectionStatus == 429 {

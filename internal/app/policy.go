@@ -23,17 +23,18 @@ type policyGroup struct {
 	Rules      []policyRule `json:"rules"`
 }
 type policySpec struct {
-	Name                  string        `json:"name"`
-	Description           string        `json:"description"`
-	Mode                  string        `json:"mode"`
-	FloodEnabled          bool          `json:"flood_enabled"`
-	BotEnabled            bool          `json:"bot_enabled"`
-	BlockEmptyUA          bool          `json:"block_empty_user_agent"`
-	RequestsPerSecond     int           `json:"requests_per_second"`
-	Burst                 int           `json:"burst"`
-	SiteRequestsPerSecond int           `json:"site_requests_per_second"`
-	SiteBurst             int           `json:"site_burst"`
-	Groups                []policyGroup `json:"groups"`
+	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
+	Name                  string                  `json:"name"`
+	Description           string                  `json:"description"`
+	Mode                  string                  `json:"mode"`
+	FloodEnabled          bool                    `json:"flood_enabled"`
+	BotEnabled            bool                    `json:"bot_enabled"`
+	BlockEmptyUA          bool                    `json:"block_empty_user_agent"`
+	RequestsPerSecond     int                     `json:"requests_per_second"`
+	Burst                 int                     `json:"burst"`
+	SiteRequestsPerSecond int                     `json:"site_requests_per_second"`
+	SiteBurst             int                     `json:"site_burst"`
+	Groups                []policyGroup           `json:"groups"`
 }
 type policyGroupInput struct {
 	Name       string   `json:"name"`
@@ -42,17 +43,18 @@ type policyGroupInput struct {
 	RuleIDs    []int64  `json:"rule_ids"`
 }
 type policySpecInput struct {
-	Name                  string             `json:"name"`
-	Description           string             `json:"description"`
-	Mode                  string             `json:"mode"`
-	FloodEnabled          bool               `json:"flood_enabled"`
-	BotEnabled            bool               `json:"bot_enabled"`
-	BlockEmptyUA          bool               `json:"block_empty_user_agent"`
-	RequestsPerSecond     int                `json:"requests_per_second"`
-	Burst                 int                `json:"burst"`
-	SiteRequestsPerSecond int                `json:"site_requests_per_second"`
-	SiteBurst             int                `json:"site_burst"`
-	Groups                []policyGroupInput `json:"groups"`
+	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
+	Name                  string                  `json:"name"`
+	Description           string                  `json:"description"`
+	Mode                  string                  `json:"mode"`
+	FloodEnabled          bool                    `json:"flood_enabled"`
+	BotEnabled            bool                    `json:"bot_enabled"`
+	BlockEmptyUA          bool                    `json:"block_empty_user_agent"`
+	RequestsPerSecond     int                     `json:"requests_per_second"`
+	Burst                 int                     `json:"burst"`
+	SiteRequestsPerSecond int                     `json:"site_requests_per_second"`
+	SiteBurst             int                     `json:"site_burst"`
+	Groups                []policyGroupInput      `json:"groups"`
 }
 type policyAssignment struct {
 	SiteID      int64    `json:"site_id"`
@@ -72,12 +74,14 @@ type policyView struct {
 	Applications []policyAssignment `json:"applications"`
 }
 type compiledPolicyBinding struct {
-	ID, Revision int64
-	Name         string
-	Priority     int
-	CIDRs        []netip.Prefix
-	Rules        []compiledRule
-	Protection   *protectionPolicy
+	ManagedOptions managedSignatureOptions
+	Managed        *managedSignatureRuntime
+	ID, Revision   int64
+	Name           string
+	Priority       int
+	CIDRs          []netip.Prefix
+	Rules          []compiledRule
+	Protection     *protectionPolicy
 }
 
 func selectPolicy(bindings []compiledPolicyBinding, ip netip.Addr, reliable bool) *compiledPolicyBinding {
@@ -121,6 +125,9 @@ func policyRuleCount(s policySpec) int {
 	return n
 }
 func validatePolicySpec(s policySpec) error {
+	if _, e := normalizeManagedSignatures(s.ManagedSignatures); e != nil {
+		return e
+	}
 	if strings.TrimSpace(s.Name) == "" || len(s.Name) > 120 || len(s.Description) > 2000 {
 		return invalid("provide a policy name of 1–120 bytes and description up to 2000 bytes")
 	}
@@ -166,7 +173,20 @@ func validatePolicySpec(s policySpec) error {
 	return nil
 }
 func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput, frozen map[int64]RuleSpec) (policySpec, error) {
-	s := policySpec{Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
+	managed, e := normalizeManagedSignatures(in.ManagedSignatures)
+	if e != nil {
+		return policySpec{}, e
+	}
+	if managed.Mode != "off" {
+		set, e := readSignatureSet(ctx, tx, managed.SetID)
+		if e != nil {
+			return policySpec{}, e
+		}
+		if _, e = compileManagedSignatures(set, managed); e != nil {
+			return policySpec{}, e
+		}
+	}
+	s := policySpec{ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
 	if len(in.Groups) > 10 {
 		return s, invalid("at most 10 groups per policy")
 	}
@@ -236,6 +256,37 @@ func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 	}
 	if total > 1000 {
 		return apiError{409, "policy capacity exceeded: at most 1000 assigned rule instances"}
+	}
+	rows, e := tx.Query(ctx, "SELECT DISTINCT p.id,p.spec FROM policy_assignments b JOIN policies p ON p.id=b.policy_id JOIN sites s ON s.id=b.site_id WHERE s.enabled")
+	if e != nil {
+		return e
+	}
+	defer rows.Close()
+	configurations := map[string]bool{}
+	for rows.Next() {
+		var id int64
+		var raw []byte
+		if e = rows.Scan(&id, &raw); e != nil {
+			return e
+		}
+		var spec policySpec
+		if e = json.Unmarshal(raw, &spec); e != nil {
+			return e
+		}
+		options, e := normalizeManagedSignatures(spec.ManagedSignatures)
+		if e != nil {
+			return e
+		}
+		options = effectiveManagedOptions(options, spec.Mode)
+		if options.Mode != "off" {
+			configurations[managedRuntimeKey(options)] = true
+		}
+	}
+	if e = rows.Err(); e != nil {
+		return e
+	}
+	if len(configurations) > 8 {
+		return apiError{409, "at most eight distinct active managed signature configurations"}
 	}
 	return nil
 }
@@ -404,6 +455,11 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 			return e
 		}
 		binding.Name = spec.Name
+		binding.ManagedOptions, e = normalizeManagedSignatures(spec.ManagedSignatures)
+		if e != nil {
+			return e
+		}
+		binding.ManagedOptions = effectiveManagedOptions(binding.ManagedOptions, spec.Mode)
 		binding.Protection, e = policyProtection(next.protection[site], spec, binding.ID)
 		if e != nil {
 			return e

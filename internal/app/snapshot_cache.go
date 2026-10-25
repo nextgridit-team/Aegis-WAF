@@ -34,14 +34,16 @@ type cachedRule struct {
 	GroupMethods             []string
 }
 type cachedBinding struct {
-	ID, Revision int64
-	Name         string
-	Priority     int
-	CIDRs        []string
-	Protection   ProtectionSettings
-	Rules        []cachedRule
+	ManagedOptions managedSignatureOptions
+	ID, Revision   int64
+	Name           string
+	Priority       int
+	CIDRs          []string
+	Protection     ProtectionSettings
+	Rules          []cachedRule
 }
 type cachedSnapshot struct {
+	ManagedSets  map[string]signatureSet
 	Format       int
 	At           time.Time
 	Version      int64
@@ -87,7 +89,7 @@ func (a *App) cacheAAD() string {
 	return a.cfg.KeyID + ":snapshot-cache:v1:" + hex.EncodeToString(identity[:])
 }
 func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
-	cache := cachedSnapshot{Format: 1, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
+	cache := cachedSnapshot{ManagedSets: s.managedSets, Format: 1, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
 	for id, cert := range s.certificates {
 		key, e := x509.MarshalPKCS8PrivateKey(cert.PrivateKey)
 		if e != nil {
@@ -113,7 +115,7 @@ func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
 	}
 	for site, bindings := range s.policyBindings {
 		for _, b := range bindings {
-			binding := cachedBinding{ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
+			binding := cachedBinding{ManagedOptions: b.ManagedOptions, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
 			for _, cidr := range b.CIDRs {
 				binding.CIDRs = append(binding.CIDRs, cidr.String())
 			}
@@ -145,7 +147,17 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 	if cached.Format != 1 || cached.Version < 1 || cached.At.IsZero() || now.Sub(cached.At) > age || cached.At.After(now.Add(5*time.Minute)) {
 		return nil, errors.New("snapshot cache format or freshness rejected")
 	}
-	s := &snapshot{version: cached.Version, certificates: map[int64]*tls.Certificate{}, routes: map[string]*route{}, rules: map[int64][]compiledRule{}, capture: map[int64]*capturePolicy{}, protection: map[int64]*protectionPolicy{}, policyBindings: map[int64][]compiledPolicyBinding{}}
+	s := &snapshot{managedSets: map[string]signatureSet{}, managedWAFs: map[string]*managedSignatureRuntime{}, version: cached.Version, certificates: map[int64]*tls.Certificate{}, routes: map[string]*route{}, rules: map[int64][]compiledRule{}, capture: map[int64]*capturePolicy{}, protection: map[int64]*protectionPolicy{}, policyBindings: map[int64][]compiledPolicyBinding{}}
+	for id, set := range cached.ManagedSets {
+		digest, count, e := validateSignatureFiles(set.Files)
+		if e != nil {
+			return nil, e
+		}
+		if id != set.ID || digest != set.Digest || count != set.RuleCount {
+			return nil, errors.New("cached signature set integrity rejected")
+		}
+		s.managedSets[id] = set
+	}
 	for id, cert := range cached.Certificates {
 		var chain []byte
 		for _, block := range cert.Chain {
@@ -225,7 +237,11 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 				return nil, e
 			}
 			p.budgetScope = b.ID
-			binding := compiledPolicyBinding{ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: p}
+			options, e := normalizeManagedSignatures(b.ManagedOptions)
+			if e != nil {
+				return nil, e
+			}
+			binding := compiledPolicyBinding{ManagedOptions: options, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: p}
 			if b.Priority <= previous {
 				return nil, errors.New("invalid cached policy ordering")
 			}
@@ -242,6 +258,25 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 				if b.Priority != 10000 {
 					return nil, errors.New("invalid cached default policy")
 				}
+			}
+			if options.Mode != "off" {
+				set, ok := s.managedSets[options.SetID]
+				if !ok {
+					return nil, errors.New("cached signature set missing")
+				}
+				key := managedRuntimeKey(options)
+				runtime := s.managedWAFs[key]
+				if runtime == nil {
+					if len(s.managedWAFs) >= 8 {
+						return nil, errors.New("cached signature capacity exceeded")
+					}
+					runtime, e = compileManagedSignatures(set, options)
+					if e != nil {
+						return nil, e
+					}
+					s.managedWAFs[key] = runtime
+				}
+				binding.Managed = runtime
 			}
 			binding.Rules, e = restoreRules(b.Rules)
 			if e != nil {

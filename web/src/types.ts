@@ -1,3 +1,4 @@
+import type { ManagedSignatureResult } from "./signature-sets";
 import type { PolicySummary } from "./policy-page";
 import type { HeaderSettings } from "./headers";
 import type { Protection } from "./dashboard";
@@ -59,6 +60,7 @@ export type Audit = {
   resource: string;
 };
 export type Access = {
+ managed_signatures?:ManagedSignatureResult;
   id: number;
   at: string;
   site_id: number;

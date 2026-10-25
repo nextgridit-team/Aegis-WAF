@@ -1,3 +1,4 @@
+import { makeSignatureSetsUI, managedSignatureSummary } from "./signature-sets";
 import type { Site, Certificate, Account, DNSCredential, Job, Gateway, Audit, Access, State } from "./types";
 import {esc,date,dateTime,icon,button,badge,field,check,actions,names,authority,heading,table} from "./ui";
 import { APIError } from "./api-error";
@@ -149,6 +150,7 @@ function currentPage() {
       "policies",
       "ai",
       "rule-feeds",
+      "signature-sets",
       "dashboard",
       "certificates",
       "proxy-hosts",
@@ -172,7 +174,7 @@ function shell() {
     ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && page === "rule-feeds") ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "rule-feeds": "Rules", policies: "Policies", ai: "AI backend", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "rule-feeds": "Rules", "signature-sets":"Rules", policies: "Policies", ai: "AI backend", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -254,7 +256,7 @@ function sitesList() {
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ "rule-feeds": "Rules", policies: "Policies", ai: "AI backend", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "rule-feeds": "Rules", "signature-sets":"Rules", policies: "Policies", ai: "AI backend", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "dashboard") await dashboardUI.mount(view, state.sites);
   if (page === "policies") {
     const stamp = epoch;
@@ -262,6 +264,7 @@ async function render() {
     if (stamp === epoch) view.innerHTML = html;
   }
   if (page === "ai") await aiPage.render(view);
+  if(page==="signature-sets"){const stamp=epoch;const html=await signatureSetsUI.render();if(stamp===epoch)view.innerHTML=html;}
   if (page === "rule-feeds") {
     const stamp = epoch;
     const html = await feedsUI.render();
@@ -346,7 +349,7 @@ async function render() {
               ["Time", "Site / sender", "Request", "Rule outcomes", "Duration"],
               access.map((a) => [
                 esc(dateTime(a.at)),
-                `${a.site_id}<small>${esc(a.peer)}</small>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}`,
+                `${a.site_id}<small>${esc(a.peer)}</small>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}${managedSignatureSummary(a.managed_signatures,esc)}`,
                 `${esc(a.method)} · ${a.status}`,
                 [
                   ...(a.rule_results || []).map(
@@ -442,6 +445,7 @@ async function poll() {
       signature !== lastSignature ||
       page === "rules" ||
       page === "rule-feeds" ||
+      page === "signature-sets" ||
       page === "policies"
     ) {
       lastSignature = signature;
@@ -552,6 +556,7 @@ root.addEventListener("click", async (e) => {
     id = Number(b.dataset.id);
   try {
     if (await policyPage.handle(action, id, b)) return;
+    if (await signatureSetsUI.handle(action,b.dataset.id || "")) return;
     if (await feedsUI.handle(action, id)) return;
     if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
@@ -681,6 +686,7 @@ const policyPage = makePoliciesPage({
   notice,
 });
 const aiPage = makeAIPage({ api, esc, heading, notice, handleError });
+const signatureSetsUI=makeSignatureSetsUI({api,esc,heading,table,refresh,notice});
 const feedsUI = makeFeedsUI({
   api,
   sites: () => state.sites,
