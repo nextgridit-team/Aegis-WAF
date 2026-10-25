@@ -90,6 +90,7 @@ export function mountLocalFlow(
     if (!path) return;
     const dot = document.createElementNS(svg.namespaceURI, "circle");
     dot.setAttribute("r", "4");
+    dot.setAttribute("cy", event.blocked ? "4" : "-4");
     dot.setAttribute(
       "class",
       "local-flow-packet " + (event.blocked ? "live-blocked" : "live-allowed"),
