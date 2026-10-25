@@ -28,13 +28,18 @@ import (
 const maxSignatureBundleBytes = 8 << 20
 
 type managedSignatureOptions struct {
-	ScopedExclusions []signatureException `json:"scoped_exclusions,omitempty"`
-	SetID            string               `json:"set_id"`
-	Mode             string               `json:"mode"`
-	Paranoia         int                  `json:"paranoia_level"`
-	Threshold        int                  `json:"inbound_threshold"`
-	BodyLimit        int                  `json:"body_limit_bytes"`
-	Exclusions       []int                `json:"excluded_rule_ids"`
+	ScopedExclusions        []signatureException `json:"scoped_exclusions,omitempty"`
+	SetID                   string               `json:"set_id"`
+	Mode                    string               `json:"mode"`
+	Paranoia                int                  `json:"paranoia_level"`
+	Threshold               int                  `json:"inbound_threshold"`
+	BodyLimit               int                  `json:"body_limit_bytes"`
+	BodyLimitAction         string               `json:"body_limit_action"`
+	ResponseMode            string               `json:"response_mode"`
+	ResponseBodyLimit       int                  `json:"response_body_limit_bytes"`
+	ResponseBodyLimitAction string               `json:"response_body_limit_action"`
+	OutboundThreshold       int                  `json:"outbound_threshold"`
+	Exclusions              []int                `json:"excluded_rule_ids"`
 }
 type signatureSet struct {
 	ID        string      `json:"id"`
@@ -51,12 +56,14 @@ type managedSignatureRuntime struct {
 	Reportable map[int]bool
 }
 type managedSignatureResult struct {
-	SetID      string `json:"set_id,omitempty"`
-	Version    string `json:"version,omitempty"`
-	Mode       string `json:"mode,omitempty"`
-	RuleIDs    []int  `json:"rule_ids,omitempty"`
-	Matches    int    `json:"matched_count,omitempty"`
-	Inspection string `json:"inspection,omitempty"`
+	SetID              string `json:"set_id,omitempty"`
+	Version            string `json:"version,omitempty"`
+	Mode               string `json:"mode,omitempty"`
+	RuleIDs            []int  `json:"rule_ids,omitempty"`
+	Matches            int    `json:"matched_count,omitempty"`
+	Inspection         string `json:"inspection,omitempty"`
+	ResponseInspection string `json:"response_inspection,omitempty"`
+	ResponseMode       string `json:"response_mode,omitempty"`
 }
 
 var signatureIDPattern = regexp.MustCompile(`\bid\s*:\s*([0-9]+)`)
@@ -79,6 +86,30 @@ func normalizeManagedSignatures(o managedSignatureOptions) (managedSignatureOpti
 	}
 	if o.BodyLimit == 0 {
 		o.BodyLimit = 64 << 10
+	}
+	if o.BodyLimitAction == "" {
+		o.BodyLimitAction = "reject"
+	}
+	if o.ResponseMode == "" {
+		o.ResponseMode = "off"
+	}
+	if o.ResponseBodyLimit == 0 {
+		o.ResponseBodyLimit = 256 << 10
+	}
+	if o.ResponseBodyLimitAction == "" {
+		o.ResponseBodyLimitAction = "reject"
+	}
+	if o.OutboundThreshold == 0 {
+		o.OutboundThreshold = 4
+	}
+	if (o.BodyLimitAction != "reject" && o.BodyLimitAction != "process_partial") || (o.ResponseBodyLimitAction != "reject" && o.ResponseBodyLimitAction != "process_partial") {
+		return o, invalid("body limit action must be reject or process_partial")
+	}
+	if o.ResponseMode != "off" && o.ResponseMode != "observe" && o.ResponseMode != "block" {
+		return o, invalid("response mode must be off, observe or block")
+	}
+	if o.ResponseBodyLimit < 4096 || o.ResponseBodyLimit > 1<<20 || o.OutboundThreshold < 1 || o.OutboundThreshold > 100 {
+		return o, invalid("provide response body limit 4096–1048576 bytes and outbound threshold 1–100")
 	}
 	if o.Paranoia < 1 || o.Paranoia > 4 || o.Threshold < 1 || o.Threshold > 100 || o.BodyLimit < 4096 || o.BodyLimit > 1<<20 {
 		return o, invalid("provide signature paranoia 1–4, threshold 1–100 and body limit 4096–1048576 bytes")
@@ -114,6 +145,11 @@ func effectiveManagedOptions(o managedSignatureOptions, policyMode string) manag
 		o.Mode = "off"
 	} else if policyMode == "observe" && o.Mode == "block" {
 		o.Mode = "observe"
+	}
+	if o.Mode == "off" {
+		o.ResponseMode = "off"
+	} else if o.Mode == "observe" && o.ResponseMode == "block" {
+		o.ResponseMode = "observe"
 	}
 	return o
 }
@@ -220,6 +256,7 @@ func compileManagedSignatures(set signatureSet, options managedSignatureOptions)
 	if e != nil {
 		return nil, e
 	}
+	options = effectiveManagedOptions(options, options.Mode)
 	known := signatureIDs(set.Files)
 	for _, id := range options.Exclusions {
 		if !known[id] {
@@ -234,13 +271,37 @@ func compileManagedSignatures(set signatureSet, options managedSignatureOptions)
 		}
 	}
 	engineMode := "DetectionOnly"
-	limitAction := "ProcessPartial"
 	if options.Mode == "block" {
 		engineMode = "On"
-		limitAction = "Reject"
 	}
-	settings := fmt.Sprintf("SecRuleEngine %s\nSecAuditEngine Off\nSecDebugLogLevel 0\nSecResponseBodyAccess Off\nSecRequestBodyAccess On\nSecRequestBodyLimit %d\nSecRequestBodyNoFilesLimit %d\nSecRequestBodyInMemoryLimit %d\nSecRequestBodyLimitAction %s\nSecAction \"id:100000,phase:1,pass,nolog,t:none,setvar:tx.paranoia_level=%d,setvar:tx.blocking_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d\"", engineMode, options.BodyLimit, options.BodyLimit, options.BodyLimit, limitAction, options.Paranoia, options.Paranoia, options.Threshold)
+	responseAccess := "Off"
+	if options.ResponseMode != "off" {
+		responseAccess = "On"
+	}
+	// Connector bounds are authoritative. One extra engine byte avoids treating
+	// an exactly-at-limit body as oversize (Coraza rejects on >=).
+	settings := fmt.Sprintf(`SecRuleEngine %s
+SecAuditEngine Off
+SecDebugLogLevel 0
+SecResponseBodyAccess %s
+SecResponseBodyMimeTypesClear
+SecResponseBodyMimeType text/plain text/html text/xml application/json application/xml application/xhtml+xml
+SecResponseBodyLimit %d
+SecResponseBodyLimitAction ProcessPartial
+SecRequestBodyAccess On
+SecRequestBodyLimit %d
+SecRequestBodyNoFilesLimit %d
+SecRequestBodyInMemoryLimit %d
+SecRequestBodyLimitAction ProcessPartial
+SecAction "id:100000,phase:1,pass,nolog,t:none,setvar:tx.paranoia_level=%d,setvar:tx.blocking_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d,setvar:tx.outbound_anomaly_score_threshold=%d"
+`, engineMode, responseAccess, options.ResponseBodyLimit+1, options.BodyLimit+1, options.BodyLimit+1, options.BodyLimit+1, options.Paranoia, options.Paranoia, options.Threshold, options.OutboundThreshold)
 	configuration := coraza.NewWAFConfig().WithRootFS(set.Files).WithDebugLogger(debuglog.Noop()).WithErrorCallback(func(types.MatchedRule) {}).WithDirectivesFromFile("@coraza.conf-recommended").WithDirectivesFromFile("@crs-setup.conf.example").WithDirectives(settings + "\n" + exceptionDirectives(options.ScopedExclusions)).WithDirectivesFromFile("@owasp_crs/REQUEST-*.conf")
+	if options.ResponseMode == "observe" {
+		configuration = configuration.WithDirectives(`SecAction "id:100001,phase:3,pass,nolog,ctl:ruleEngine=DetectionOnly"`)
+	}
+	if options.ResponseMode != "off" {
+		configuration = configuration.WithDirectivesFromFile("@owasp_crs/RESPONSE-*.conf")
+	}
 	if len(options.Exclusions) > 0 {
 		ids := []string{}
 		for _, id := range options.Exclusions {
@@ -250,7 +311,7 @@ func compileManagedSignatures(set signatureSet, options managedSignatureOptions)
 	}
 	reportable := map[int]bool{}
 	configuration = experimental.WAFConfigWithRuleObserver(configuration, func(rule types.RuleMetadata) {
-		if rule.ID() >= 910000 && rule.ID() < 950000 && signatureMessage.MatchString(rule.Raw()) {
+		if rule.ID() >= 910000 && rule.ID() < 959000 && signatureMessage.MatchString(rule.Raw()) {
 			reportable[rule.ID()] = true
 		}
 	})
@@ -321,7 +382,7 @@ func signatureAPI(a *App, m *http.ServeMux) {
 			return e
 		}
 		set.Files = nil
-		respond(w, 200, []any{map[string]any{"set": set, "loaded": loaded, "engine": "Coraza", "engine_version": "3.8.1", "scope": "request headers and bounded request bodies"}})
+		respond(w, 200, []any{map[string]any{"set": set, "loaded": loaded, "engine": "Coraza", "engine_version": "3.8.1", "scope": "request inspection and optional bounded response inspection"}})
 		return nil
 	}))
 	m.HandleFunc("POST /api/signature-sets", a.wrap(true, func(w http.ResponseWriter, r *http.Request, i identity) error {

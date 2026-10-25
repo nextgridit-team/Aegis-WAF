@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"sort"
 	"strconv"
 	"sync"
 
@@ -100,24 +99,13 @@ func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, 
 	} else {
 		transaction = runtime.WAF.NewTransaction()
 	}
-	defer transaction.Close()
+	responseState, _ := r.Context().Value(managedResponseKey{}).(*managedResponseState)
 	defer func() {
-		ids := map[int]bool{}
-		for _, match := range transaction.MatchedRules() {
-			id := match.Rule().ID()
-			if runtime.Reportable[id] {
-				ids[id] = true
-			}
-		}
-		for id := range ids {
-			result.RuleIDs = append(result.RuleIDs, id)
-		}
-		sort.Ints(result.RuleIDs)
-		result.Matches = len(result.RuleIDs)
-		if len(result.RuleIDs) > 128 {
-			result.RuleIDs = result.RuleIDs[:128]
+		if responseState == nil || responseState.tx != transaction {
+			transaction.Close()
 		}
 	}()
+	defer func() { collectManagedMatches(transaction, runtime, &result) }()
 	_, port, _ := net.SplitHostPort(r.RemoteAddr)
 	clientPort, _ := strconv.Atoi(port)
 	transaction.ProcessConnection(ip.String(), clientPort, "", 0)
@@ -145,24 +133,34 @@ func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, 
 		result.Inspection = "headers"
 		return result, true, code
 	}
-	if runtime.Options.Mode == "block" && r.ContentLength > int64(runtime.Options.BodyLimit) {
+	if runtime.Options.Mode == "block" && runtime.Options.BodyLimitAction == "reject" && r.ContentLength > int64(runtime.Options.BodyLimit) {
 		result.Inspection = "body_limit"
 		return result, true, http.StatusRequestEntityTooLarge
 	}
-	inspectedBody := false
+	var prefix []byte
 	if transaction.IsRequestBodyAccessible() && r.Body != nil && r.Body != http.NoBody {
-		interruption, consumed, e := transaction.ReadRequestBodyFrom(r.Body)
+		var e error
+		prefix, e = io.ReadAll(io.LimitReader(r.Body, int64(runtime.Options.BodyLimit)+1))
+		if e != nil {
+			result.Inspection = "invalid_request"
+			return result, true, http.StatusBadRequest
+		}
+		inspected := prefix
+		if len(prefix) > runtime.Options.BodyLimit {
+			result.Inspection = "partial"
+			if runtime.Options.Mode == "block" && runtime.Options.BodyLimitAction == "reject" {
+				result.Inspection = "body_limit"
+				return result, true, http.StatusRequestEntityTooLarge
+			}
+			inspected = prefix[:runtime.Options.BodyLimit]
+		}
+		interruption, _, e = transaction.WriteRequestBody(inspected)
 		if e != nil {
 			result.Inspection = "invalid_request"
 			return result, true, http.StatusBadRequest
 		}
 		if reject, code := managedInterruption(interruption); reject {
-			result.Inspection = "body_limit_or_match"
 			return result, true, code
-		}
-		inspectedBody = true
-		if r.ContentLength > int64(runtime.Options.BodyLimit) || (r.ContentLength < 0 && consumed >= runtime.Options.BodyLimit) {
-			result.Inspection = "partial"
 		}
 	}
 	interruption, e := transaction.ProcessRequestBody()
@@ -177,23 +175,20 @@ func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, 
 	if reject, code := managedInterruption(interruption); reject {
 		return result, true, code
 	}
-	if inspectedBody {
-		buffered, e := transaction.RequestBodyReader()
-		if e != nil {
-			result.Inspection = "error"
-			return result, true, http.StatusServiceUnavailable
+	if len(prefix) > 0 {
+		bodyRelease := release
+		if responseState != nil {
+			bodyRelease = func() {}
 		}
-		prefix, e := io.ReadAll(io.LimitReader(buffered, int64(runtime.Options.BodyLimit)+1))
-		if e != nil || len(prefix) > runtime.Options.BodyLimit {
-			result.Inspection = "error"
-			return result, true, http.StatusServiceUnavailable
-		}
-		// The bounded copy outlives transaction.Close, without retaining raw WAF
-		// collections or temporary files during streaming or a WebSocket lifetime.
-		if len(prefix) > 0 {
-			r.Body = &bufferedSignatureBody{prefix: bytes.NewReader(prefix), original: originalBody, release: release}
-			retained = true
-		}
+		r.Body = &bufferedSignatureBody{prefix: bytes.NewReader(prefix), original: originalBody, release: bodyRelease}
+		retained = true
+	}
+	if responseState != nil {
+		responseState.tx = transaction
+		responseState.release = release
+		result.ResponseInspection = "not_reached"
+		result.ResponseMode = runtime.Options.ResponseMode
+		retained = true
 	}
 
 	return result, false, 0

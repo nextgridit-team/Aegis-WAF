@@ -69,13 +69,23 @@ func TestManagedSignaturesIntegration(t *testing.T) {
 		t.Fatal("summary returned raw bundle")
 	}
 	var forwarded atomic.Int64
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { forwarded.Add(1); w.WriteHeader(202); io.Copy(w, r.Body) }))
+	var responseLeak atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwarded.Add(1)
+		if responseLeak.Load() {
+			w.Header().Set("Content-Type", "text/plain")
+			io.WriteString(w, sqlLeak)
+			return
+		}
+		w.WriteHeader(202)
+		io.Copy(w, r.Body)
+	}))
 	defer upstream.Close()
 	protection := defaultProtection()
 	protection.TrustedProxies = []string{"10.0.0.1"}
 	protection.FloodExemptCIDRs = []string{"198.51.100.0/24"}
 	site := mustID(t, api.call("POST", "/api/sites", map[string]any{"name": "Managed app", "hostnames": []string{"managed.test"}, "upstream": upstream.URL, "enabled": true, "redirect_https": false, "protection": protection}, 200))
-	input := policyInput{Spec: policySpecInput{Name: "External managed", Mode: "block", FloodEnabled: true, RequestsPerSecond: 10000, Burst: 10000, SiteRequestsPerSecond: 100000, SiteBurst: 100000, Groups: []policyGroupInput{}, ManagedSignatures: managedSignatureOptions{SetID: set.ID, Mode: "observe"}}, Applications: []policyAssignment{{SiteID: site, SourceCIDRs: []string{}}}}
+	input := policyInput{Spec: policySpecInput{Name: "External managed", Mode: "block", FloodEnabled: true, RequestsPerSecond: 10000, Burst: 10000, SiteRequestsPerSecond: 100000, SiteBurst: 100000, Groups: []policyGroupInput{}, ManagedSignatures: managedSignatureOptions{SetID: set.ID, Mode: "observe", ResponseMode: "block", ResponseBodyLimit: 128 << 10, BodyLimitAction: "process_partial"}}, Applications: []policyAssignment{{SiteID: site, SourceCIDRs: []string{}}}}
 	id := mustID(t, api.call("POST", "/api/policies", input, 200))
 	path := fmt.Sprintf("/api/policies/%d", id)
 	input.Revision = 1
@@ -189,6 +199,29 @@ func TestManagedSignaturesIntegration(t *testing.T) {
 		t.Fatal("cache did not restore managed policy")
 	}
 	request(cached, "203.0.113.4", "", 403, id)
+	responseLeak.Store(true)
+	for _, replica := range []*App{a, b, cached} {
+		r := httptest.NewRequest("GET", "http://managed.test/response", nil)
+		r.RemoteAddr = "203.0.113.4:1234"
+		r.Header.Set("User-Agent", "browser")
+		w := httptest.NewRecorder()
+		replica.Public(w, r)
+		event := <-replica.access
+		if w.Code != 502 || strings.Contains(w.Body.String(), sqlLeak) || event.managed.ResponseMode != "block" || event.managed.ResponseInspection != "match" {
+			t.Fatalf("response policy not restored/enforced: %d %+v", w.Code, event.managed)
+		}
+		binding := replica.active.Load().policyBindings[site][1]
+		if binding.Managed.Options.ResponseBodyLimit != 128<<10 || binding.Managed.Options.BodyLimitAction != "process_partial" {
+			t.Fatal("body settings not preserved")
+		}
+		if e := a.storeAccessBatch(ctx, []accessEvent{event}); e != nil {
+			t.Fatal(e)
+		}
+	}
+	raw = api.call("GET", "/api/access-logs", nil, 200)
+	if !strings.Contains(string(raw), "response_inspection") || !strings.Contains(string(raw), "951120") || strings.Contains(string(raw), "credentials") {
+		t.Fatal("response telemetry missing or payload leaked")
+	}
 	// The enabled rules are persisted, not a mutable reference to a feed or catalogue.
 	var digest string
 	if e = a.db.QueryRow(ctx, "SELECT digest FROM signature_sets WHERE id=$1", set.ID).Scan(&digest); e != nil || digest != set.Digest {

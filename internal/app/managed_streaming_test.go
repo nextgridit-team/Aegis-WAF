@@ -16,13 +16,18 @@ import (
 	"time"
 )
 
-func managedPublicFixture(t *testing.T, upstreamURL string) *App {
+func managedPublicFixture(t *testing.T, upstreamURL string, overrides ...managedSignatureOptions) *App {
 	t.Helper()
 	set, e := bundledSignatureSet()
 	if e != nil {
 		t.Fatal(e)
 	}
-	options, _ := normalizeManagedSignatures(managedSignatureOptions{SetID: set.ID, Mode: "block"})
+	options := managedSignatureOptions{SetID: set.ID, Mode: "block"}
+	if len(overrides) > 0 {
+		options = overrides[0]
+		options.SetID = set.ID
+	}
+	options, _ = normalizeManagedSignatures(options)
 	runtime, e := compileManagedSignatures(set, options)
 	if e != nil {
 		t.Fatal(e)
@@ -49,7 +54,7 @@ func TestManagedSignaturesPreserveStreamingAndHTTP2(t *testing.T) {
 		io.WriteString(w, "second\n")
 	}))
 	defer up.Close()
-	a := managedPublicFixture(t, up.URL)
+	a := managedPublicFixture(t, up.URL, managedSignatureOptions{Mode: "block", ResponseMode: "block"})
 	public := httptest.NewUnstartedServer(http.HandlerFunc(a.Public))
 	chain, key := testCertificate(t, []string{"managed.test"}, 1, time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
 	pair, e := tls.X509KeyPair([]byte(chain), []byte(key))
@@ -100,7 +105,7 @@ func TestManagedSignaturesPreserveWebSocketUpgrade(t *testing.T) {
 		io.Copy(conn, conn)
 	}))
 	defer up.Close()
-	a := managedPublicFixture(t, up.URL)
+	a := managedPublicFixture(t, up.URL, managedSignatureOptions{Mode: "block", ResponseMode: "block"})
 	public := httptest.NewServer(http.HandlerFunc(a.Public))
 	defer public.Close()
 	target, _ := url.Parse(public.URL)

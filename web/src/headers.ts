@@ -1,4 +1,9 @@
 export type HeaderSettings = {
+  hsts?: {
+    enabled: boolean;
+    max_age_seconds: number;
+    include_subdomains: boolean;
+  };
   forwarded_headers: string;
   request_set: Record<string, string>;
   request_remove: string[];
@@ -18,7 +23,7 @@ function row(side: string, name = "", value = "", remove = false) {
   return `<div class="header-row" data-header-row role="group" aria-label="${label} header"><select data-header-op aria-label="${label} header action"><option value="set" ${!remove ? "selected" : ""}>Set</option><option value="remove" ${remove ? "selected" : ""}>Remove</option></select><input data-header-name aria-label="${label} header name" placeholder="X-Example" value="${esc(name)}" required maxlength="128"><input class="header-value" data-header-value aria-label="${label} header value" placeholder="Header value" value="${esc(value)}" maxlength="4096" ${remove ? "hidden disabled" : ""}><button type="button" class="subtle compact" data-header-delete aria-label="Remove ${label.toLowerCase()} header">Remove</button></div>`;
 }
 export function headerMarkup(s?: HeaderSettings | null) {
-  return `<details class="advanced"><summary>Proxy headers</summary><label class="check"><input name="forward_client_headers" type="checkbox" ${s?.forwarded_headers !== "off" ? "checked" : ""}><span>Forward validated client headers to the upstream</span></label><small>Sends X-Forwarded-For, X-Real-IP, X-Forwarded-Host, X-Forwarded-Proto and X-Forwarded-Port using the resolved client identity. Untrusted client-supplied identity headers are discarded.</small>${[
+  return `<details class="advanced"><summary>HTTPS security</summary><label class="check"><input type="checkbox" name="hsts_enabled" ${s?.hsts?.enabled ? "checked" : ""}><span>Enforce HSTS</span></label><label class="field">HSTS max age (seconds)<input type="number" name="hsts_max_age" min="0" max="63072000" required value="${s?.hsts?.max_age_seconds ?? 31536000}"></label><label class="check"><input type="checkbox" name="hsts_subdomains" ${s?.hsts?.include_subdomains ? "checked" : ""}><span>Include subdomains in HSTS</span></label><small>Browsers require HTTPS for this hostname after receiving the header over trusted HTTPS. This does not configure upstream certificate trust. Enable subdomains only when all are HTTPS-ready. Disabling this setting does not clear cached browser policies; max age 0 clears this host's policy. No preload directive is added.</small></details><details class="advanced"><summary>Proxy headers</summary><label class="check"><input name="forward_client_headers" type="checkbox" ${s?.forwarded_headers !== "off" ? "checked" : ""}><span>Forward validated client headers to the upstream</span></label><small>Sends X-Forwarded-For, X-Real-IP, X-Forwarded-Host, X-Forwarded-Proto and X-Forwarded-Port using the resolved client identity. Untrusted client-supplied identity headers are discarded.</small>${[
     "request",
     "response",
   ]
@@ -78,6 +83,16 @@ export function bindHeaderEditor(form: HTMLFormElement) {
 }
 export function readHeaders(form: HTMLFormElement): HeaderSettings {
   const out: HeaderSettings = {
+    hsts: {
+      enabled: (form.elements.namedItem("hsts_enabled") as HTMLInputElement)
+        .checked,
+      max_age_seconds: Number(
+        (form.elements.namedItem("hsts_max_age") as HTMLInputElement).value,
+      ),
+      include_subdomains: (
+        form.elements.namedItem("hsts_subdomains") as HTMLInputElement
+      ).checked,
+    },
     forwarded_headers: (
       form.elements.namedItem("forward_client_headers") as HTMLInputElement
     ).checked

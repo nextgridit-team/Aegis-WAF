@@ -6,13 +6,21 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/net/http/httpguts"
 )
 
+type HSTSSettings struct {
+	Enabled           bool `json:"enabled"`
+	MaxAgeSeconds     int  `json:"max_age_seconds"`
+	IncludeSubdomains bool `json:"include_subdomains"`
+}
+
 type HeaderSettings struct {
+	HSTS             *HSTSSettings     `json:"hsts,omitempty"`
 	ForwardedHeaders string            `json:"forwarded_headers"`
 	RequestSet       map[string]string `json:"request_set"`
 	RequestRemove    []string          `json:"request_remove"`
@@ -39,6 +47,13 @@ func reservedHeader(name string) bool {
 }
 func normalizeHeaders(s HeaderSettings) (HeaderSettings, error) {
 	out := HeaderSettings{ForwardedHeaders: s.ForwardedHeaders, RequestSet: map[string]string{}, ResponseSet: map[string]string{}, RequestRemove: []string{}, ResponseRemove: []string{}}
+	if s.HSTS != nil {
+		if s.HSTS.MaxAgeSeconds < 0 || s.HSTS.MaxAgeSeconds > 63072000 {
+			return out, invalid("HSTS max age must be 0–63072000 seconds")
+		}
+		value := *s.HSTS
+		out.HSTS = &value
+	}
 	if out.ForwardedHeaders == "" {
 		out.ForwardedHeaders = "standard"
 	}
@@ -95,6 +110,16 @@ func normalizeHeaders(s HeaderSettings) (HeaderSettings, error) {
 			return out, invalid("custom headers exceed 32 KiB per direction")
 		}
 	}
+	if out.HSTS != nil && out.HSTS.Enabled {
+		if _, ok := out.ResponseSet["Strict-Transport-Security"]; ok {
+			return out, invalid("use the HSTS control instead of a conflicting response header")
+		}
+		for _, name := range out.ResponseRemove {
+			if name == "Strict-Transport-Security" {
+				return out, invalid("use the HSTS control instead of a conflicting response header")
+			}
+		}
+	}
 	return out, nil
 }
 func (s *HeaderSettings) applyResponse(h http.Header) {
@@ -107,6 +132,24 @@ func (s *HeaderSettings) applyResponse(h http.Header) {
 	for name, value := range s.ResponseSet {
 		h.Set(name, value)
 	}
+}
+
+func (s *HeaderSettings) applyResponseSecurity(h http.Header, secure bool) {
+	s.applyResponse(h)
+	if s == nil || s.HSTS == nil || !s.HSTS.Enabled {
+		return
+	}
+	// Replace any upstream value with this host's policy; emit only on verified
+	// frontend TLS or a validated HTTPS indication from a configured proxy.
+	h.Del("Strict-Transport-Security")
+	if !secure {
+		return
+	}
+	value := "max-age=" + strconv.Itoa(s.HSTS.MaxAgeSeconds)
+	if s.HSTS.IncludeSubdomains {
+		value += "; includeSubDomains"
+	}
+	h.Set("Strict-Transport-Security", value)
 }
 
 type proxyIdentityKey struct{}

@@ -14,15 +14,15 @@
 
 ## Protect applications
 
-| Goal                                                   | Guide                                                  |
-| ------------------------------------------------------ | ------------------------------------------------------ |
-| Assign policies and source-specific protection         | [Policies](policies.md)                                |
-| Load OWASP CRS and select signatures or exclusions     | [Managed signatures](managed-signatures.md)            |
-| Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Rule feeds](rule-feeds.md) |
-| Tune inspection bounds and false positives             | [Security tuning](security-tuning.md)                  |
-| Configure trusted proxies, headers and CIDR exemptions | [Headers and client identity](headers-and-cidrs.md)    |
-| Reuse addresses and groups                             | [Address objects](address-objects.md)                  |
-| Download Geo data and apply geographical decisions     | [Geolocation](geolocation.md)                          |
+| Goal                                                   | Guide                                                                                  |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Assign policies and source-specific protection         | [Policies](policies.md)                                                                |
+| Load OWASP CRS and select signatures or exclusions     | [Managed signatures](managed-signatures.md)                                            |
+| Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Rule feeds](rule-feeds.md)                                 |
+| Tune inspection bounds and false positives             | [Body inspection controls](body-inspection.md) · [Security tuning](security-tuning.md) |
+| Configure trusted proxies, headers and CIDR exemptions | [Headers and client identity](headers-and-cidrs.md)                                    |
+| Reuse addresses and groups                             | [Address objects](address-objects.md)                                                  |
+| Download Geo data and apply geographical decisions     | [Geolocation](geolocation.md)                                                          |
 
 ## Observe and investigate
 

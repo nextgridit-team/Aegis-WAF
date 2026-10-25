@@ -13,6 +13,11 @@ export type ManagedSignatures = {
   paranoia_level: number;
   inbound_threshold: number;
   body_limit_bytes: number;
+  body_limit_action: string;
+  response_mode: string;
+  response_body_limit_bytes: number;
+  response_body_limit_action: string;
+  outbound_threshold: number;
   excluded_rule_ids: number[];
   scoped_exclusions?: {
     rule_ids: number[];
@@ -27,6 +32,11 @@ export const defaultManagedSignatures = (): ManagedSignatures => ({
   paranoia_level: 1,
   inbound_threshold: 5,
   body_limit_bytes: 65536,
+  body_limit_action: "reject",
+  response_mode: "off",
+  response_body_limit_bytes: 262144,
+  response_body_limit_action: "reject",
+  outbound_threshold: 4,
   excluded_rule_ids: [],
 });
 type Context = {
@@ -59,7 +69,7 @@ export function makeSignatureSetsUI(c: Context) {
         "Load a versioned signature set, then select it in a protection policy.",
       ) +
       ruleTabs("sets") +
-      `<div class="info-panel"><h3>Start in Observe</h3><p>OWASP CRS adds established request signatures through Coraza. Loading a set does not enable it. Policies choose its mode, body limit and targeted rule exclusions. Loaded versions stay unchanged until you explicitly select another version.</p></div>` +
+      `<div class="info-panel"><h3>Start in Observe</h3><p>OWASP CRS provides request signatures and optional response inspection through Coraza. Loading a set does not enable it. Policies choose its mode, body limit and targeted rule exclusions. Loaded versions stay unchanged until you explicitly select another version.</p></div>` +
       c.table(
         ["Available set", "Version / engine", "Bundle entries", ""],
         available.map((item) => [
@@ -135,7 +145,25 @@ export type ManagedSignatureResult = {
   rule_ids?: number[];
   matched_count?: number;
   inspection?: string;
+  response_inspection?: string;
+  response_mode?: string;
 };
+const inspectionLabel = (value: string): string =>
+  ({
+    complete: "Complete",
+    partial: "Prefix inspected; remaining bytes uninspected",
+    skipped_content_type: "Body skipped for this content type",
+    skipped_stream: "Event stream; body not inspected",
+    skipped_upgrade: "Protocol upgrade; body not inspected",
+    no_body: "No body",
+    not_reached: "Response phase not reached",
+    unsupported_encoding: "Unsupported content encoding",
+    body_limit: "Body exceeds limit",
+    match: "Blocked by response signatures",
+    read_error_or_timeout: "Upstream read failed or timed out",
+    error: "Inspection failed",
+    headers: "Blocked by response header rules",
+  })[value] || value.replaceAll("_", " ");
 export function managedSignatureSummary(
   result: ManagedSignatureResult | undefined,
   esc: (v: unknown) => string,
@@ -145,5 +173,5 @@ export function managedSignatureSummary(
     .slice(0, 8)
     .map((id) => `#${id}`)
     .join(", ");
-  return `<small>OWASP CRS ${esc(result.version)} · ${esc(result.mode)}</small>${ids ? `<small>${esc(ids)}${(result.matched_count || 0) > 8 ? " …" : ""}</small>` : ""}${result.inspection && result.inspection !== "complete" ? `<small>Inspection: ${esc(result.inspection)}</small>` : ""}`;
+  return `<small>OWASP CRS ${esc(result.version)} · ${esc(result.mode)}</small>${ids ? `<small>${esc(ids)}${(result.matched_count || 0) > 8 ? " …" : ""}</small>` : ""}${result.inspection && result.inspection !== "complete" ? `<small>Request inspection: ${esc(result.inspection)}</small>` : ""}${result.response_inspection ? `<small>Response ${esc(result.response_mode || "inspection")}: ${esc(inspectionLabel(result.response_inspection))}</small>` : ""}`;
 }

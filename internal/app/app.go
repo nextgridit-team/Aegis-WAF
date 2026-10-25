@@ -334,10 +334,28 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 	p := &httputil.ReverseProxy{BufferPool: &forwardingBuffers, Rewrite: func(pr *httputil.ProxyRequest) {
 		pr.SetURL(target)
 		rewriteProxyHeaders(pr, settings)
+		if state, _ := pr.In.Context().Value(managedResponseKey{}).(*managedResponseState); state != nil {
+			pr.Out.Header.Set("Accept-Encoding", "identity")
+		}
 		if preserve {
 			pr.Out.Host = pr.In.Host
 		}
-	}, ModifyResponse: func(response *http.Response) error { settings.applyResponse(response.Header); return nil }, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
+	}, ModifyResponse: func(response *http.Response) error {
+		if err := inspectManagedResponse(response); err != nil {
+			return err
+		}
+		settings.applyResponseSecurity(response.Header, forwardingIdentity(response.Request).Proto == "https")
+		return nil
+	}, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
+		var rejected managedResponseError
+		if errors.As(e, &rejected) {
+			if status, ok := w.(*statusWriter); ok {
+				status.responseSource = "waf"
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			http.Error(w, "upstream response rejected by managed signature protection", http.StatusBadGateway)
+			return
+		}
 		if status, ok := w.(*statusWriter); ok {
 			status.responseSource = "gateway_error"
 		}
@@ -389,7 +407,8 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	start := time.Now()
-	rec := &statusWriter{ResponseWriter: w, status: 200, responseSource: "waf", beforeHeader: rt.site.Headers.applyResponse, onHijack: func(c net.Conn) net.Conn {
+	secureResponse := r.TLS != nil
+	rec := &statusWriter{ResponseWriter: w, status: 200, responseSource: "waf", beforeHeader: func(h http.Header) { rt.site.Headers.applyResponseSecurity(h, secureResponse) }, onHijack: func(c net.Conn) net.Conn {
 		return &trackedConnection{Conn: c, closed: func() { a.ConnectionState(c, http.StateClosed) }}
 	}}
 	policy := s.protection[rt.site.ID]
@@ -407,6 +426,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		policyName = selected.Name
 		managed = selected.Managed
 	}
+	secureResponse = secureResponse || policy.forwardedProto(r) == "https"
 	exemptions := []string{}
 	if reliableIdentity {
 		exemptions = policy.exemptions(clientIP)
@@ -436,15 +456,27 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	managedResult := managedSignatureResult{}
 	managedBlocked, managedStatus := false, 0
 	if managed != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked {
+		if managed.Options.ResponseMode != "off" {
+			ctx, cancel := context.WithCancel(r.Context())
+			defer cancel()
+			state := &managedResponseState{runtime: managed, result: &managedResult, blocked: &managedBlocked, cancel: cancel}
+			defer state.Close()
+			r = r.WithContext(context.WithValue(ctx, managedResponseKey{}, state))
+		}
 		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP, reliableIdentity)
+	}
+	defer func() {
 		if len(managedResult.RuleIDs) > 0 {
 			signals = append(signals, "managed_signature")
 		}
-		if managedResult.Inspection != "complete" && managedResult.Inspection != "headers" {
+		if managedResult.Inspection != "" && managedResult.Inspection != "complete" && managedResult.Inspection != "headers" {
 			signals = append(signals, "signature_inspection_incomplete")
 		}
-	}
-	defer func() {
+		switch v := managedResult.ResponseInspection; v {
+		case "partial", "body_limit", "error", "read_error_or_timeout", "unsupported_encoding":
+			signals = append(signals, "response_inspection_"+v)
+		}
+
 		peer := clientIP.String()
 		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		if capture := s.capture[rt.site.ID]; capture != nil {
@@ -494,7 +526,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
 		return
 	}
-	if r.TLS == nil && rt.site.RedirectHTTPS {
+	if !secureResponse && rt.site.RedirectHTTPS {
 		rec.responseSource = "redirect"
 		http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
 		return

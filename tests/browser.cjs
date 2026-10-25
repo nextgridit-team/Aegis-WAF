@@ -71,7 +71,7 @@ const { execFileSync } = require("node:child_process");
       key: fs.readFileSync(key, "utf8"),
     };
   };
-  const httpsRequest = (port, host, ca, requestPath = "/", extraHeaders = {}) =>
+  const httpsRequest = (port, host, ca, requestPath = "/", extraHeaders = {}, includeHeaders = false) =>
     new Promise((resolve, reject) => {
       const req = https.get(
         {
@@ -88,7 +88,7 @@ const { execFileSync } = require("node:child_process");
           const authorized = res.socket.authorized;
           res.on("data", (c) => (body += c));
           res.on("end", () =>
-            resolve({ status: res.statusCode, body, authorized }),
+            resolve({ status: res.statusCode, body, authorized, ...(includeHeaders ? {headers: res.headers} : {}) }),
           );
         },
       );
@@ -865,6 +865,11 @@ const { execFileSync } = require("node:child_process");
         .inputValue(),
       "8.8.8.8/32",
     );
+
+    await dialog().getByText("HTTPS security", { exact: true }).click();
+    await dialog().getByLabel("Enforce HSTS", { exact: true }).check();
+    await dialog().getByLabel("HSTS max age (seconds)", { exact: true }).fill("86400");
+    await dialog().getByLabel("Include subdomains in HSTS", { exact: true }).check();
     await dialog().getByText("Proxy headers", { exact: true }).click();
     const addHeader = async (side, name, value, op = "set") => {
       await dialog()
@@ -959,6 +964,8 @@ const { execFileSync } = require("node:child_process");
       .getByRole("button", { name: "Edit", exact: true })
       .click();
     await dialog().getByText("Proxy headers", { exact: true }).click();
+    assert.equal(await dialog().getByLabel("Enforce HSTS", { exact: true }).isChecked(), true);
+    assert.equal(await dialog().getByLabel("HSTS max age (seconds)", { exact: true }).inputValue(), "86400");
     await dialog()
       .getByLabel("Forward validated client headers to the upstream", {
         exact: true,
@@ -1017,7 +1024,7 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByText(/Page 2 of/).waitFor();
     await dialog().getByRole("button",{name:"Previous",exact:true}).click();
     await dialog().getByLabel("Entry type",{exact:true}).selectOption("response");
-    assert.ok(await dialog().getByRole("region",{name:"Signature inventory",exact:true}).getByText("Response · not inspected",{exact:true}).count());
+    assert.ok(await dialog().getByRole("region",{name:"Signature inventory",exact:true}).getByText("Response · optional",{exact:true}).count());
     await dialog().getByLabel("Entry type",{exact:true}).selectOption("request");
     for(const width of [320,390,768,1440]){
       await page.setViewportSize({width,height:1000});
@@ -1069,6 +1076,12 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByLabel("Enable anti-bot signals",{exact:true}).check();
     await dialog().getByLabel("Signature mode",{exact:true}).selectOption("observe");
     await dialog().getByLabel("Signature set",{exact:true}).selectOption({index:1});
+    await dialog().getByText("Signature tuning",{exact:true}).click();
+    await dialog().getByLabel("Oversized request action",{exact:true}).selectOption("process_partial");
+    await dialog().getByLabel("Response inspection mode",{exact:true}).selectOption("observe");
+    await dialog().getByLabel("Response inspection limit (KiB)",{exact:true}).fill("128");
+    await dialog().getByLabel("CRS outbound anomaly threshold",{exact:true}).fill("6");
+    await dialog().getByLabel("Oversized response action",{exact:true}).selectOption("process_partial");
     await dialog().getByRole("button",{name:"Add rule group",exact:true}).click();
     await dialog().getByLabel("Group name",{exact:true}).fill("Imported signatures");
     await dialog().getByRole("group",{name:"Group signatures",exact:true}).getByRole("checkbox").first().check();
@@ -1090,6 +1103,13 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByRole("button",{name:"Configure policy",exact:true}).click();
     assert.equal(await dialog().getByLabel("Policy name",{exact:true}).inputValue(),"External test policy");
     assert.equal(await dialog().getByLabel("Group name",{exact:true}).inputValue(),"Imported signatures");
+    assert.equal(await dialog().getByLabel("Oversized request action",{exact:true}).inputValue(),"process_partial");
+    assert.equal(await dialog().getByLabel("Response inspection mode",{exact:true}).inputValue(),"observe");
+    assert.equal(await dialog().getByLabel("Response inspection limit (KiB)",{exact:true}).inputValue(),"128");
+    assert.equal(await dialog().getByLabel("CRS outbound anomaly threshold",{exact:true}).inputValue(),"6");
+    assert.equal(await dialog().getByLabel("Oversized response action",{exact:true}).inputValue(),"process_partial");
+    await dialog().getByText("Signature tuning",{exact:true}).click();
+    await screenshot("response-inspection-policy");
     assert.equal(await dialog().getByLabel("Assignment application",{exact:true}).locator("option:checked").textContent(),"Manual TLS");
     await dialog().getByRole("button",{name:"Browse signatures and exclusions",exact:true}).click();
     await dialog().getByLabel("Search signatures",{exact:true}).fill("942100");
@@ -1104,6 +1124,8 @@ const { execFileSync } = require("node:child_process");
     for(const port of [process.env.BROWSER_HTTPS_PORT,process.env.BROWSER_ALT_HTTPS_PORT]){
       await eventually(async()=>assert.equal((await httpsRequest(Number(port),"manual.example.test",null,managedAttack,managedHeaders)).status,403));
     }
+    const hstsProbe = await httpsRequest(Number(process.env.BROWSER_HTTPS_PORT), "manual.example.test", null, "/", managedHeaders, true);
+    assert.equal(hstsProbe.headers["strict-transport-security"], "max-age=86400; includeSubDomains");
     await nav("Policies").click();
     await screenshot("managed-signature-policy");
     await nav("Dashboard").click();

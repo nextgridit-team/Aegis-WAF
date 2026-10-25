@@ -64,3 +64,13 @@ Protection adds `client_ip_header` (`x-forwarded-for`, `x-real-ip`, `cf-connecti
 ## F5 and other upstream proxies
 
 Trust is configured per proxy host, independently of reusable protection policies. Enter the F5's actual source addresses as seen by Aegis, then select a client-IP header that it supplies and sanitizes. For a sanitized X-Forwarded-For chain, Aegis walks right to left from the trusted connection peer and stops at the first untrusted address. Do not put visitor ranges in the proxy-trust field: trusting a proxy authorizes its identity headers and does not allowlist its visitors or bypass protections. A different application can use the same WAF policy with different trusted proxy settings.
+
+## HSTS and upstream certificate trust
+
+In **Proxy hosts → Edit → HTTPS security**, enable **Enforce HSTS**, choose a max age in seconds (0–63072000) and optionally include subdomains. The form starts with one year; HSTS is disabled by default. Aegis replaces upstream HSTS with this setting on native HTTPS or HTTPS indicated by a configured trusted proxy. Untrusted `X-Forwarded-Proto` cannot enable it. It applies to protected-host responses, including WAF blocks and upstream errors, and does not change the management listener. Trusted HTTPS offload also avoids an HTTP-to-HTTPS redirect loop.
+
+HSTS is browser policy, separate from the proxy's upstream TLS trust. It requires a browser-trusted HTTPS endpoint and does not make a self-signed certificate trusted. Use the existing HTTPS redirect option for initial HTTP visits. Include subdomains only if every affected subdomain supports HTTPS. Aegis adds no preload directive. Disabling the setting does not clear a browser's cached policy; serve `max-age=0` over trusted HTTPS to clear this hostname's policy. Inherited parent/preload policies may still apply. See [RFC 6797](https://www.rfc-editor.org/rfc/rfc6797) for browser behavior.
+
+The setting persists in the existing proxy-header JSON as `hsts:{enabled:true,max_age_seconds:31536000,include_subdomains:false}`. Conflicting manual Set/Remove operations on `Strict-Transport-Security` are rejected while this control is enabled. Existing manual header configurations keep working when it is disabled.
+
+For a private/self-signed HTTPS upstream, Aegis must trust its issuing CA (or the appropriate self-signed trust anchor) and verify its hostname. This does not need the upstream's private key and does not reuse a public site's certificate/private key as implicit trust. The current deployment supports a read-only CA bundle through `SSL_CERT_FILE`; see [private CA connectivity](deployment.md#certificate-and-upstream-connectivity). A dashboard-managed upstream trust store is not implemented. TLS verification remains enabled.

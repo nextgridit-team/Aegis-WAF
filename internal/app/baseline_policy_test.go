@@ -25,7 +25,7 @@ func TestBaselinePolicyProvisioningAndAssignment(t *testing.T) {
 	if e := json.Unmarshal(raw, &baseline); e != nil {
 		t.Fatal(e)
 	}
-	if baseline.Name != "Baseline protection" || baseline.Mode != "block" || baseline.ManagedSignatures.Mode != "block" || baseline.ManagedSignatures.Paranoia != 1 || baseline.ManagedSignatures.BodyLimit != 1<<20 || baseline.BotEnabled || baseline.FloodEnabled {
+	if baseline.Name != "Baseline protection" || baseline.Mode != "block" || baseline.ManagedSignatures.Mode != "block" || baseline.ManagedSignatures.Paranoia != 1 || baseline.ManagedSignatures.BodyLimit != 1<<20 || baseline.BotEnabled || baseline.FloodEnabled || baseline.ManagedSignatures.ResponseMode != "off" || baseline.ManagedSignatures.ResponseBodyLimit != 256<<10 || baseline.ManagedSignatures.BodyLimitAction != "reject" {
 		t.Fatalf("unexpected baseline %+v", baseline)
 	}
 	server := httptest.NewServer(a.Management())

@@ -17,10 +17,10 @@ _Real application screens with isolated test traffic and example domains. [Scree
 
 ## Why Aegis
 
-- **Give each application its own protection.** Apply reusable policies with OWASP CRS signatures, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
+- **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
 - **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
 - **See what happened.** Inspect any listed request's recorded decision and matched rules. Follow allowed and blocked traffic on the live map and application flow diagram, with global or application filters.
-- **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies and headers, and tune CIDR/Geo decisions, basic bot signals and HTTP flood rates.
+- **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions, basic bot signals and HTTP flood rates.
 - **Connect your own agent.** An optional management MCP endpoint offers scoped, expiring keys and a downloadable skill. Your agent and model run outside Aegis; no built-in inference is required.
 - **Own the deployment.** The app runs as non-root with a read-only root filesystem. Private keys and saved provider credentials are encrypted before storage with an external encryption key. [Security boundaries](docs/security.md).
 
@@ -95,13 +95,13 @@ Start with the **[documentation index](docs/README.md)**, or go directly to:
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                   |
 | Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                        |
-| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Security tuning](docs/security-tuning.md)            |
+| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md)            |
 | Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Evidence privacy](docs/evidence-privacy.md) |
 | Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                               |
 
 ## Current limits
 
-Aegis is under active development. CRS inspection is request-side; bot detection uses basic signals, and HTTP flood budgets are **per replica**. Logs are asynchronous and best effort. Existing replicas retain loaded configuration during database outages; a default cold start needs PostgreSQL. Aegis runs no built-in AI traffic analysis. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
+Aegis is under active development. Body inspection is bounded; response inspection is opt-in and exempts SSE, upgrades and unsupported content types. Bot detection uses basic signals, and HTTP flood budgets are **per replica**. Logs are asynchronous and best effort. Existing replicas retain loaded configuration during database outages; a default cold start needs PostgreSQL. Aegis runs no built-in AI traffic analysis. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
 
 ## Support and contributions
 

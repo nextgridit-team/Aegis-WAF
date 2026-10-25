@@ -20,11 +20,11 @@ Coraza runs OWASP CRS request signatures in the application. Policies select Obs
 
 Forwarded client-IP headers are accepted only through configured trusted proxies. Address objects carry no implicit trust or bypass: the selected host/policy determines their use. Local-location labels and map filters do not change enforcement. See [policies](policies.md), [managed signatures](managed-signatures.md), [inspection bounds](security-tuning.md) and [client identity](headers-and-cidrs.md).
 
-CRS is request-side only. Basic User-Agent bot signals can be spoofed, and flood budgets are per replica. Behavioral learning, CAPTCHA and network-layer DDoS defenses are not implemented.
+CRS response inspection is opt-in and limited to eligible bounded bodies; streaming exemptions and uninspected tails are explicit. Basic User-Agent bot signals can be spoofed, and flood budgets are per replica. Behavioral learning, CAPTCHA and network-layer DDoS defenses are not implemented.
 
 ## Keep evidence collection deliberate
 
-Metadata access logs are separate from opt-in request-content evidence. Evidence has allowlists, size/sampling limits, redaction and expiry. Stdout security events use a [versioned JSON contract](logging.md#security-event-schema-and-collection); payload context defaults to null. Forwarding completes before the bounded asynchronous logging work. Queue saturation or outages can lose records.
+Metadata access logs are separate from opt-in request-content evidence. Evidence has allowlists, size/sampling limits, redaction and expiry. Stdout security events use a [versioned JSON contract](logging.md#security-event-schema-and-collection); payload context defaults to null. Forwarding or response enforcement completes before the bounded asynchronous logging work. Queue saturation or outages can lose records.
 
 Client IPs and retained facts can be personal data. Redaction is best effort. Exported stdout/agent data follows the destination's retention and residency controls, not PostgreSQL evidence expiry. See [evidence privacy](evidence-privacy.md) and [logging](logging.md).
 

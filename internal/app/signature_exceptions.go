@@ -40,8 +40,11 @@ func normalizeSignatureExceptions(values []signatureException) ([]signatureExcep
 			return nil, invalid("scope an exception to a path, client range or parameter")
 		}
 		for _, id := range v.RuleIDs {
-			if id < 910000 || id >= 949000 {
-				return nil, invalid("scoped exceptions apply to detection rule IDs 910000–948999")
+			if id < 910000 || (id >= 949000 && id < 950000) || id >= 959000 {
+				return nil, invalid("scoped exceptions apply to request detection IDs 910000–948999 or response detection IDs 950000–958999")
+			}
+			if id >= 950000 && len(v.Parameters) > 0 {
+				return nil, invalid("response exceptions use path/client scopes, not request parameters")
 			}
 		}
 		for _, p := range v.Parameters {
