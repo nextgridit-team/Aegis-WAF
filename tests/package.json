@@ -2,7 +2,8 @@
   "name": "aegis-waf-browser-tests",
   "private": true,
   "scripts": {
-    "test": "node browser.cjs"
+    "test": "node browser.cjs",
+    "test:onboarding": "node certificate-onboarding.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

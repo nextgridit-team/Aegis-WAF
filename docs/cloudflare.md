@@ -3,9 +3,13 @@
 Cloudflare DNS-01 verifies domain ownership by creating a temporary public DNS TXT record. It does not require inbound port 80 and supports wildcard certificates. Cloudflare must manage the authoritative DNS zone. The site's web traffic does not need to pass through Cloudflare.
 
 1. Create a Cloudflare API token with **Zone → Zone → Read** and **Zone → DNS → Edit**, scoped to the zones Aegis should manage. Use an API token, not the global API key or an Origin CA key. See [Cloudflare token creation](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) and [lego's provider permissions](https://go-acme.github.io/lego/dns/cloudflare/).
-2. In Aegis, open **Certificate authorities → DNS providers → Connect Cloudflare**. Give the credential a name, paste the API token, and save. You can also connect it from the certificate request form; entered certificate details are preserved.
-3. Open **Certificates → Request certificate**, select or register an ACME account and accept its CA terms, enter your hostnames, and choose **DNS-01 · Cloudflare**. Select the saved credential and request the certificate. Include both `example.com` and `*.example.com` if you need the apex and its subdomains.
-4. Watch issuance status. Once valid, attach the certificate to a proxy host. Proxy host routing uses exact names; a wildcard certificate does not create wildcard routes automatically.
+2. In Aegis, open **Certificates → Request certificate**. Enter your domains, email, and Cloudflare API token. Accept the CA terms and click **Request certificate**. No separate account or DNS-provider setup is needed. The default is Let's Encrypt production with Cloudflare DNS-01.
+3. Aegis registers or reuses the CA account, encrypts and saves Cloudflare access for renewal, and queues issuance. Saved email/credentials are offered automatically on later requests. Confirmed setup steps are reused after an error; entered domains and other form values remain available for retry.
+4. Watch issuance status. Once valid, attach the certificate to a proxy host. Include both `example.com` and `*.example.com` if you need the apex and its subdomains. Proxy routing still uses exact names.
+
+**Advanced options** contains staging/custom CAs, HTTP-01, and an optional certificate name. Staging is labeled as testing-only. **Certificate authorities → DNS providers** remains available for credential rotation and management, but it is not a prerequisite to requesting a certificate.
+
+The simplified flow was reviewed against [acme.sh's Cloudflare workflow](https://github.com/acmesh-official/acme.sh/wiki/dnsapi#1-cloudflare-option): domain inputs and DNS access are supplied once, with saved settings reused for issuance and renewal. Aegis uses the existing Go ACME client and lego provider rather than shell commands.
 
 Tokens are encrypted with the external application key using AES-GCM and are never returned by read APIs. Editing a credential with an empty token keeps the existing token; entering a new token rotates it for subsequent issuance/renewal attempts. In-use credentials cannot be deleted. Tokens are not written to audit entries or normal service logs. Never place them in rule evidence or ordinary access logs.
 

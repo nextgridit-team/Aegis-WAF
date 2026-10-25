@@ -624,45 +624,19 @@ function uploadForm(c?: Certificate) {
   });
 }
 function dnsCredentialForm(credential?: DNSCredential) {
-  const issue = document.getElementById("issue-form") as HTMLFormElement | null;
-  const issueDraft = issue ? new FormData(issue) : null;
   openEditor(
     credential ? "Edit Cloudflare credential" : "Connect Cloudflare",
-    `<p class="form-intro">Create an API token in Cloudflare with Zone → Zone → Read and Zone → DNS → Edit, scoped only to the zones you want Aegis to manage.</p><form id="dns-form">${field("name", "Credential name", credential?.name || "", "text", 'required maxlength="120" placeholder="Cloudflare production"')}${field("api_token", credential ? "New API token (leave blank to keep)" : "Cloudflare API token", "", "password", `autocomplete="new-password" ${credential ? "" : "required"}`)}<small>Tokens are encrypted in PostgreSQL and never returned by read APIs. Do not use your global API key.</small>${actions("Save Cloudflare credential")}</form>`,
+    `<p class="form-intro">Use a Cloudflare API token with Zone Read and DNS Edit, scoped to the zones you want to manage.</p><form id="dns-form">${field("name", "Credential name", credential?.name || "", "text", 'required maxlength="120"')}${field("api_token", credential ? "New API token (leave blank to keep)" : "Cloudflare API token", "", "password", `autocomplete="new-password" ${credential ? "" : "required"}`)}<small>Stored encrypted for automatic renewal. Existing tokens are never displayed.</small>${actions("Save Cloudflare credential")}</form>`,
   );
   formHandler("dns-form", async (f) => {
-    const saved = await api<{ id: number }>(
+    await api(
       "/dns/credentials" + (credential ? "/" + credential.id : ""),
       credential ? "PUT" : "POST",
       { name: f.get("name"), api_token: f.get("api_token") },
     );
     closeEditor();
-    state = await fetchState();
-    if (issueDraft) {
-      issueForm(Number(issueDraft.get("account_id")));
-      const form = document.getElementById("issue-form") as HTMLFormElement;
-      for (const key of ["domains", "name"]) {
-        (form.elements.namedItem(key) as HTMLInputElement).value = String(
-          issueDraft.get(key) || "",
-        );
-      }
-      const method = form.elements.namedItem(
-        "challenge_type",
-      ) as HTMLSelectElement;
-      method.value = "dns-01";
-      method.dispatchEvent(new Event("change"));
-      (
-        form.elements.namedItem("dns_credential_id") as HTMLSelectElement
-      ).value = String(saved.id);
-      notice(
-        "Cloudflare connected. Your certificate request has been preserved.",
-      );
-    } else {
-      await refresh();
-      notice(
-        "Cloudflare credential saved. Select DNS-01 when requesting a certificate.",
-      );
-    }
+    await refresh();
+    notice("Cloudflare credential saved.");
   });
 }
 function accountForm(continueToIssue = false) {
@@ -728,10 +702,8 @@ function accountForm(continueToIssue = false) {
   });
   void loadTerms();
 }
-async function loadTerms() {
-  const form = document.getElementById(
-    "account-form",
-  ) as HTMLFormElement | null;
+async function loadTerms(formID = "account-form") {
+  const form = document.getElementById(formID) as HTMLFormElement | null;
   if (!form) return;
   const serial = ++termsSerial;
   const data = new FormData(form);
@@ -796,49 +768,209 @@ async function loadTerms() {
     if (serial === termsSerial) reload.disabled = false;
   }
 }
+function canonicalDirectory(value: string) {
+  return value === "production"
+    ? "https://acme-v02.api.letsencrypt.org/directory"
+    : value === "staging"
+      ? "https://acme-staging-v02.api.letsencrypt.org/directory"
+      : value;
+}
 function issueForm(accountID?: number) {
-  if (!state.accounts.length) {
-    accountForm(true);
-    return;
-  }
+  const selected = state.accounts.find((a) => a.id === accountID);
+  const initialDirectory = selected
+    ? selected.directory.includes("acme-staging-v02.api.letsencrypt.org")
+      ? "staging"
+      : selected.directory.includes("acme-v02.api.letsencrypt.org")
+        ? "production"
+        : "custom"
+    : "production";
   const account =
-    state.accounts.find((a) => a.id === accountID) || state.accounts[0];
+    selected ||
+    state.accounts.find(
+      (a) => a.directory === canonicalDirectory(initialDirectory),
+    );
+  reviewedDirectory = "";
   openEditor(
     "Request a certificate",
-    `<p class="form-intro">Tell Aegis which domains to secure. Your certificate will renew automatically after issuance.</p><form id="issue-form"><label class="field" for="issue-account">Certificate authority</label><select id="issue-account" name="account_id">${state.accounts.map((a) => `<option value="${a.id}" ${a.id === account.id ? "selected" : ""}>${esc(authority(a))} · ${esc(a.email)}</option>`).join("")}</select>${field("domains", "Domains", "", "text", 'required placeholder="app.example.com, www.example.com"')}<small>Separate hostnames with commas. Wildcards require DNS-01.</small><label class="field" for="challenge-type">Domain verification</label><select id="challenge-type" name="challenge_type"><option value="http-01">HTTP-01 · public port 80</option><option value="dns-01">DNS-01 · Cloudflare</option></select><div id="dns-verification" hidden><label class="field" for="dns-credential">Cloudflare credential</label><select id="dns-credential" name="dns_credential_id">${state.dns.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join("")}</select>${button("new-dns", "Connect Cloudflare", "secondary compact")}<small>Uses a scoped API token to add and remove challenge TXT records. No inbound port 80 is needed.</small></div>${field("name", "Certificate name (optional)", "", "text", 'maxlength="120" placeholder="Uses your first domain"')}<div id="http-verification" class="info-panel compact-info"><h3>Before you request</h3><p>Point each domain’s DNS to this gateway and forward public port 80 to its HTTP listener. An existing proxy host isn’t required.</p>${check("dns_ready", "My DNS and port 80 forwarding are ready.", false, "required")}</div>${actions("Request certificate")}</form>`,
-    2,
+    `<p class="form-intro">Enter your domains and Cloudflare access. Aegis handles verification, issuance and automatic renewal.</p><form id="issue-form">${field("domains", "Domains", "", "text", 'required placeholder="example.com, *.example.com"')}<small>Include the root domain separately if you also need a wildcard.</small>${field("email", "Account email", account?.email || state.accounts[0]?.email || "", "email", 'required autocomplete="email" placeholder="you@example.com"')}<small id="issue-authority-note"></small><small id="saved-account-note" hidden>Using your saved certificate authority account.</small><div id="cloudflare-verification"><div id="credential-picker" ${state.dns.length ? "" : "hidden"}><label class="field" for="dns-credential">Cloudflare credential</label><select id="dns-credential" name="dns_credential_id">${state.dns.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join("")}<option value="new">Use a new API token</option></select></div><div id="new-cloudflare-token">${field("api_token", "Cloudflare API token", "", "password", 'autocomplete="new-password"')}<small>Use a token scoped to your zone with Zone Read and DNS Edit. Saved encrypted for renewals.</small></div><small>No inbound port 80 is needed.</small></div><details class="advanced"><summary>Advanced options</summary><label class="field" for="directory">Certificate authority</label><select name="directory" id="directory"><option value="production">Let’s Encrypt · production</option><option value="staging">Let’s Encrypt · staging (testing)</option><option value="custom">Custom ACME server</option></select><div id="custom-directory" hidden>${field("custom", "Directory URL", selected && initialDirectory === "custom" ? selected.directory : "", "url", 'placeholder="https://ca.example.com/directory"')}</div><label class="field" for="challenge-type">Domain verification</label><select id="challenge-type" name="challenge_type"><option value="dns-01">DNS-01 · Cloudflare</option><option value="http-01">HTTP-01 · public port 80</option></select>${field("name", "Certificate name (optional)", "", "text", 'maxlength="120" placeholder="Uses your first domain"')}</details><div id="http-verification" class="info-panel compact-info" hidden><p>Point these domains to this gateway and forward public port 80.</p>${check("dns_ready", "My DNS and port 80 forwarding are ready.", false)}</div><div class="terms-box"><div id="ca-terms" aria-live="polite">Loading authority terms…</div>${button("review-terms", "Reload terms", "text-button")}${check("accept_terms", "I accept this authority’s terms of service.", false, "required disabled")}</div><div id="issue-progress" class="muted" aria-live="polite"></div>${actions("Request certificate")}</form>`,
   );
-  const verification = document.getElementById(
-    "challenge-type",
+  const form = document.getElementById("issue-form") as HTMLFormElement;
+  const isActive = () =>
+    form.isConnected &&
+    (form.closest("dialog") as HTMLDialogElement | null)?.open === true;
+  const directory = form.elements.namedItem("directory") as HTMLSelectElement;
+  const custom = form.elements.namedItem("custom") as HTMLInputElement;
+  const email = form.elements.namedItem("email") as HTMLInputElement;
+  const verification = form.elements.namedItem(
+    "challenge_type",
   ) as HTMLSelectElement;
-  verification.addEventListener("change", () => {
+  const credential = form.elements.namedItem(
+    "dns_credential_id",
+  ) as HTMLSelectElement;
+  const token = form.elements.namedItem("api_token") as HTMLInputElement;
+  const progress = document.getElementById("issue-progress")!;
+  const getDirectory = () =>
+    directory.value === "custom" ? custom.value.trim() : directory.value;
+  const showCredential = () => {
     const dns = verification.value === "dns-01";
-    document.getElementById("dns-verification")!.hidden = !dns;
+    document.getElementById("cloudflare-verification")!.hidden = !dns;
+    document.getElementById("new-cloudflare-token")!.hidden =
+      credential.value !== "new";
+    token.disabled = !dns || credential.value !== "new";
+    token.required = !token.disabled;
+    credential.disabled = !dns;
     document.getElementById("http-verification")!.hidden = dns;
-    const ready = document.querySelector<HTMLInputElement>("[name=dns_ready]")!;
-    ready.required = !dns;
+    const ready = form.elements.namedItem("dns_ready") as HTMLInputElement;
     ready.disabled = dns;
-    (document.getElementById("dns-credential") as HTMLSelectElement).required =
-      dns;
-  });
-  formHandler("issue-form", async (f) => {
-    const hosts = names(f.get("domains"));
-    await api("/acme/certificates", "POST", {
-      name: String(f.get("name") || "").trim() || hosts[0],
-      domains: hosts,
-      account_id: Number(f.get("account_id")),
-      challenge_type: f.get("challenge_type"),
-      ...(f.get("challenge_type") === "dns-01"
-        ? { dns_credential_id: Number(f.get("dns_credential_id")) }
-        : {}),
-    });
-    closeEditor();
-    if (page !== "certificates") history.pushState(null, "", "#certificates");
-    await refresh();
-    notice(
-      "Certificate requested. Issuance progress will update automatically below.",
+    ready.required = !dns;
+  };
+  const updateAccount = () => {
+    document.getElementById("issue-authority-note")!.textContent =
+      directory.value === "production"
+        ? "Let’s Encrypt · browser-trusted certificates."
+        : directory.value === "staging"
+          ? "Testing only: staging certificates are not trusted by browsers."
+          : "Custom certificate authority.";
+    const saved = state.accounts.find(
+      (a) => a.directory === canonicalDirectory(getDirectory()),
     );
+    email.readOnly = Boolean(saved);
+    if (saved) email.value = saved.email;
+    document.getElementById("saved-account-note")!.hidden = !saved;
+  };
+  const clearTerms = () => {
+    termsSerial++;
+    reviewedDirectory = "";
+    const checkbox = form.elements.namedItem(
+      "accept_terms",
+    ) as HTMLInputElement;
+    checkbox.checked = false;
+    checkbox.disabled = true;
+    form.querySelector<HTMLButtonElement>(
+      '[data-action="review-terms"]',
+    )!.disabled = false;
+    document.getElementById("ca-terms")!.textContent =
+      "Load and review this authority’s terms.";
+  };
+  directory.value = initialDirectory;
+  if (!state.dns.length) credential.value = "new";
+  directory.addEventListener("change", () => {
+    clearTerms();
+    document.getElementById("custom-directory")!.hidden =
+      directory.value !== "custom";
+    updateAccount();
+    if (directory.value !== "custom") void loadTerms("issue-form");
   });
+  custom.addEventListener("input", () => {
+    clearTerms();
+    updateAccount();
+  });
+  verification.addEventListener("change", showCredential);
+  credential.addEventListener("change", showCredential);
+  document.getElementById("custom-directory")!.hidden =
+    directory.value !== "custom";
+  updateAccount();
+  showCredential();
+  formHandler("issue-form", async (f) => {
+    const dir = getDirectory();
+    const canonical = canonicalDirectory(dir);
+    const hosts = names(f.get("domains"));
+    const dns = verification.value === "dns-01";
+    const apiToken = token.value.trim();
+    if (!hosts.length) throw new Error("Enter at least one domain.");
+    if (!f.has("accept_terms") || reviewedDirectory !== dir)
+      throw new Error(
+        "Load and accept this certificate authority’s terms first.",
+      );
+    if (
+      dns &&
+      credential.value === "new" &&
+      !/^[A-Za-z0-9_-]{20,256}$/.test(apiToken)
+    )
+      throw new Error("Paste a Cloudflare API token without a Bearer prefix.");
+    if (!dns && hosts.some((h) => h.startsWith("*.")))
+      throw new Error(
+        "Wildcard certificates require Cloudflare DNS verification.",
+      );
+    try {
+      let savedAccount = state.accounts.find((a) => a.directory === canonical);
+      if (!savedAccount) {
+        progress.textContent = "Registering with the certificate authority…";
+        try {
+          const result = await api<{ id: number }>("/acme/accounts", "POST", {
+            directory: dir,
+            email: email.value,
+            accept_terms: true,
+          });
+          savedAccount = {
+            id: result.id,
+            directory: canonical,
+            email: email.value,
+            tos_accepted_at: new Date().toISOString(),
+          };
+          state.accounts.push(savedAccount);
+        } catch (error) {
+          // An ambiguous registration response may already have committed. Re-read
+          // before allowing a retry to register the same account again.
+          try {
+            state.accounts = await api<Account[]>("/acme/accounts");
+          } catch {
+            /* Preserve the original error. */
+          }
+          savedAccount = state.accounts.find(
+            (a) => a.directory === canonical && a.email === email.value,
+          );
+          if (!savedAccount) throw error;
+        }
+        if (!isActive()) return;
+        updateAccount();
+      }
+      let credentialID =
+        dns && credential.value !== "new"
+          ? Number(credential.value)
+          : undefined;
+      if (dns && credential.value === "new") {
+        progress.textContent =
+          "Saving Cloudflare access for automatic renewal…";
+        const name = ("Cloudflare: " + hosts[0]).slice(0, 120);
+        const result = await api<{ id: number }>("/dns/credentials", "POST", {
+          name,
+          api_token: apiToken,
+        });
+        state.dns.push({ id: result.id, name, provider: "cloudflare" });
+        if (!isActive()) return;
+        credential.innerHTML =
+          state.dns
+            .map((d) => `<option value="${d.id}">${esc(d.name)}</option>`)
+            .join("") + `<option value="new">Use a new API token</option>`;
+        credential.value = String(result.id);
+        credentialID = result.id;
+        token.value = "";
+        document.getElementById("credential-picker")!.hidden = false;
+        showCredential();
+      }
+      progress.textContent = "Requesting your certificate…";
+      await api("/acme/certificates", "POST", {
+        name: String(f.get("name") || "").trim() || hosts[0].slice(0, 120),
+        domains: hosts,
+        account_id: savedAccount.id,
+        challenge_type: verification.value,
+        ...(dns ? { dns_credential_id: credentialID } : {}),
+      });
+      if (!isActive()) return;
+      closeEditor();
+      if (page !== "certificates") history.pushState(null, "", "#certificates");
+      await refresh();
+      notice(
+        "Certificate requested. Verification and renewal are automatic; status updates below.",
+      );
+    } catch (error) {
+      progress.textContent =
+        "Your confirmed setup steps have been saved. Correct the error and retry.";
+      throw error;
+    }
+  });
+  void loadTerms("issue-form");
 }
 function certificateDetails(c: Certificate) {
   const job = newestJob(c.id);
@@ -893,7 +1025,9 @@ root.addEventListener("click", async (e) => {
         accountForm();
         break;
       case "review-terms":
-        await loadTerms();
+        await loadTerms(
+          document.getElementById("issue-form") ? "issue-form" : "account-form",
+        );
         break;
       case "new-site":
         siteForm();

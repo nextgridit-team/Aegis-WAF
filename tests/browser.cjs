@@ -153,8 +153,15 @@ const { execFileSync } = require("node:child_process");
         .getByRole("button", { name: "Request certificate", exact: true })
         .click();
       await dialog()
-        .getByRole("heading", { name: "Connect a certificate authority" })
+        .getByRole("heading", { name: "Request a certificate", exact: true })
         .waitFor();
+      await dialog()
+        .getByLabel("Domains", { exact: true })
+        .fill("app.example.test");
+      await dialog()
+        .getByLabel("Account email", { exact: true })
+        .fill("browser@example.test");
+      await dialog().getByText("Advanced options", { exact: true }).click();
       await dialog()
         .getByLabel("Certificate authority", { exact: true })
         .selectOption("custom");
@@ -162,26 +169,27 @@ const { execFileSync } = require("node:child_process");
         .getByLabel("Directory URL", { exact: true })
         .fill(process.env.BROWSER_ACME_DIRECTORY);
       await dialog()
-        .getByLabel("Account email", { exact: true })
-        .fill("browser@example.test");
+        .getByLabel("Domain verification", { exact: true })
+        .selectOption("http-01");
       await dialog()
         .getByRole("button", { name: "Reload terms", exact: true })
         .click();
-      await dialog()
-        .getByLabel("I accept this authority’s terms of service.", {
-          exact: true,
-        })
-        .waitFor();
       await page.waitForFunction(
         () => !document.querySelector("[name=accept_terms]").disabled,
       );
-      // Terms are never accepted implicitly.
       await dialog()
-        .getByRole("button", { name: "Continue to domains", exact: true })
+        .getByLabel("Certificate name (optional)", { exact: true })
+        .fill("Application TLS");
+      await dialog()
+        .getByLabel("My DNS and port 80 forwarding are ready.", { exact: true })
+        .check();
+      // The only submit provisions the account and queues issuance; terms stay explicit.
+      await dialog()
+        .getByRole("button", { name: "Request certificate", exact: true })
         .click();
       assert.equal(
         await dialog()
-          .getByRole("heading", { name: "Connect a certificate authority" })
+          .getByRole("heading", { name: "Request a certificate", exact: true })
           .count(),
         1,
       );
@@ -189,22 +197,6 @@ const { execFileSync } = require("node:child_process");
         .getByLabel("I accept this authority’s terms of service.", {
           exact: true,
         })
-        .check();
-      await screenshot("acme-authority");
-      await dialog()
-        .getByRole("button", { name: "Continue to domains", exact: true })
-        .click();
-      await dialog()
-        .getByRole("heading", { name: "Request a certificate", exact: true })
-        .waitFor();
-      await dialog()
-        .getByLabel("Domains", { exact: true })
-        .fill("app.example.test");
-      await dialog()
-        .getByLabel("Certificate name (optional)", { exact: true })
-        .fill("Application TLS");
-      await dialog()
-        .getByLabel("My DNS and port 80 forwarding are ready.", { exact: true })
         .check();
       await screenshot("acme-request");
       await dialog()
@@ -377,9 +369,10 @@ const { execFileSync } = require("node:child_process");
     await page
       .getByRole("button", { name: "Request certificate", exact: true })
       .click();
-    await dialog()
-      .getByLabel("Domain verification", { exact: true })
-      .selectOption("dns-01");
+    assert.equal(
+      await dialog().locator("[name=challenge_type]").inputValue(),
+      "dns-01",
+    );
     await dialog()
       .getByLabel("Cloudflare credential", { exact: true })
       .selectOption({ label: "Cloudflare browser test" });
@@ -389,37 +382,16 @@ const { execFileSync } = require("node:child_process");
       .fill("*.example.test");
     await screenshot("cloudflare-dns-form");
     await dialog()
-      .getByRole("button", { name: "Connect Cloudflare", exact: true })
-      .click();
-    await dialog()
-      .getByLabel("Credential name", { exact: true })
-      .fill("Cloudflare inline test");
+      .getByLabel("Cloudflare credential", { exact: true })
+      .selectOption("new");
     await dialog()
       .getByLabel("Cloudflare API token", { exact: true })
       .fill(mockToken);
-    await dialog()
-      .getByRole("button", { name: "Save Cloudflare credential", exact: true })
-      .click();
-    await dialog()
-      .getByRole("heading", { name: "Request a certificate", exact: true })
-      .waitFor();
     assert.equal(
       await dialog().getByLabel("Domains", { exact: true }).inputValue(),
       "*.example.test",
     );
-    assert.equal(
-      await dialog()
-        .getByLabel("Domain verification", { exact: true })
-        .inputValue(),
-      "dns-01",
-    );
-    assert.equal(
-      await dialog()
-        .getByLabel("Cloudflare credential", { exact: true })
-        .locator("option:checked")
-        .textContent(),
-      "Cloudflare inline test",
-    );
+    await screenshot("cloudflare-single-form");
     await page.keyboard.press("Escape");
     await page
       .getByRole("button", { name: "Switch color theme", exact: true })

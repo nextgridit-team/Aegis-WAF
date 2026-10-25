@@ -19,7 +19,7 @@ Manage all sites, certificates, and ACME accounts through the dashboard or manag
 
 ### Protect an application
 
-1. Open **Certificates → Request certificate**. If needed, the guided flow creates an ACME account after you review and accept the authority’s terms. Enter your domains and select HTTP-01 or Cloudflare DNS-01 verification. **Upload PEM** supports an existing certificate and private key.
+1. Open **Certificates → Request certificate**. Enter domains, email, and a Cloudflare API token, accept the CA terms, and submit. Aegis automatically creates or reuses the CA account and saves encrypted DNS access for renewal. Saved details are prefilled; staging/custom CAs and HTTP-01 are under **Advanced options**. **Upload PEM** supports an existing certificate and private key.
 2. Issuance progress updates automatically. When a certificate is valid, choose **Connect site** to open a proxy-host form with its domains and certificate already selected. Enter the application’s HTTP(S) upstream URL and save.
 3. Manage routing in **Proxy hosts**. Choose HTTP-to-HTTPS redirection, Host-header handling, and whether the route is enabled. Allow up to **2 seconds** for each replica to load committed changes. HTTP-only proxy hosts are also supported.
 
@@ -107,7 +107,7 @@ For mutations, send `Content-Type: application/json`, `X-Requested-With: aegis-w
 
 ## Development and verification
 
-Requirements: Go 1.26+, Node 22+, and PostgreSQL 18 for integration tests.
+Requirements: Go 1.26+, Node 22+, and PostgreSQL 18 for integration tests. Focused certificate-form tests run with `npm --prefix tests run test:onboarding` after installing browser dependencies; they intercept API calls and never contact a public CA or DNS provider.
 
 ```sh
 cd web && npm ci && npm run build && cd ..
