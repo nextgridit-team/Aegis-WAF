@@ -1,6 +1,6 @@
 # Aegis WAF foundation
 
-A self-hosted Go reverse proxy with a TypeScript management console embedded in the application binary. PostgreSQL is the sole persistent application store. Each replica runs the API, proxy, configuration refresher, log writer, ACME worker and lightweight rule-feed sync. It implements TLS, routing, a live traffic dashboard, configurable HTTP flood limits, basic bot signals and administrator-controlled declarative rules with opt-in traffic evidence. There is no AI integration, behavioral learning or CAPTCHA.
+A self-hosted Go reverse proxy with a TypeScript management console embedded in the application binary. PostgreSQL is the sole persistent application store. Each replica runs the API, proxy, configuration refresher, log writer, ACME worker and lightweight rule-feed sync. It implements TLS, routing, a live traffic dashboard, configurable HTTP flood limits, basic bot signals and administrator-controlled declarative rules with opt-in traffic evidence. It includes reusable source-scoped policies and OpenAI-compatible provider configuration. AI inference, behavioral learning, weighted scoring and CAPTCHA are not enabled.
 
 ## Run with Compose
 
@@ -8,12 +8,12 @@ Prerequisites: Docker with Compose and Python 3 for one-time bootstrap secret ge
 
 ```sh
 python3 scripts/bootstrap-secrets.py
-docker compose up --build -d
+docker compose up -d
 ```
 
 Open **http://localhost:9090**, read `secrets/bootstrap_secret` locally, and complete first-run setup. Choose your own username and a unique 14–72-byte password. Then sign in. There are no default administrator credentials. Setup is transactionally limited to the first administrator across all replicas; the bootstrap secret cannot reset an existing administrator.
 
-The application maps public HTTP **80 → 8080**, HTTPS **443 → 8443**, and management **127.0.0.1:9090 → 9090**. If public ports are occupied, use `HTTP_PUBLISH=127.0.0.1:18080 HTTPS_PUBLISH=127.0.0.1:18443 docker compose up -d`; HTTP-01 still requires an external mapping from public port 80. TLS redirects use the standard public HTTPS port 443. Secrets are generated only once; keep the encryption key and PostgreSQL backups together in your recovery process, but store the key outside the database.
+The application maps public HTTP **80 → 8080**, HTTPS **443 → 8443**, and management **127.0.0.1:9090 → 9090**. If public ports are occupied, use `HTTP_PUBLISH=127.0.0.1:18080 HTTPS_PUBLISH=127.0.0.1:18443 docker compose up -d`; HTTP-01 still requires an external mapping from public port 80. TLS redirects use the standard public HTTPS port 443. Secrets are generated only once; include the encryption key and PostgreSQL backups in your recovery process, keeping the key separately protected outside the database.
 
 Manage all sites, certificates, and ACME accounts through the dashboard or management API. No site configuration files, image rebuilds, or restarts are needed. Deployment bootstrap scripts do not manage application configuration.
 
@@ -22,6 +22,8 @@ Manage all sites, certificates, and ACME accounts through the dashboard or manag
 1. Open **Certificates → Request certificate**. Enter domains, email, and a Cloudflare API token, accept the CA terms, and submit. Aegis automatically creates or reuses the CA account and saves encrypted DNS access for renewal. Saved details are prefilled; staging/custom CAs and HTTP-01 are under **Advanced options**. **Upload PEM** supports an existing certificate and private key.
 2. Issuance progress updates automatically. When a certificate is valid, choose **Connect site** to open a proxy-host form with its domains and certificate already selected. Enter the application’s HTTP(S) upstream URL and save.
 3. Manage routing in **Proxy hosts**. Choose HTTP-to-HTTPS redirection, Host-header handling, and whether the route is enabled. Allow up to **2 seconds** for each replica to load committed changes. HTTP-only proxy hosts are also supported. Application protection options include a trusted client-IP source and independent bot/flood CIDR exemptions. **Proxy headers** configures forwarding and request/response Set/Remove operations.
+
+**Policies** assigns reusable bot/flood settings and frozen signature groups to applications. Use CIDR assignments for different Internal and External policies. **Rules** combines signatures and feed management. **AI backend** configures a provider and model without enabling traffic analysis. The dashboard includes CPU and RAM telemetry for active replicas. See [policies](docs/policies.md), [AI provider and scoring design](docs/ai-provider.md), [resource monitoring](docs/dashboard.md#system-performance), and [encryption at rest](docs/encryption-at-rest.md).
 
 Use the **Dark mode / Light mode** control to switch themes. The initial theme follows your system and a manual choice is saved in your browser. The certificate inventory shows validity, expiration, renewal mode, and site assignments. **Certificate authorities** manages ACME accounts. Status polling runs every four seconds while the page is visible and pauses during editing so entered values and focus are preserved.
 

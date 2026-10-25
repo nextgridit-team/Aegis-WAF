@@ -174,6 +174,9 @@ func (p *capturePolicy) capture(f *requestFacts, results []RuleResult, now time.
 	if !p.permit(now) {
 		return nil
 	}
+	return p.captureAllowed(f, results, now)
+}
+func (p *capturePolicy) captureAllowed(f *requestFacts, results []RuleResult, now time.Time) *evidenceEvent {
 	s := p.Settings
 	e := TrafficEvidence{SchemaVersion: 1, Facts: map[string]Fact{}, Results: results, BodyLength: f.request.ContentLength}
 	e.ContentType, _, _ = mime.ParseMediaType(f.request.Header.Get("Content-Type"))
@@ -211,6 +214,9 @@ func evidenceFact(e TrafficEvidence, field, key string) Fact {
 // evidence inserts. Requests from a recently deleted cached route still get
 // metadata access logs, but their content samples are discarded.
 func (a *App) storeAccessBatch(ctx context.Context, batch []accessEvent) error {
+	for n := range batch {
+		batch[n].enrich()
+	}
 	tx, e := a.db.Begin(ctx)
 	if e != nil {
 		return e
@@ -266,9 +272,9 @@ func (a *App) storeAccessBatch(ctx context.Context, batch []accessEvent) error {
 		if event.exemptions == nil {
 			exemptJSON = []byte("[]")
 		}
-		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON}
+		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName}
 	}
-	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions"}, pgx.CopyFromRows(items)); e != nil {
+	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name"}, pgx.CopyFromRows(items)); e != nil {
 		return e
 	}
 	if len(evidenceRows) > 0 {

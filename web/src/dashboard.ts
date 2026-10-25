@@ -1,6 +1,7 @@
+import { policySummary, type PolicySummary } from "./policy-page";
 import { protectionOptions, readProtectionOptions } from "./protection-options";
 import { world } from "./world";
-type Site = { id: number; name: string };
+type Site = { id: number; name: string; policies?: PolicySummary[] };
 export type Protection = {
   mode: string;
   requests_per_second: number;
@@ -15,6 +16,14 @@ export type Protection = {
   bot_exempt_cidrs?: string[];
 };
 type Report = {
+  systems?: {
+    id: string;
+    cpu_percent: number | null;
+    cpu_cores: number;
+    memory_bytes: number | null;
+    memory_limit_bytes: number | null;
+    source: string;
+  }[];
   dropped_logs: number;
   at: string;
   minutes: number;
@@ -47,6 +56,8 @@ type Report = {
     country: string;
     blocked: boolean;
     signals: string[];
+    policy_name?: string;
+    policy_revision?: number;
     protection_exemptions?: string[];
   }[];
 };
@@ -132,7 +143,35 @@ export function makeDashboardUI(d: Deps) {
         `/dashboard?minutes=${minutes}${scope ? `&site_id=${scope}` : ""}`,
       );
       if (stamp !== serial || !target.isConnected) return;
+      const resourcesOpen = target.querySelector<HTMLDetailsElement>("[data-replica-resources]")?.open || false;
       const t = r.totals;
+      const systems = r.systems || [];
+      const cpus = systems.filter(
+        (s) => typeof s.cpu_percent === "number" && Number.isFinite(s.cpu_percent) && s.cpu_cores > 0,
+      );
+      const cpuCores = cpus.reduce((n, s) => n + s.cpu_cores, 0);
+      const cpu = cpuCores
+        ? cpus.reduce((n, s) => n + (s.cpu_percent || 0) * s.cpu_cores, 0) /
+          cpuCores
+        : null;
+      const memory = systems
+        .filter((s) => typeof s.memory_bytes === "number")
+        .reduce((n, s) => n + (s.memory_bytes || 0), 0);
+      const bytes = (n: number) =>
+        n >= 1073741824
+          ? `${format(n / 1073741824)} GiB`
+          : `${format(n / 1048576)} MiB`;
+      const resources = `<section class="dashboard-panel"><div class="section-heading"><h2>System performance</h2><span class="muted">All gateway replicas · independent of traffic filters</span></div><div class="resource-metrics"><div><small>CPU usage</small><strong>${cpu === null ? "Unavailable" : `${format(cpu)}%`}</strong></div><div><small>RAM usage</small><strong>${systems.some((s) => typeof s.memory_bytes === "number") ? bytes(memory) : "Unavailable"}</strong></div></div><details class="advanced" data-replica-resources ${resourcesOpen ? "open" : ""}><summary>Per-replica resources</summary>${table(
+        ["Replica", "CPU", "RAM", "Memory limit"],
+        systems.map((s) => [
+          esc(s.id),
+          typeof s.cpu_percent !== "number" ? "Unavailable" : `${format(s.cpu_percent)}%`,
+          typeof s.memory_bytes !== "number" ? "Unavailable" : bytes(s.memory_bytes),
+          s.memory_limit_bytes ? bytes(s.memory_limit_bytes) : "Not configured",
+        ]),
+        "Replica resources",
+      )}</details><small>Container usage where available, process fallback otherwise. CPU is normalized to the available CPU quota. PostgreSQL and other host services are excluded.</small></section>`;
+
       const metric = (title: string, value: string, note: string) =>
         `<article class="metric-card"><span>${title}</span><strong>${value}</strong><small>${note}</small></article>`;
       const geo = new Map(r.countries.map((c) => [c.country, c]));
@@ -186,7 +225,7 @@ export function makeDashboardUI(d: Deps) {
         ? sites.filter((s) => String(s.id) === scope)
         : sites;
       target.innerHTML = `${r.dropped_logs ? `<div class="notice error">Reporting replicas have dropped ${format(r.dropped_logs)} access logs since starting. Request statistics may be incomplete.</div>` : ""}<div class="metric-grid">${metric("Requests / second", format(t.rps), "Completed requests · trailing 10s")}${metric("Open connections", format(r.connections), `${r.reporting_replicas} reporting replica${r.reporting_replicas === 1 ? "" : "s"} · includes keep-alive`)}${metric("In-flight requests", format(r.inflight), "Currently being processed")}${metric("Total requests", format(t.requests), `Last ${r.minutes} minutes · ${format(t.clients)} clients`)}${metric("Blocked requests", format(t.blocked), `${t.requests ? format((t.blocked / t.requests) * 100) : "0"}% of traffic`)}${metric("Flagged requests", format(t.flagged), `Bot or flood signals · ${format(t.exempt || 0)} requests exempt`)}</div>
-   <section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
+   ${resources}<section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
    <div class="dashboard-columns"><section class="dashboard-panel world-panel"><div class="section-heading"><h2>Incoming traffic</h2><small>Requests by country</small></div><svg class="world-map" viewBox="0 5 360 160" role="img" aria-label="World map of incoming requests by country">${map}</svg><div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
    <section class="dashboard-panel"><h2>Traffic origins</h2>${rowList(
      topCountries.map(
@@ -214,7 +253,9 @@ export function makeDashboardUI(d: Deps) {
        const p =
          protection.find((p) => p.site_id === s.id)?.settings ||
          defaultProtection;
-       return `<div class="dashboard-row"><strong>${esc(s.name)}</strong><span>HTTP flood: ${esc(p.mode)}</span><span>Bot signals: ${esc(p.bot_mode)}</span></div>`;
+       return s.policies?.length
+         ? `<div class="dashboard-row"><strong>${esc(s.name)}</strong><span>Policies: ${s.policies.map((p) => esc(p.name)).join(", ")}</span><a href="#policies">Manage</a></div>`
+         : `<div class="dashboard-row"><strong>${esc(s.name)}</strong><span>HTTP flood: ${esc(p.mode)}</span><span>Bot signals: ${esc(p.bot_mode)}</span></div>`;
      }),
      "Add a proxy host to configure application protection.",
    )}<p class="muted">Limits apply per replica. Settings reach replicas within the configuration refresh interval.</p></section>
@@ -228,7 +269,10 @@ export function makeDashboardUI(d: Deps) {
                sites.find((s) => s.id === event.site_id)?.name ||
                  `Application ${event.site_id}`,
              ),
-             esc(event.peer),
+             esc(event.peer) +
+               (event.policy_name
+                 ? `<small>${esc(event.policy_name)} · v${event.policy_revision}</small>`
+                 : ""),
              String(event.status),
              (event.blocked
                ? '<span class="badge danger">Blocked</span>'
@@ -279,8 +323,10 @@ export function makeDashboardUI(d: Deps) {
       const p =
         settings.find((s) => String(s.site_id) === select.value)?.settings ||
         defaultProtection;
+      const assigned =
+        sites.find((site) => String(site.id) === select.value)?.policies || [];
       document.getElementById("protection-fields")!.innerHTML =
-        `<h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p>${protectionOptions(p)}`;
+        `${policySummary(assigned, esc)}<div ${assigned.length ? "hidden" : ""}><h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p></div>${protectionOptions(p)}`;
     };
     fill();
     select.addEventListener("change", fill);

@@ -82,7 +82,8 @@ func (a *App) publishMetrics(ctx context.Context) {
 	c, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	data, _ := json.Marshal(a.metrics.counts())
-	_, _ = a.db.Exec(c, "INSERT INTO replica_metrics(id,at,data,dropped_logs) VALUES($1,clock_timestamp(),$2,$3) ON CONFLICT(id) DO UPDATE SET at=excluded.at,data=excluded.data,dropped_logs=excluded.dropped_logs", a.replicaID, data, a.dropped.Load())
+	system, _ := json.Marshal(a.system.sample())
+	_, _ = a.db.Exec(c, "INSERT INTO replica_metrics(id,at,data,dropped_logs,system) VALUES($1,clock_timestamp(),$2,$3,$4) ON CONFLICT(id) DO UPDATE SET at=excluded.at,data=excluded.data,dropped_logs=excluded.dropped_logs,system=excluded.system", a.replicaID, data, a.dropped.Load(), system)
 	_, _ = a.db.Exec(c, "DELETE FROM replica_metrics WHERE at<now()-interval '1 hour'")
 }
 func countryFor(db *maxminddb.Reader, ip netip.Addr) string {
@@ -198,23 +199,30 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY country) x`, &countries},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},
-		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions,policy_id,policy_revision,policy_name` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
 	}
 	for index, q := range queries {
 		if e = tx.QueryRow(ctx, q.sql, since, site, now).Scan(q.target); e != nil {
 			return fmt.Errorf("dashboard query %d: %w", index, e)
 		}
 	}
-	rows, e := tx.Query(ctx, "SELECT data,dropped_logs FROM replica_metrics WHERE at>now()-interval '10 seconds'")
+	rows, e := tx.Query(ctx, "SELECT id,data,dropped_logs,system FROM replica_metrics WHERE at>now()-interval '10 seconds' ORDER BY id")
 	if e != nil {
 		return e
 	}
 	connections, inflight, replicas := int64(0), int64(0), 0
 	var dropped uint64
+	type replicaSystem struct {
+		ID string `json:"id"`
+		systemMetrics
+	}
+	systems := []replicaSystem{}
 	for rows.Next() {
 		var raw []byte
 		var replicaDropped uint64
-		if e = rows.Scan(&raw, &replicaDropped); e != nil {
+		var systemRaw []byte
+		var system replicaSystem
+		if e = rows.Scan(&system.ID, &raw, &replicaDropped, &systemRaw); e != nil {
 			rows.Close()
 			return e
 		}
@@ -223,6 +231,14 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 			rows.Close()
 			return e
 		}
+		if e = json.Unmarshal(systemRaw, &system.systemMetrics); e != nil {
+			rows.Close()
+			return e
+		}
+		if len(system.ID) > 8 {
+			system.ID = system.ID[:8]
+		}
+		systems = append(systems, system)
 		dropped += replicaDropped
 		connections += counts[site].Connections
 		inflight += counts[site].Inflight
@@ -240,7 +256,7 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 	if e = tx.Commit(ctx); e != nil {
 		return e
 	}
-	respond(w, 200, map[string]any{"at": now, "minutes": minutes, "site_id": site, "totals": json.RawMessage(totals), "series": json.RawMessage(series), "countries": json.RawMessage(countries), "statuses": json.RawMessage(statuses), "signals": json.RawMessage(signals), "recent": json.RawMessage(recent), "dropped_logs": dropped, "connections": connections, "inflight": inflight, "reporting_replicas": replicas, "geo_updated_at": geoUpdated, "log_delay_seconds": 1, "connection_note": "Open gateway sockets, including keep-alive. Application sockets may be shared; do not sum application counts. Heartbeats expire after 10 seconds. Rates use completed requests over 10 seconds."})
+	respond(w, 200, map[string]any{"at": now, "minutes": minutes, "site_id": site, "totals": json.RawMessage(totals), "series": json.RawMessage(series), "countries": json.RawMessage(countries), "statuses": json.RawMessage(statuses), "signals": json.RawMessage(signals), "recent": json.RawMessage(recent), "systems": systems, "dropped_logs": dropped, "connections": connections, "inflight": inflight, "reporting_replicas": replicas, "geo_updated_at": geoUpdated, "log_delay_seconds": 1, "connection_note": "Open gateway sockets, including keep-alive. Application sockets may be shared; do not sum application counts. Heartbeats expire after 10 seconds. Rates use completed requests over 10 seconds."})
 	return nil
 }
 func dashboardAPI(a *App, m *http.ServeMux) {

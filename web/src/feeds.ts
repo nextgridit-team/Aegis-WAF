@@ -1,3 +1,4 @@
+import { ruleTabs } from "./rule-tabs";
 type Source = {
   id: number;
   name: string;
@@ -42,10 +43,11 @@ export function makeFeedsUI(c: Context) {
     sources = await api<Source[]>("/rule-feeds");
     return (
       c.heading(
-        "Rule feeds",
+        "Rules",
         "Subscribe to simple JSON signatures. Check for updates every 12 hours, or sync whenever you need.",
         button("add-feed", "Add source"),
       ) +
+      ruleTabs(true) +
       `<div class="info-panel"><h3>Review before activation</h3><p>Sync downloads candidates. Import creates application-scoped drafts for you to review and observe. Feed changes never replace enabled rules or turn on blocking.</p></div>` +
       (sources.length
         ? c.table(

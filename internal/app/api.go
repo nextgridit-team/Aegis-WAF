@@ -116,6 +116,8 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 func (a *App) Management() http.Handler {
 	m := http.NewServeMux()
 	dashboardAPI(a, m)
+	aiAPI(a, m)
+	policyAPI(a, m)
 	feedAPI(a, m)
 	m.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]bool{"alive": true}) })
 	m.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +148,7 @@ func (a *App) Management() http.Handler {
 		if s := a.active.Load(); s != nil {
 			v = s.version
 		}
-		respond(w, 200, map[string]any{"configuration_version": v, "database_available": a.dbOK.Load(), "propagation_seconds": a.cfg.Refresh.Seconds(), "dropped_access_logs": a.dropped.Load()})
+		respond(w, 200, map[string]any{"configuration_version": v, "database_available": a.dbOK.Load(), "propagation_seconds": a.cfg.Refresh.Seconds(), "dropped_evidence_samples": a.evidenceDropped.Load(), "dropped_access_logs": a.dropped.Load()})
 		return nil
 	}))
 	m.HandleFunc("GET /api/sites", a.wrap(true, a.listSites))
@@ -340,7 +342,7 @@ func (a *App) list(w http.ResponseWriter, r *http.Request, sql string) error {
 	return nil
 }
 func (a *App) listSites(w http.ResponseWriter, r *http.Request, _ identity) error {
-	return a.list(w, r, "SELECT s.*,p.settings AS protection,h.settings AS headers FROM sites s LEFT JOIN protection_settings p ON p.site_id=s.id LEFT JOIN proxy_headers h ON h.site_id=s.id ORDER BY s.id")
+	return a.list(w, r, "SELECT s.*,p.settings AS protection,h.settings AS headers,coalesce((SELECT jsonb_agg(jsonb_build_object('id',pol.id,'name',pol.spec->>'name','mode',pol.spec->>'mode','revision',pol.revision,'source_cidrs',b.source_cidrs,'priority',b.priority) ORDER BY b.priority) FROM policy_assignments b JOIN policies pol ON pol.id=b.policy_id WHERE b.site_id=s.id),'[]'::jsonb) AS policies FROM sites s LEFT JOIN protection_settings p ON p.site_id=s.id LEFT JOIN proxy_headers h ON h.site_id=s.id ORDER BY s.id")
 }
 func (a *App) listCertificates(w http.ResponseWriter, r *http.Request, _ identity) error {
 	return a.list(w, r, `SELECT c.id,c.name,c.origin,c.domains,c.issuer,c.not_before,c.not_after,c.account_id,c.challenge_type,c.dns_credential_id,c.updated_at,EXISTS(SELECT 1 FROM dns_challenges d JOIN jobs j ON j.id=d.job_id WHERE j.certificate_id=c.id) AS pending_dns_cleanup,CASE WHEN c.not_before IS NULL THEN 'pending' WHEN now()<c.not_before THEN 'not yet valid' WHEN now()>=c.not_after THEN 'expired' ELSE 'valid' END AS validity,coalesce((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.name)) FROM sites s WHERE s.certificate_id=c.id),'[]'::jsonb) AS assigned_sites FROM certificates c ORDER BY c.id`)

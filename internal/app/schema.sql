@@ -56,3 +56,15 @@ INSERT INTO schema_version VALUES(5) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS proxy_headers(site_id bigint PRIMARY KEY REFERENCES sites ON DELETE CASCADE,settings jsonb NOT NULL);
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS protection_exemptions jsonb NOT NULL DEFAULT '[]';
 INSERT INTO schema_version VALUES(6) ON CONFLICT DO NOTHING;
+
+-- Version 7: provider connection settings and reusable source-scoped policies.
+CREATE TABLE IF NOT EXISTS ai_provider(id boolean PRIMARY KEY DEFAULT true CHECK(id),base_url text NOT NULL,key_cipher bytea,key_id text NOT NULL,model text NOT NULL,models jsonb NOT NULL,checked_at timestamptz,revision bigint NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS policies(id bigserial PRIMARY KEY,spec jsonb NOT NULL,revision bigint NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS policy_assignments(policy_id bigint NOT NULL REFERENCES policies ON DELETE CASCADE,site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,source_cidrs text[] NOT NULL,priority int NOT NULL,PRIMARY KEY(policy_id,site_id),UNIQUE(site_id,priority),CHECK((cardinality(source_cidrs)=0 AND priority=10000) OR(cardinality(source_cidrs)>0 AND priority>=0 AND priority<10000)));
+CREATE TABLE IF NOT EXISTS policy_revisions(policy_id bigint NOT NULL REFERENCES policies ON DELETE CASCADE,revision bigint NOT NULL,spec jsonb NOT NULL,actor text NOT NULL,at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(policy_id,revision));
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS policy_id bigint NOT NULL DEFAULT 0;
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS policy_revision bigint NOT NULL DEFAULT 0;
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS policy_name text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES(7) ON CONFLICT DO NOTHING;
+
+ALTER TABLE replica_metrics ADD COLUMN IF NOT EXISTS system jsonb NOT NULL DEFAULT '{}';

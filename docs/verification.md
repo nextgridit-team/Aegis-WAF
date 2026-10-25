@@ -191,3 +191,9 @@ exemption logs/totals, invalid edits retaining working settings and cached
 behavior without database access. Browser coverage adds header editor retries,
 CIDR/source persistence, real upstream echo of forwarding/custom headers,
 external 429 responses, forwarding disabled and four header-form viewports.
+
+## Policies, provider configuration, deferred logging and resources
+
+PostgreSQL integration tests and `go test -race`/`go vet` passed for policy selection across two replicas, trusted client identity, frozen signature snapshots, explicit refresh, rollback, stale edits, default reassignment and fallback validation. Provider tests verify bounded model discovery, redirect refusal, authentication failure handling, encrypted write-only keys, endpoint changes and saved-setting preservation. Resource tests verify CPU/RAM samples from both replicas remain global under application filtering. Logging tests prove saturated queues do not block forwarding or blocking and evidence capture never reads a body ahead of the upstream.
+
+The candidate image passed the container smoke suite, including arbitrary non-root UIDs, read-only filesystems, cached HTTP/TLS during actual database outages, fresh-replica readiness, reload and direct management HTTPS. The real Pebble/browser suite passed certificate issuance and HTTPS proxying through both replicas, provider discovery/model persistence against an isolated keyless fixture, policy creation/assignment/enforcement, the CPU/RAM panel and its refresh behavior, and forty responsive page checks. Rule feed fixture tests, strict TypeScript build and npm security audit also passed. These fixtures do not establish inference quality or production attack coverage.

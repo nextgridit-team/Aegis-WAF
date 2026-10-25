@@ -64,3 +64,7 @@ Current implementation: application routing/TLS, basic bot modes, configurable p
 Next structural increment: implement reusable rule/group storage, versioned membership and application attachments, then migrate existing site-scoped rules into an application-local group without changing effective enforcement. Feed review/import can then target a group draft rather than immediately producing site-scoped copies. Add app type/coverage guidance and group/rule-level event attribution together. Keep current rule activation, expiry and rollback behavior until migration semantics are explicitly implemented and tested.
 
 After that, add targeted endpoint rate policies (path/method, counting key, period, burst and mitigation duration), narrow exceptions, preview/effective-policy views, group-version publishing and rollback. Keep default thresholds illustrative and configurable; application capacity and legitimate burst patterns differ.
+
+## Implemented foundation update
+
+The policy page now publishes frozen signature groups, shared bot/flood settings, and application assignments, including ordered source-CIDR policy selection with a mandatory default. Rules and Rule feeds share one workspace. See [current policy behavior and limits](policies.md). Endpoint counting rules, coverage recommendations and score-based decisions remain future work; the earlier recommendations above are design context.

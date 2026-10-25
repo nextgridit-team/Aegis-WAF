@@ -218,10 +218,16 @@ func TestProtectionDashboardIntegration(t *testing.T) {
 	}
 	a.publishMetrics(ctx)
 	b.publishMetrics(ctx)
+	a.publishMetrics(ctx)
+	b.publishMetrics(ctx)
 	var report struct {
 		Totals            struct{ Requests, Blocked, Flagged int }
 		ReportingReplicas int `json:"reporting_replicas"`
-		Countries         []struct {
+		Systems           []struct {
+			ID string `json:"id"`
+			systemMetrics
+		} `json:"systems"`
+		Countries []struct {
 			Country  string
 			Requests int
 		}
@@ -230,10 +236,21 @@ func TestProtectionDashboardIntegration(t *testing.T) {
 		t.Fatal(e)
 	}
 	json.Unmarshal(c.call("GET", "/api/dashboard", nil, 200), &report)
+	if len(report.Systems) != 2 {
+		t.Fatal("missing replica resource samples", report)
+	}
+	for _, s := range report.Systems {
+		if s.ID == "" || s.CPUCores <= 0 || s.CPUPercent == nil || s.MemoryBytes == nil || *s.MemoryBytes == 0 {
+			t.Fatal("invalid resource sample", s)
+		}
+	}
 	if report.Totals.Requests != 4 || report.Totals.Blocked != 2 || report.Totals.Flagged != 2 || report.ReportingReplicas != 2 {
 		t.Fatalf("bad report %+v", report)
 	}
 	json.Unmarshal(c.call("GET", fmt.Sprintf("/api/dashboard?site_id=%d&minutes=5", other), nil, 200), &report)
+	if len(report.Systems) != 2 {
+		t.Fatal("application filter hid resource samples")
+	}
 	if report.Totals.Requests != 1 || report.Totals.Blocked != 0 {
 		t.Fatal("application filter incorrect")
 	}

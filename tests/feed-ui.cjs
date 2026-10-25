@@ -136,7 +136,7 @@ const path = require("node:path");
     const base = `http://127.0.0.1:${server.address().port}`;
     await page.goto(base + "/#rule-feeds");
     await page
-      .getByRole("heading", { name: "Rule feeds", exact: true })
+      .getByRole("heading", { name: "Rules", exact: true })
       .waitFor();
     await page
       .getByRole("button", { name: "Use Aegis starter feed", exact: true })

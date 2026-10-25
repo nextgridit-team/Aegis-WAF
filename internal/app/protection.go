@@ -29,6 +29,7 @@ type ProtectionSettings struct {
 	BotExemptCIDRs        []string `json:"bot_exempt_cidrs"`
 }
 type protectionPolicy struct {
+	budgetScope int64
 	ProtectionSettings
 	trusted                []netip.Prefix
 	floodExempt, botExempt []netip.Prefix
@@ -115,10 +116,10 @@ func (p *protectionPolicy) trusts(ip netip.Addr) bool { return p != nil && match
 func (p *protectionPolicy) exemptions(ip netip.Addr) []string {
 	out := []string{}
 	if p != nil {
-		if matchesCIDRs(p.floodExempt, ip) {
+		if p.Mode != "off" && matchesCIDRs(p.floodExempt, ip) {
 			out = append(out, "http_flood")
 		}
-		if matchesCIDRs(p.botExempt, ip) {
+		if p.BotMode != "off" && matchesCIDRs(p.botExempt, ip) {
 			out = append(out, "anti_bot")
 		}
 	}
@@ -243,8 +244,12 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		return signals, false, status
 	}
 	if p.Mode != "off" && (!reliable || !matchesCIDRs(p.floodExempt, ip)) {
-		client := a.flood.allow(rateKey{site, ip.String()}, p.RequestsPerSecond, p.Burst, now)
-		total := a.flood.allow(rateKey{site, "*"}, p.SiteRequestsPerSecond, p.SiteBurst, now)
+		budgetPrefix := ""
+		if p.budgetScope != 0 {
+			budgetPrefix = "policy:" + strconv.FormatInt(p.budgetScope, 10) + ":"
+		}
+		client := a.flood.allow(rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst, now)
+		total := a.flood.allow(rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst, now)
 		if !client {
 			signals = append(signals, "client_rate")
 		}

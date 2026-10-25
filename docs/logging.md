@@ -1,0 +1,7 @@
+# Traffic logging and forwarding
+
+The request path resolves identity, selects its cached policy, evaluates rules and protection, and applies the resulting block, redirect or upstream proxy action. It then attempts a nonblocking enqueue of the completed access event. PostgreSQL inserts are batched in a background worker. Database writes, country lookup and optional evidence redaction/JSON generation do not delay the forwarding decision.
+
+When opt-in JSON evidence is enabled, a bounded tap copies bytes while the upstream consumes them; it never reads ahead just to prepare a log. If the upstream responds without consuming the body, evidence marks it unavailable. A JSON-body rule can still require bounded synchronous inspection to enforce that rule correctly. Metadata snapshots and the stream copy have bounded in-memory overhead; asynchronous logging is not a claim of zero CPU overhead.
+
+The access queue holds up to 8192 events, and at most 64 optional evidence captures can be pending per replica. Saturation drops logs or samples rather than waiting or spawning an unbounded goroutine per request. `/api/status` exposes dropped access logs and evidence samples. Failed database batches also increment the dropped-log count. Logging is best effort; process crashes can lose queued events. This queue is separate from security-relevant administrative audit writes, which remain part of management transactions.

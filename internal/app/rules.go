@@ -49,15 +49,21 @@ type compiledCondition struct {
 	prefix netip.Prefix
 }
 type compiledRule struct {
-	ID         int64
-	Spec       RuleSpec
-	Conditions []compiledCondition
-	Expires    time.Time
+	PolicyID, PolicyRevision int64
+	GroupName, GroupPrefix   string
+	GroupMethods             []string
+	ID                       int64
+	Spec                     RuleSpec
+	Conditions               []compiledCondition
+	Expires                  time.Time
 }
 type RuleResult struct {
-	RuleID int64  `json:"rule_id"`
-	Action string `json:"action"`
-	Result string `json:"result"`
+	PolicyID       int64  `json:"policy_id,omitempty"`
+	PolicyRevision int64  `json:"policy_revision,omitempty"`
+	Group          string `json:"group,omitempty"`
+	RuleID         int64  `json:"rule_id"`
+	Action         string `json:"action"`
+	Result         string `json:"result"`
 }
 type Fact struct {
 	State  string   `json:"state"`
@@ -458,6 +464,31 @@ func (c compiledCondition) match(f Fact) string {
 	return "not_matched"
 }
 func (r compiledRule) evaluate(get func(string, string) Fact) string {
+	if r.GroupPrefix != "" {
+		path := get("path", "")
+		if path.State != "present" || len(path.Values) == 0 {
+			return "unknown"
+		}
+		if !strings.HasPrefix(path.Values[0], r.GroupPrefix) {
+			return "not_matched"
+		}
+	}
+	if len(r.GroupMethods) > 0 {
+		method := get("method", "")
+		if method.State != "present" || len(method.Values) == 0 {
+			return "unknown"
+		}
+		found := false
+		for _, allowed := range r.GroupMethods {
+			if method.Values[0] == allowed {
+				found = true
+			}
+		}
+		if !found {
+			return "not_matched"
+		}
+	}
+
 	unknown := false
 	if r.Spec.Scope.PathPrefix != "" {
 		path := get("path", "")
@@ -484,12 +515,12 @@ func evaluateRules(rules []compiledRule, f *requestFacts, now time.Time) ([]Rule
 	results := []RuleResult{}
 	blocked := false
 	for _, r := range rules {
-		if !now.Before(r.Expires) {
+		if r.PolicyID == 0 && !now.Before(r.Expires) {
 			continue
 		}
 		result := r.evaluate(f.get)
 		if result != "not_matched" {
-			results = append(results, RuleResult{r.ID, r.Spec.Action, result})
+			results = append(results, RuleResult{RuleID: r.ID, Action: r.Spec.Action, Result: result, PolicyID: r.PolicyID, PolicyRevision: r.PolicyRevision, Group: r.GroupName})
 			blocked = blocked || (result == "matched" && r.Spec.Action == "block")
 		}
 	}

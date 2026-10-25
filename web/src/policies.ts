@@ -1,3 +1,4 @@
+import { ruleTabs } from "./rule-tabs";
 export type RuleSpec = {
   schema_version: number;
   name: string;
@@ -121,9 +122,10 @@ export function makePolicyUI(c: Context) {
       heading(
         "Rules",
         "Small, application-scoped signatures. Start as a draft, observe, then enforce.",
-        `<a href="#rule-feeds" class="secondary">Rule feeds</a>` + btn("import-rule", "Import JSON", "secondary") +
+        btn("import-rule", "Import JSON", "secondary") +
           btn("new-rule", "Create rule", "primary"),
       ) +
+      ruleTabs() +
       `<div class="info-panel rule-intro"><h3>You control activation</h3><p>New and edited rules are drafts. Observe records matches; Block returns HTTP 403. Active rules expire automatically. JSON proposals use the same validated format as this editor.</p></div>` +
       (rules.length
         ? table(
@@ -157,6 +159,7 @@ export function makePolicyUI(c: Context) {
         "Opt-in, bounded samples for investigating requests and testing rule proposals.",
         btn("refresh", "Refresh", "secondary"),
       ) +
+      ruleTabs() +
       `<div class="info-panel rule-intro"><h3>Capture is off by default</h3><p>Choose which fields a site may capture. Credentials, authorization, cookies and sensitive field names cannot be selected. Redaction cannot identify every secret; review your allowlists before enabling capture.</p></div>` +
       (c.sites().length
         ? table(

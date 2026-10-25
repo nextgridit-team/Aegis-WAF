@@ -1,4 +1,10 @@
 import {
+  makePoliciesPage,
+  policySummary,
+  type PolicySummary,
+} from "./policy-page";
+import { makeAIPage } from "./ai";
+import {
   headerMarkup,
   bindHeaderEditor,
   readHeaders,
@@ -15,6 +21,7 @@ import { themeControl, toggleTheme } from "./theme";
 import { makePolicyUI } from "./policies";
 export {};
 type Site = {
+  policies?: PolicySummary[];
   headers?: HeaderSettings | null;
   protection?: Protection | null;
   id: number;
@@ -78,6 +85,8 @@ type Access = {
   status: number;
   duration_ms: number;
   peer: string;
+  policy_name?: string;
+  policy_revision?: number;
   protection_exemptions?: string[];
   rule_results: { rule_id: number; action: string; result: string }[];
 };
@@ -288,6 +297,8 @@ function currentPage() {
   return (
     aliases[raw] ||
     ([
+      "policies",
+      "ai",
       "rule-feeds",
       "dashboard",
       "certificates",
@@ -307,11 +318,12 @@ function shell() {
     ["certificates", "certificate", "Certificates"],
     ["proxy-hosts", "globe", "Proxy hosts"],
     ["rules", "shield", "Rules"],
-    ["rule-feeds", "refresh", "Rule feeds"],
+    ["policies", "shield", "Policies"],
+    ["ai", "activity", "AI backend"],
     ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "rule-feeds": "Rule feeds", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && page === "rule-feeds") ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "rule-feeds": "Rules", policies: "Policies", ai: "AI backend", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -398,8 +410,14 @@ function sitesList() {
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ "rule-feeds": "Rule feeds", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "rule-feeds": "Rules", policies: "Policies", ai: "AI backend", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "dashboard") await dashboardUI.mount(view, state.sites);
+  if (page === "policies") {
+    const stamp = epoch;
+    const html = await policyPage.render();
+    if (stamp === epoch) view.innerHTML = html;
+  }
+  if (page === "ai") await aiPage.render(view);
   if (page === "rule-feeds") {
     const stamp = epoch;
     const html = await feedsUI.render();
@@ -484,7 +502,7 @@ async function render() {
               ["Time", "Site / sender", "Request", "Rule outcomes", "Duration"],
               access.map((a) => [
                 esc(dateTime(a.at)),
-                `${a.site_id}<small>${esc(a.peer)}</small>`,
+                `${a.site_id}<small>${esc(a.peer)}</small>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}`,
                 `${esc(a.method)} · ${a.status}`,
                 [
                   ...(a.rule_results || []).map(
@@ -554,7 +572,8 @@ async function poll() {
     document.hidden ||
     (document.getElementById("editor") as HTMLDialogElement | null)?.open ||
     page === "activity" ||
-    page === "traffic"
+    page === "traffic" ||
+    page === "ai"
   )
     return;
   polling = true;
@@ -578,7 +597,8 @@ async function poll() {
     if (
       signature !== lastSignature ||
       page === "rules" ||
-      page === "rule-feeds"
+      page === "rule-feeds" ||
+      page === "policies"
     ) {
       lastSignature = signature;
       const focus = document.activeElement as HTMLElement;
@@ -611,10 +631,10 @@ function openEditor(title: string, html: string, step = 0) {
 function closeEditor() {
   (document.getElementById("editor") as HTMLDialogElement | null)?.close();
 }
-function siteProtectionMarkup(p: Protection) {
+function siteProtectionMarkup(p: Protection, policies: PolicySummary[] = []) {
   const mode = (name: string, label: string, value: string) =>
     `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
-  return `<div class="form-divider"></div><h3>Application protection</h3><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small><details class="advanced"><summary>Protection options</summary>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}${protectionOptions(p)}</details>`;
+  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small></div><details class="advanced"><summary>Protection options</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p)}</details>`;
 }
 function siteForm(site?: Site, certificate?: Certificate) {
   const c = site
@@ -630,7 +650,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
       )
       .join(
         "",
-      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${siteProtectionMarkup(site?.protection || defaultProtection)}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
   );
   const select = document.getElementById(
     "site-certificate",
@@ -1061,6 +1081,7 @@ root.addEventListener("click", async (e) => {
   const action = b.dataset.action,
     id = Number(b.dataset.id);
   try {
+    if (await policyPage.handle(action, id, b)) return;
     if (await feedsUI.handle(action, id)) return;
     if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
@@ -1176,6 +1197,19 @@ root.addEventListener("click", async (e) => {
     b.disabled = false;
   }
 });
+const policyPage = makePoliciesPage({
+  api,
+  sites: () => state.sites,
+  esc,
+  heading,
+  table,
+  openEditor,
+  closeEditor,
+  formHandler,
+  refresh,
+  notice,
+});
+const aiPage = makeAIPage({ api, esc, heading, notice, handleError });
 const feedsUI = makeFeedsUI({
   api,
   sites: () => state.sites,

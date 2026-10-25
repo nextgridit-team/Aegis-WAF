@@ -31,7 +31,7 @@ const { execFileSync } = require("node:child_process");
     page.screenshot({ path: path.join(out, name + ".png"), fullPage: true });
   const message = (text) => page.getByRole("status").filter({ hasText: text });
   const dialog = () => page.getByRole("dialog");
-  const nav = (label) =>
+  const nav = (label) => label === "Rule feeds" ? { click: async () => { await nav("Rules").click(); await page.getByRole("navigation", {name: "Rule workspace"}).getByRole("link", {name: "Rule feeds", exact:true}).click(); } } :
     page
       .getByRole("navigation", { name: "Main navigation" })
       .getByRole("link", { name: label, exact: true });
@@ -987,6 +987,44 @@ const { execFileSync } = require("node:child_process");
       .filter({ hasText: "3 draft rules imported" })
       .waitFor();
     await screenshot("rule-feeds-live");
+    // Discover a real local keyless provider without invoking inference.
+    await nav("AI backend").click();
+    await page.getByLabel("API base URL", {exact:true}).fill(upstream + "/v1");
+    await page.getByLabel("No API key · clear any saved key", {exact:true}).check();
+    await page.getByRole("button", {name:"Check connection & load models",exact:true}).click();
+    await page.getByText("Connected · 1 models available. Select a model and save.", {exact:true}).waitFor();
+    await page.getByLabel("Model", {exact:true}).selectOption("test-chat-model");
+    await page.getByRole("button", {name:"Save provider",exact:true}).click();
+    await message("AI provider saved").waitFor();
+    await page.reload();
+    await page.getByLabel("Model", {exact:true}).waitFor();
+    assert.equal(await page.getByLabel("Model",{exact:true}).inputValue(),"test-chat-model");
+    assert.equal(await page.getByLabel("API key",{exact:true}).inputValue(),"");
+    await screenshot("ai-provider-configured");
+    await nav("Policies").click();
+    await page.getByRole("button",{name:"Create policy",exact:true}).click();
+    await dialog().getByLabel("Policy name",{exact:true}).fill("External test policy");
+    await dialog().getByLabel("Policy mode",{exact:true}).selectOption("block");
+    await dialog().getByLabel("Enable anti-bot signals",{exact:true}).check();
+    await dialog().getByRole("button",{name:"Add rule group",exact:true}).click();
+    await dialog().getByLabel("Group name",{exact:true}).fill("Imported signatures");
+    await dialog().getByRole("group",{name:"Group signatures",exact:true}).getByRole("checkbox").first().check();
+    await dialog().getByRole("button",{name:"Add application",exact:true}).click();
+    await dialog().getByLabel("Assignment application",{exact:true}).selectOption({label:"Manual TLS"});
+    await dialog().getByRole("button",{name:"Save policy",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    await page.getByRole("heading",{name:"Policies",exact:true}).waitFor();
+    await screenshot("policies-assigned");
+    await eventually(async()=>assert.equal((await httpsRequest(Number(process.env.BROWSER_HTTPS_PORT),"manual.example.test",null,"/",{"User-Agent":"sqlmap"})).status,403));
+    await nav("Dashboard").click();
+    const resources=page.locator("section").filter({has:page.getByRole("heading",{name:"System performance",exact:true})});
+    await resources.waitFor();
+    await resources.getByText("Per-replica resources",{exact:true}).click();
+    await page.waitForTimeout(4500);
+    assert.equal(await resources.locator("details").evaluate(el=>el.open),true,"resource details closed during refresh");
+    assert.equal(await resources.locator("tbody tr").count(),2,"missing replica resource rows");
+    assert.match(await resources.innerText(), /MiB|GiB/);
+    await screenshot("system-performance");
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const label of [
@@ -998,11 +1036,13 @@ const { execFileSync } = require("node:child_process");
         "Rules",
         "Rule feeds",
         "Traffic",
+        "Policies",
+        "AI backend",
       ]) {
         await nav(label).click();
         await page
           .getByRole("heading", {
-            name: label === "Traffic" ? "Traffic evidence" : label,
+            name: label === "Traffic" ? "Traffic evidence" : label === "Rule feeds" ? "Rules" : label,
             exact: true,
           })
           .waitFor();
@@ -1033,7 +1073,7 @@ const { execFileSync } = require("node:child_process");
         await nav(label).click();
         await page
           .getByRole("heading", {
-            name: label === "Traffic" ? "Traffic evidence" : label,
+            name: label === "Traffic" ? "Traffic evidence" : label === "Rule feeds" ? "Rules" : label,
             exact: true,
           })
           .waitFor();
@@ -1074,7 +1114,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 32 responsive checks, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 40 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

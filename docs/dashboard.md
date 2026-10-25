@@ -42,3 +42,9 @@ The application create/edit form and dashboard protection editor provide separat
 - `POST /api/geolocation/update` with `{"accept_license":true}`
 
 All require an administrator session; writes also require CSRF protection. Protection changes are stored and audited transactionally and reach replicas through normal version-based refresh. Public traffic continues using the last valid snapshot during database outages; management requests report failures.
+
+## System performance
+
+The dashboard shows CPU percentage and RAM bytes across active gateway replicas, with an expandable per-replica table and configured memory limits. Measurements are global even when traffic is filtered by application. CPU uses changes in consumed CPU time normalized to available cores and the container CPU quota. On Linux cgroup v2, RAM includes memory charged to the container; process resident memory is the fallback. PostgreSQL and other host services are excluded. Sampling runs in the background with existing telemetry and requires no additional containers, host mounts or privileges.
+
+Samples use the one-second telemetry heartbeat; the dashboard refreshes every four seconds. Replica heartbeats expire after ten seconds. Unavailable or initial CPU samples display Unavailable rather than a fabricated zero. This is live telemetry, not a historical resource monitoring service. [Linux cgroup v2 reference](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html).

@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ import (
 var schema string
 
 type Site struct {
+	Policies      []sitePolicySummary `json:"policies,omitempty"`
 	Headers       *HeaderSettings     `json:"headers,omitempty"`
 	Protection    *ProtectionSettings `json:"protection,omitempty"`
 	ID            int64               `json:"id"`
@@ -44,44 +46,61 @@ type route struct {
 	proxy *httputil.ReverseProxy
 	cert  *tls.Certificate
 }
+type sitePolicySummary struct {
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	Mode        string   `json:"mode"`
+	Revision    int64    `json:"revision"`
+	SourceCIDRs []string `json:"source_cidrs"`
+	Priority    int      `json:"priority"`
+}
 type snapshot struct {
-	certificates map[int64]*tls.Certificate
-	version      int64
-	routes       map[string]*route
-	rules        map[int64][]compiledRule
-	capture      map[int64]*capturePolicy
-	protection   map[int64]*protectionPolicy
-	geo          *maxminddb.Reader
+	policyBindings map[int64][]compiledPolicyBinding
+	certificates   map[int64]*tls.Certificate
+	version        int64
+	routes         map[string]*route
+	rules          map[int64][]compiledRule
+	capture        map[int64]*capturePolicy
+	protection     map[int64]*protectionPolicy
+	geo            *maxminddb.Reader
 }
 type accessEvent struct {
-	at         time.Time
-	site       int64
-	method     string
-	status     int
-	duration   int64
-	peer       string
-	results    []RuleResult
-	evidence   *evidenceEvent
-	country    string
-	blocked    bool
-	signals    []string
-	exemptions []string
+	prepareEvidence          func() *evidenceEvent
+	geo                      *maxminddb.Reader
+	clientIP                 netip.Addr
+	policyID, policyRevision int64
+	policyName               string
+	at                       time.Time
+	site                     int64
+	method                   string
+	status                   int
+	duration                 int64
+	peer                     string
+	results                  []RuleResult
+	evidence                 *evidenceEvent
+	country                  string
+	blocked                  bool
+	signals                  []string
+	exemptions               []string
 }
 type App struct {
-	flood        floodLimiter
-	metrics      liveMetrics
-	replicaID    string
-	feedHTTP     http.RoundTripper
-	dnsFactory   func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
-	dnsWait      func(context.Context, string, string) error
-	dnsTransport http.RoundTripper
-	cfg          Config
-	db           *pgxpool.Pool
-	active       atomic.Pointer[snapshot]
-	dbOK         atomic.Bool
-	initialized  atomic.Bool
-	access       chan accessEvent
-	dropped      atomic.Uint64
+	system          systemSampler
+	captureSlots    chan struct{}
+	evidenceDropped atomic.Uint64
+	flood           floodLimiter
+	metrics         liveMetrics
+	replicaID       string
+	feedHTTP        http.RoundTripper
+	dnsFactory      func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
+	dnsWait         func(context.Context, string, string) error
+	dnsTransport    http.RoundTripper
+	cfg             Config
+	db              *pgxpool.Pool
+	active          atomic.Pointer[snapshot]
+	dbOK            atomic.Bool
+	initialized     atomic.Bool
+	access          chan accessEvent
+	dropped         atomic.Uint64
 }
 
 func New(ctx context.Context, cfg Config) (*App, error) {
@@ -96,7 +115,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	return &App{replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}, nil
+	return &App{captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}, nil
 }
 func (a *App) Close() { a.db.Close() }
 func (a *App) initialize(ctx context.Context) error {
@@ -244,6 +263,9 @@ func (a *App) refresh(ctx context.Context) error {
 	if e = a.loadProtection(ctx, tx, next); e != nil {
 		return e
 	}
+	if e = a.loadPolicyBindings(ctx, tx, next); e != nil {
+		return e
+	}
 	if e = a.loadGeo(ctx, tx, next); e != nil {
 		return e
 	}
@@ -324,6 +346,17 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}}
 	policy := s.protection[rt.site.ID]
 	clientIP, reliableIdentity := policy.resolveClientIP(r)
+	selected := selectPolicy(s.policyBindings[rt.site.ID], clientIP, reliableIdentity)
+	activeRules := s.rules[rt.site.ID]
+	var policyID, policyRevision int64
+	var policyName string
+	if selected != nil {
+		policy = selected.Protection
+		activeRules = selected.Rules
+		policyID = selected.ID
+		policyRevision = selected.Revision
+		policyName = selected.Name
+	}
 	exemptions := []string{}
 	if reliableIdentity {
 		exemptions = policy.exemptions(clientIP)
@@ -333,17 +366,21 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	defer done()
 	facts := newRequestFacts(r)
 	facts.facts["client_ip"] = Fact{State: "present", Values: []string{clientIP.String()}}
-	results, blocked := evaluateRules(s.rules[rt.site.ID], facts, start)
-	evidence := s.capture[rt.site.ID].capture(facts, results, start)
-	if evidence != nil {
-		evidence.site = rt.site.ID
-	}
+	results, blocked := evaluateRules(activeRules, facts, start)
+	evidence := a.deferEvidence(s.capture[rt.site.ID], facts, results, start, rt.site.ID)
 	defer func() {
 		peer := clientIP.String()
-		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, evidence: evidence, country: countryFor(s.geo, clientIP), blocked: blocked || protectionBlocked, signals: signals, exemptions: exemptions}
+		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: blocked || protectionBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName}
+		if len(a.access) >= cap(a.access) {
+			evidence.discard()
+			a.dropped.Add(1)
+			return
+		}
+		event.prepareEvidence = evidence.finish()
 		select {
 		case a.access <- event:
 		default:
+			evidence.release()
 			a.dropped.Add(1)
 		}
 	}()
