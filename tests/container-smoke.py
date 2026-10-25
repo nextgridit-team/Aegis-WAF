@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
                 "command": ["-e", "require('http').createServer((req,res)=>res.end('container verified upstream')).listen(8000,'0.0.0.0')"],
                 "read_only": True, "tmpfs": ["/tmp:rw,noexec,nosuid,size=1m,mode=1777"],
                 "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
-                "healthcheck": {"disable": True},
+                "healthcheck": {"test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], "interval": "2s", "timeout": "3s", "retries": 30},
             },
         },
         "secrets": {name: {"file": str(secret_dir / name)} for name in
