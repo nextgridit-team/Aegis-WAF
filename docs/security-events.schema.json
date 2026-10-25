@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/nextgridit-team/Aegis-WAF/main/docs/security-events.schema.json",
+  "title": "Aegis security event v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp",
+    "event",
+    "action",
+    "client_ip",
+    "site_id",
+    "status",
+    "rule_triggered",
+    "matched_payload",
+    "matched_payload_source",
+    "payload_truncated",
+    "rule_ids",
+    "signature_ids",
+    "signals"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "event": {
+      "enum": [
+        "waf_block",
+        "waf_observe",
+        "waf_allow"
+      ]
+    },
+    "action": {
+      "enum": [
+        "blocked",
+        "observed",
+        "allowed"
+      ]
+    },
+    "client_ip": {
+      "type": "string"
+    },
+    "site_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "rule_triggered": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(custom|crs|signal|network|inspection|waf):"
+      },
+      "uniqueItems": true
+    },
+    "matched_payload": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2048
+    },
+    "matched_payload_source": {
+      "enum": [
+        "disabled",
+        "unavailable",
+        "redacted_request_context"
+      ]
+    },
+    "payload_truncated": {
+      "type": "boolean"
+    },
+    "rule_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "signature_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "response_source": {
+      "type": "string"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "waf_block"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "blocked"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "waf_observe"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "observed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "waf_allow"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "allowed"
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

@@ -12,7 +12,7 @@ def measure(port, requests=64000, concurrency=16):
         try:
             for _ in range(count):
                 start = time.perf_counter_ns()
-                conn.request("GET", "/healthy", headers={"Host": "container.example.com", "User-Agent": "Aegis-benchmark"})
+                conn.request("GET", "/healthy", headers={"Host": "container.example.com", "User-Agent": "Aegis-benchmark", "Accept": "text/plain"})
                 response = conn.getresponse()
                 body = response.read()
                 samples.append((time.perf_counter_ns() - start) / 1e6)
@@ -29,4 +29,4 @@ def measure(port, requests=64000, concurrency=16):
     seconds = time.perf_counter() - start
     samples = sorted(value for part in results for value in part)
     percentile = lambda fraction: samples[min(len(samples) - 1, math.ceil(len(samples) * fraction) - 1)]
-    return {"requests": len(samples), "concurrency": concurrency, "seconds": round(seconds, 3), "requests_per_second": round(len(samples) / seconds, 1), "p50_ms": round(percentile(.5), 3), "p95_ms": round(percentile(.95), 3), "p99_ms": round(percentile(.99), 3)}
+    return {"requests": len(samples), "concurrency": concurrency, "seconds": round(seconds, 3), "requests_per_second": round(len(samples) / seconds, 1), "mean_ms": round(sum(samples)/len(samples),3), "p50_ms": round(percentile(.5), 3), "p95_ms": round(percentile(.95), 3), "p99_ms": round(percentile(.99), 3)}

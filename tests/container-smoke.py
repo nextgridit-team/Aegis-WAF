@@ -198,9 +198,43 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
                 installed = count
                 time.sleep(2.5)
                 report["phases"].append({"name": f"gateway_{count}_rules", **benchmark.measure(port("app", 8080))})
+            baseline = next(policy for policy in api("app", "/api/policies") if policy["built_in"])
+            api("app", f"/api/policies/{baseline['id']}", "PUT", {"spec": baseline["spec"], "revision": baseline["revision"], "applications": [{"site_id": site_id, "source_cidrs": [], "priority": 10000}]})
+            def crs_canary(service="app"):
+                connection = http.client.HTTPConnection("127.0.0.1", port(service, 8080), timeout=5)
+                try:
+                    connection.request("GET", "/?q=%3Cscript%3Ealert(1)%3C/script%3E", headers={"Host": "container.example.com", "User-Agent": "Aegis-benchmark", "Accept": "text/plain"})
+                    response = connection.getresponse(); response.read()
+                    assert response.status == 403, "CRS baseline is not yet actively blocking the attack canary"
+                finally:
+                    connection.close()
+            for service in ("app", "app_alt"):
+                eventually(lambda service=service: crs_canary(service))
+            report["crs_policy"] = baseline["spec"]["managed_signatures"]
+            report["phases"].append({"name": "gateway_crs_baseline", **benchmark.measure(port("app", 8080))})
+            image_info = json.loads(run("docker", "image", "inspect", IMAGE).stdout)[0]
+            report["image_id"] = image_info["Id"]
+            report["source_revision"] = image_info["Config"].get("Labels", {}).get("org.opencontainers.image.revision", "local working tree")
+            import platform
+            cpu = next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")), platform.machine())
+            report["host"] = {"cpu_model": cpu, "available_cpus": len(os.sched_getaffinity(0)), "platform": platform.platform()}
+            def security_schema():
+                lines = run("docker", "logs", container("app")).stdout.splitlines()
+                events = [json.loads(line) for line in lines if line.startswith("{")]
+                blocks = [event for event in events if event.get("event") == "waf_block"]
+                assert blocks, "missing real CRS block stdout event"
+                for event in blocks:
+                    assert all(key in event for key in ("schema_version", "timestamp", "client_ip", "rule_triggered", "matched_payload", "action"))
+                    assert event["action"] == "blocked" and event["matched_payload"] is None and event["rule_triggered"]
+            eventually(security_schema)
             report["status_after_load"] = api("app", "/api/status")
             Path(os.environ["AEGIS_BENCHMARK_REPORT"]).write_text(json.dumps(report, indent=2) + "\n")
             print("PASS: latency benchmark written to " + os.environ["AEGIS_BENCHMARK_REPORT"], flush=True)
+            # Restore the fixture's original assignment before testing recovery;
+            # outage probes deliberately omit browser headers and are not load tests.
+            current = next(policy for policy in api("app", "/api/policies") if policy["id"] == baseline["id"])
+            api("app", f"/api/policies/{baseline['id']}", "PUT", {"spec": current["spec"], "revision": current["revision"], "applications": []})
+            time.sleep(2.5)
         dc("up", "--no-build", "--no-deps", "--wait", "--wait-timeout", "120", "app_cached")
         eventually(lambda: api("app_cached", "/readyz"))
         assert (cache_dir / "snapshot.bin").exists(), "Recovery snapshot was not written"
