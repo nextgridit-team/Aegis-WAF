@@ -94,6 +94,9 @@ const { execFileSync } = require("node:child_process");
       );
       req.on("error", reject);
     });
+  const tlsFingerprint=(port,host,ca)=>new Promise((resolve,reject)=>{
+    const socket=require('node:tls').connect({host:'127.0.0.1',port:Number(port),servername:host,ca,rejectUnauthorized:true},()=>{const fingerprint=socket.getPeerCertificate().fingerprint256;socket.end();resolve(fingerprint);});socket.on('error',reject);
+  });
   const eventually = async (fn) => {
     let last;
     for (let i = 0; i < 30; i++) {
@@ -274,6 +277,19 @@ const { execFileSync } = require("node:child_process");
           });
         });
       }
+      const rotationPorts=[process.env.BROWSER_HTTPS_PORT,process.env.BROWSER_ALT_HTTPS_PORT].filter(Boolean);
+      const fingerprints=await Promise.all(rotationPorts.map(port=>tlsFingerprint(port,'app.example.test',root)));
+      await nav('Certificates').click();
+      const managedRow=page.locator('#certificate-list tbody tr').filter({hasText:'Application TLS'});
+      await managedRow.getByRole('button',{name:'Details',exact:true}).click();
+      await dialog().getByRole('button',{name:'Renew now',exact:true}).click();
+      await message('Renewal queued.').waitFor();
+      for(let index=0;index<rotationPorts.length;index++){
+        // The existing certificate remains usable throughout queued reissuance.
+        assert.equal((await httpsRequest(rotationPorts[index],'app.example.test',root)).status,200);
+        await eventually(async()=>assert.notEqual(await tlsFingerprint(rotationPorts[index],'app.example.test',root),fingerprints[index]));
+      }
+      await nav('Proxy hosts').click();
       await screenshot("proxy-hosts-desktop");
     }
     // Upload and failed replacement preserve the working certificate and inputs.
@@ -311,6 +327,7 @@ const { execFileSync } = require("node:child_process");
       .locator("#certificate-list tbody tr")
       .filter({ hasText: "Manual TLS" });
     await manual.getByRole("button", { name: "Details", exact: true }).click();
+    assert.equal(await dialog().getByRole('button',{name:'Renew now',exact:true}).count(),0,'uploaded certificates must not offer ACME renewal');
     await dialog()
       .getByRole("button", { name: "Replace PEM", exact: true })
       .click();
@@ -1178,7 +1195,8 @@ const { execFileSync } = require("node:child_process");
     assert.equal(await page.locator('[data-gateway-marker]').getAttribute('transform'),'translate(58 43)');
     const flow=page.locator('[data-local-flow]');
     await flow.getByText('Aegis WAF',{exact:true}).waitFor();
-    await flow.getByRole('button',{name:'Manual TLS',exact:true}).click();
+    await flow.getByRole('button',{name:'Manual TLS',exact:true}).focus();
+    await page.keyboard.press('Enter');
     await page.waitForFunction(()=>document.querySelector('[aria-label="Live map application"]').selectedOptions[0].textContent==='Manual TLS');
     assert.ok((await flow.getByRole('link',{name:'Open Manual TLS',exact:true}).getAttribute('href')).startsWith('https://'));
     await flow.getByRole('button',{name:'All applications',exact:true}).click();
@@ -1186,12 +1204,24 @@ const { execFileSync } = require("node:child_process");
     await screenshot('gateway-country-and-local-flow');
     assert.equal(await nav("Live traffic map").count(),0,"live page should not add a sidebar item");
     await page.emulateMedia({reducedMotion:"no-preference"});
+    await flow.scrollIntoViewIfNeeded();
     assert.equal((await httpsRequest(ports[0],"manual.example.test",null,"/safe",{"User-Agent":"curl/8"})).status,200);
     assert.equal(await botRequest(),403);
     await page.locator('.live-flow').first().waitFor({timeout:10000});
     const liveLog=page.getByRole("region",{name:"Live request log",exact:true});
     await liveLog.locator('.live-row-allowed').first().waitFor();
     await liveLog.locator('.live-row-blocked').first().waitFor();
+    assert.equal(await flow.locator('.local-flow-upstream').count(),0,'upstream endpoints should not be displayed');
+    await flow.locator('.local-flow-packet[data-outcome="allowed"]').first().waitFor();
+    await flow.locator('.local-flow-packet[data-outcome="blocked"]').first().waitFor();
+    const packet=flow.locator('.local-flow-packet[data-outcome="allowed"]').first();
+    const position=await packet.evaluate(node=>{const m=node.getCTM();return {x:m.e,y:m.f};});
+    await page.waitForTimeout(150);
+    const moved=await packet.evaluate(node=>{const m=node.getCTM();return {x:m.e,y:m.f};});
+    assert.ok(Math.hypot(position.x-moved.x,position.y-moved.y)>0.1,'flow pulse should actually move');
+    await flow.screenshot({path:path.join(out,'animated-local-flow.png')});
+    await page.waitForTimeout(1900);
+    assert.equal(await flow.locator('.local-flow-packet').count(),0,'idle feed must not generate synthetic pulses');
     await eventually(async()=>{
       const events=await (await page.request.get(base+"/api/access-logs")).json();
       const local=events.find(event=>event.peer===loggedPeer&&event.location_source?.startsWith("local_"));
@@ -1208,6 +1238,7 @@ const { execFileSync } = require("node:child_process");
     await liveLog.getByText("Manual TLS",{exact:true}).first().waitFor();
     await page.emulateMedia({reducedMotion:"reduce"});
     assert.equal(await page.locator('.live-flow').count(),0,"reduced motion should clear animations");
+    assert.equal(await flow.locator('.local-flow-packet').count(),0,'reduced motion must clear local flow pulses');
     for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'live map overflows at '+width);await screenshot('live-map-'+width);}
     await page.getByRole('checkbox',{name:'Hide local traffic',exact:true}).check();
     await eventually(async()=>assert.equal(await liveLog.getByText(/Local network ·/).count(),0));

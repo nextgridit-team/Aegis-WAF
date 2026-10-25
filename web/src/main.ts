@@ -708,6 +708,15 @@ root.addEventListener("click", async (e) => {
         if (c) certificateDetails(c);
         break;
       }
+      case "renew-cert":
+        b.disabled = true;
+        await api(`/certificates/${id}/renew`, "POST", {});
+        closeEditor();
+        await refresh();
+        notice(
+          "Renewal queued. Your current certificate remains active until a replacement is ready.",
+        );
+        break;
       case "retry":
         b.disabled = true;
         await api(`/acme/jobs/${id}/retry`, "POST", {});

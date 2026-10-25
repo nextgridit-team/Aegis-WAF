@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -208,8 +209,8 @@ func TestDNSIntegration(t *testing.T) {
 	}
 	// Failed renewal keeps the working certificate and displays a retry state.
 	ca.fail.Store(true)
-	a.db.Exec(ctx, "UPDATE certificates SET not_after=now()+interval '1 second' WHERE id=$1", cert)
-	a.schedule(ctx)
+	renewal := mustID(t, c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", cert), map[string]any{}, 202))
+	c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", cert), map[string]any{}, 409)
 	a.runJobs(ctx)
 	var kept string
 	a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", cert).Scan(&kept)
@@ -221,4 +222,22 @@ func TestDNSIntegration(t *testing.T) {
 	if retries != 1 {
 		t.Fatal("renewal failure not visible")
 	}
+	ca.fail.Store(false)
+	c.call("POST", fmt.Sprintf("/api/acme/jobs/%d/retry", renewal), map[string]any{}, 202)
+	b.runJobs(ctx)
+	var replacement string
+	if e = a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", cert).Scan(&replacement); e != nil {
+		t.Fatal(e)
+	}
+	before, _ := pemLeaf(chain)
+	after, _ := pemLeaf(replacement)
+	if before == nil || after == nil {
+		t.Fatal("missing renewed certificate")
+	}
+	beforeKey, _ := x509.MarshalPKIXPublicKey(before.PublicKey)
+	afterKey, _ := x509.MarshalPKIXPublicKey(after.PublicKey)
+	if bytes.Equal(beforeKey, afterKey) {
+		t.Fatal("manual DNS renewal did not rotate certificate key")
+	}
+
 }

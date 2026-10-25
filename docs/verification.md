@@ -239,3 +239,9 @@ PostgreSQL integration/race/vet passed (89.876s), including real-MMDB Washington
 ## Shared local-traffic map filter — 2026-10-25
 
 PostgreSQL integration/race/vet passed (91.095s). Regression checks confirm external live events are selected before the tail limit, regional data excludes recorded local traffic, and the dashboard map can exclude local events while overview totals retain all requests. Invalid filter values are rejected. TypeScript build and the browser/Pebble suite passed (56 responsive checks), including local-note removal from the live view, retained Activity logs, and the shared preference on returning to Dashboard. Artifacts: `/tmp/aegis-hide-local`; final local image `1cadba19c75a`. This is a view preference and does not change classification, logging or enforcement.
+
+## Manual ACME rotation and animated host flow — 2026-10-25
+
+Full PostgreSQL integration/race/vet passed (89.899s). Manual-renewal tests cover early HTTP-01 reissuance, session CSRF, uploaded/missing certificate rejection, active-job conflicts, and preservation of current certificate material before issuance. Cloudflare DNS fixture tests force a failed early renewal, confirm the existing chain remains, retry through the other replica with the saved credential, and confirm the renewed TLS public key changes.
+
+Final browser/Pebble passed 56 responsive checks, actual certificate fingerprint replacement on both replicas without restarting, continued trusted HTTPS, absence of Renew now for uploaded certificates, direct host filtering via keyboard, host-only flow cards, moving green/red request pulses, no idle pulses and reduced-motion cleanup. Existing local map filters and regional positioning also passed. Artifacts: `/tmp/aegis-flow-renew-final`; local image `6c97119bc3b7`. Production certificates were not used for these tests.

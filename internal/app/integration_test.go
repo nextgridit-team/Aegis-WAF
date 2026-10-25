@@ -297,6 +297,26 @@ func TestIntegration(t *testing.T) {
 		}
 		var oldChain string
 		a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", acmeCert).Scan(&oldChain)
+
+		c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", certID), map[string]any{}, 409)
+		c.call("POST", "/api/certificates/999999/renew", map[string]any{}, 404)
+		savedCSRF := c.csrf
+		c.csrf = ""
+		c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", acmeCert), map[string]any{}, 403)
+		c.csrf = savedCSRF
+		forced := mustID(t, c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", acmeCert), map[string]any{}, 202))
+		c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", acmeCert), map[string]any{}, 409)
+		var stillActive string
+		a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", acmeCert).Scan(&stillActive)
+		if stillActive != oldChain {
+			t.Fatal("queueing renewal replaced the certificate before issuance")
+		}
+		b.runJob(ctx, forced, acmeCert)
+		a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", acmeCert).Scan(&stillActive)
+		if stillActive == oldChain {
+			t.Fatal("forced early renewal did not replace the certificate")
+		}
+		oldChain = stillActive
 		ca.fail.Store(true)
 		// Force renewal eligibility without changing the cached or stored certificate material.
 		if _, e := a.db.Exec(ctx, "UPDATE certificates SET not_before=now()-interval '60 days',not_after=now()+interval '1 day' WHERE id=$1", acmeCert); e != nil {

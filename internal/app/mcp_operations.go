@@ -101,6 +101,7 @@ func agentOperations() []agentOperation {
 		"POST /api/address-objects",
 		"POST /api/ai/provider/test",
 		"POST /api/certificates",
+		"POST /api/certificates/{id}/renew",
 		"POST /api/dns/credentials",
 		"POST /api/geolocation/sync",
 		"POST /api/geolocation/update",

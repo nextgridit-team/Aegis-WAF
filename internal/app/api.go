@@ -173,6 +173,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("GET /api/acme/accounts", a.wrap(true, a.listAccounts))
 	m.HandleFunc("POST /api/acme/accounts", a.wrap(true, a.registerAccount))
 	m.HandleFunc("POST /api/acme/certificates", a.wrap(true, a.issue))
+	m.HandleFunc("POST /api/certificates/{id}/renew", a.wrap(true, a.renewCertificate))
 	m.HandleFunc("GET /api/acme/jobs", a.wrap(true, a.listJobs))
 	m.HandleFunc("POST /api/acme/jobs/{id}/retry", a.wrap(true, a.retryJob))
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))

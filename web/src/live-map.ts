@@ -216,8 +216,8 @@ export function makeLiveMap(c: C) {
         view.querySelector<SVGTextElement>(
           "[data-unknown-label]",
         )!.textContent = "Unknown / private · " + unknown;
-        updateFlow(report.events, selected);
         const fresh = report.events.filter((event) => !seen.has(event.id));
+        updateFlow(report.events, selected, first ? [] : fresh);
         report.events.forEach((event) => seen.add(event.id));
         while (seen.size > 2000) seen.delete(seen.values().next().value!);
         const visible = first ? fresh.slice(-20) : fresh;
@@ -310,6 +310,7 @@ export function makeLiveMap(c: C) {
       }
     });
     dispose = () => {
+      updateFlow.dispose();
       preference.removeEventListener("change", change);
       observer.disconnect();
     };

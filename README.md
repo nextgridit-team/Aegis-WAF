@@ -19,7 +19,7 @@ _Actual application screens with isolated test traffic and example domains. Scre
 
 | Area                       | Implemented behavior                                                                                                                                                                                                                                                                            |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Certificates**           | Guided ACME issuance and renewal; Cloudflare DNS-01, including wildcards; HTTP-01; staging, production and custom ACME directories; PEM upload and replacement.                                                                                                                                 |
+| **Certificates**           | Guided ACME issuance, automatic renewal and on-demand Renew now; Cloudflare DNS-01, including wildcards; HTTP-01; staging, production and custom ACME directories; PEM upload and replacement.                                                                                                                                 |
 | **Reverse proxy**          | Exact-host routing to HTTP(S) upstreams, TLS termination, optional HTTPS redirects, WebSockets and streaming, verified upstream TLS, and configurable request/response headers.                                                                                                                 |
 | **Managed signatures**     | Coraza with bundled OWASP CRS v4.30.0. Explicitly load a version and select it in a policy. Observe/Block modes, anomaly threshold, paranoia level, body limits, rule-ID and scoped path/parameter/client exclusions.                                                                                                         |
 | **Policies**               | Reusable bot/flood controls and custom rule groups assigned to applications. Ordered source-IP/CIDR assignments support different internal and external policies.                                                                                                                               |
@@ -81,6 +81,8 @@ Replicas check configuration versions every **2 seconds**; compilation/loading c
 ### Certificates and automatic renewal
 
 ![Certificate inventory showing ACME-managed and uploaded certificates with validity and renewal status](docs/screenshots/certificates-current.png)
+
+Open an ACME certificate’s **Details → Renew now** to request a replacement immediately using its saved account and verification method. The existing certificate stays active until the new certificate and key are validated and loaded. Uploaded certificates use **Replace PEM**.
 
 ### Load a versioned signature set
 

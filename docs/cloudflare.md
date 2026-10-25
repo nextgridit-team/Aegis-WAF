@@ -20,3 +20,7 @@ The gateway needs outbound HTTPS to Cloudflare and the selected ACME CA, and DNS
 No additional worker container, Docker socket, or local persistent application storage is needed for this integration. There is no Certbot service in this deployment; the application reuses its existing ACME client and lego's DNS-provider implementation.
 
 Automated tests exercise encrypted credential APIs, a DNS-01 CA fixture with simulated Cloudflare records, wildcard issuance, replica coordination, cleanup and abandoned-record recovery, and renewal failure preservation. Browser tests cover credential management, challenge selection, and form preservation; Pebble still verifies real HTTP-01 issuance. Live Cloudflare/Let's Encrypt issuance requires the deployment owner's actual scoped token and domain and is not claimed by those fixtures.
+
+## Renew on demand
+
+Open **Certificates → Details → Renew now** on an ACME-managed certificate. Aegis queues issuance immediately, even before the normal renewal window, reusing its saved ACME account, challenge method and encrypted Cloudflare credential. You do not need to re-enter the token. The existing certificate remains in use until a valid replacement and new private key are committed and replicas refresh their TLS snapshots. An active queued/running/retry job prevents duplicate renewal jobs; use **Retry now** for a failed job. CA issuance limits still apply. Uploaded PEM certificates offer manual replacement instead.
