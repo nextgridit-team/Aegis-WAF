@@ -77,7 +77,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Verify exact runtime image before publishing
-        run: python3 tests/container-smoke.py "$IMAGE:${{ steps.image.outputs.build_tag }}"
+        run: python3 tests/ci-runtime.py "$IMAGE:${{ steps.image.outputs.build_tag }}"
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
