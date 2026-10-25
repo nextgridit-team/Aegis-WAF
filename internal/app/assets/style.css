@@ -1902,3 +1902,9 @@ input[type="checkbox"] {
 @media(max-width:600px) { .signature-filters { grid-template-columns:minmax(0,1fr); } }
 
 dialog:has([data-signature-search]) { width:min(1040px,calc(100% - 32px)); }
+
+dialog:has(.request-detail) { width:min(1080px,calc(100% - 32px)); }
+.request-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:20px 0;}
+.request-summary dt {font-size:12px;color:var(--muted);}.request-summary dd {margin:4px 0 0;overflow-wrap:anywhere;}
+.request-detail h3 {margin-top:24px;}.request-detail pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;padding:14px;background:var(--soft);border-radius:8px;}
+@media(max-width:600px) {.request-summary {grid-template-columns:minmax(0,1fr);}}

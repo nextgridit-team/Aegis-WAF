@@ -168,6 +168,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("POST /api/acme/jobs/{id}/retry", a.wrap(true, a.retryJob))
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
 	m.HandleFunc("GET /api/access-logs", a.wrap(true, a.listAccess))
+	m.HandleFunc("GET /api/access-logs/{id}", a.wrap(true, a.requestDetails))
 	ruleAPI(a, m)
 	dnsAPI(a, m)
 	f, _ := fs.Sub(assets, "assets")

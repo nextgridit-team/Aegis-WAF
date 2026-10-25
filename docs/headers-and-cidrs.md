@@ -1,6 +1,6 @@
 # Headers, trusted proxies and protection exemptions
 
-In **Proxy hosts → Add/Edit**, use **Protection options** for client identity and CIDR exemptions, and **Proxy headers** for header forwarding and custom headers. Identity/exemptions are also available in **Dashboard → Protection settings**. Settings are application-specific, stored in PostgreSQL, audited transactionally, and cached on replicas. Changes propagate through the normal configuration-version refresh without per-request database reads.
+In **Proxy hosts → Add/Edit**, use **Client identity, trusted proxies and exemptions** for client identity and CIDR exemptions, and **Proxy headers** for header forwarding and custom headers. Identity/exemptions are also available in **Dashboard → Protection settings**. Settings are application-specific, stored in PostgreSQL, audited transactionally, and cached on replicas. Changes propagate through the normal configuration-version refresh without per-request database reads.
 
 ## Forwarded identity
 
@@ -27,11 +27,11 @@ Using Cloudflare DNS for ACME is separate from using Cloudflare as a traffic pro
 
 The lists accept individual IPv4/IPv6 addresses and CIDRs, separated by newlines, whitespace or commas. Individual addresses normalize to `/32` or `/128`; network host bits are masked. IPv4-mapped IPv6 normalizes to IPv4. At most 128 entries per exemption list and 32 trusted proxy entries are allowed. All-address `/0` entries are rejected; use Off to disable a component.
 
-| List | Effect |
-| --- | --- |
-| Trusted proxy CIDRs | May provide client identity/protocol; grants no protection exemption |
-| HTTP flood exempt IPs / CIDRs | Skip client and whole-application flood budgets; consume neither |
-| Anti-bot exempt IPs / CIDRs | Skip the basic bot detector for matched clients |
+| List                          | Effect                                                               |
+| ----------------------------- | -------------------------------------------------------------------- |
+| Trusted proxy CIDRs           | May provide client identity/protocol; grants no protection exemption |
+| HTTP flood exempt IPs / CIDRs | Skip client and whole-application flood budgets; consume neither     |
+| Anti-bot exempt IPs / CIDRs   | Skip the basic bot detector for matched clients                      |
 
 Each protection exception matches the resolved client IP, not an arbitrary supplied header. Other protection components and declarative WAF rules remain active. Traffic remains visible in logs, request/status totals, map and recent requests. Access metadata records `protection_exemptions` as `http_flood` and/or `anti_bot`; exempt traffic is not itself a suspicious signal. Dashboard and Activity show the reasons even if a different component blocks that request.
 
@@ -60,3 +60,7 @@ Forwarding identity, Host, connection/framing and WebSocket handshake headers ar
 ```
 
 Protection adds `client_ip_header` (`x-forwarded-for`, `x-real-ip`, `cf-connecting-ip`), `flood_exempt_cidrs`, and `bot_exempt_cidrs`. These can also be saved through `PUT /api/protection-settings/{site_id}` with the existing rate/burst/mode settings. Authentication, CSRF and audit rules are unchanged.
+
+## F5 and other upstream proxies
+
+Trust is configured per proxy host, independently of reusable protection policies. Enter the F5's actual source addresses as seen by Aegis, then select a client-IP header that it supplies and sanitizes. For a sanitized X-Forwarded-For chain, Aegis walks right to left from the trusted connection peer and stops at the first untrusted address. Do not put visitor ranges in the proxy-trust field: trusting a proxy authorizes its identity headers and does not allowlist its visitors or bypass protections. A different application can use the same WAF policy with different trusted proxy settings.

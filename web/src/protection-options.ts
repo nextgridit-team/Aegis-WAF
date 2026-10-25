@@ -8,7 +8,7 @@ const esc = (v: unknown) =>
       ]!,
   );
 export function protectionOptions(p: Protection) {
-  return `<h3>Client identity</h3><label class="field" for="client-ip-source">Client IP header</label><select id="client-ip-source" name="client_ip_header">${[
+  return `<h3>Client identity and trusted proxies</h3><p class="muted">Configure trust per proxy host when an F5 or another reverse proxy supplies client-IP headers. Enter the addresses that connect to Aegis and choose the header the proxy sanitizes. Trust permits identity headers; it does not allowlist visitors or bypass WAF protections.</p><label class="field" for="client-ip-source">Client IP header</label><select id="client-ip-source" name="client_ip_header">${[
     ["x-forwarded-for", "X-Forwarded-For · proxy chain"],
     ["x-real-ip", "X-Real-IP · single address"],
     ["cf-connecting-ip", "CF-Connecting-IP · Cloudflare"],

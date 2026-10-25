@@ -105,7 +105,7 @@ func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, 
 		ids := map[int]bool{}
 		for _, match := range transaction.MatchedRules() {
 			id := match.Rule().ID()
-			if id >= 910000 && id < 950000 {
+			if runtime.Reportable[id] {
 				ids[id] = true
 			}
 		}

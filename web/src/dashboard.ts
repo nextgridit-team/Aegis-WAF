@@ -264,7 +264,7 @@ export function makeDashboardUI(d: Deps) {
    <section class="dashboard-panel"><div class="section-heading"><h2>Recent requests</h2><span class="muted">Latest 20 in this scope</span></div>${
      r.recent.length
        ? table(
-           ["Time", "Application", "Client", "Status", "Outcome"],
+           ["Time", "Application", "Client", "Status", "Outcome", ""],
            r.recent.map((event) => [
              esc(new Date(event.at).toLocaleTimeString()),
              esc(
@@ -284,6 +284,7 @@ export function makeDashboardUI(d: Deps) {
                (event.protection_exemptions?.length
                  ? `<small>${event.protection_exemptions.map((v) => esc(v === "http_flood" ? "HTTP flood exempt" : v === "anti_bot" ? "Anti-bot exempt" : v)).join(" · ")}</small>`
                  : ""),
+             `<button type="button" class="secondary compact" data-action="request-details" data-id="${event.id}">View details</button>`,
            ]),
            "Recent requests",
          )

@@ -19,15 +19,16 @@ import (
 )
 
 type signatureEntry struct {
-	ID       int      `json:"id"`
-	Name     string   `json:"name"`
-	Category string   `json:"category"`
-	Severity string   `json:"severity"`
-	Phase    int      `json:"phase"`
-	Paranoia int      `json:"paranoia_level"`
-	Tags     []string `json:"tags"`
-	Source   string   `json:"source"`
-	Scope    string   `json:"scope"`
+	ID         int      `json:"id"`
+	Name       string   `json:"name"`
+	HasMessage bool     `json:"has_message"`
+	Category   string   `json:"category"`
+	Severity   string   `json:"severity"`
+	Phase      int      `json:"phase"`
+	Paranoia   int      `json:"paranoia_level"`
+	Tags       []string `json:"tags"`
+	Source     string   `json:"source"`
+	Scope      string   `json:"scope"`
 }
 
 // Only static corpus metadata is retained. Raw directives, request data and WAF
@@ -83,7 +84,7 @@ func inventoryForSignatures(set signatureSet) ([]signatureEntry, error) {
 		} else if phase > 2 {
 			scope = "response"
 		}
-		entries = append(entries, signatureEntry{ID: id, Name: name, Category: signatureCategory(rule.File()), Severity: rule.Severity().String(), Phase: phase, Paranoia: paranoia, Tags: tags, Source: path.Base(rule.File()), Scope: scope})
+		entries = append(entries, signatureEntry{ID: id, Name: name, HasMessage: signatureMessage.MatchString(rule.Raw()), Category: signatureCategory(rule.File()), Severity: rule.Severity().String(), Phase: phase, Paranoia: paranoia, Tags: tags, Source: path.Base(rule.File()), Scope: scope})
 	})
 	waf, e := coraza.NewWAF(configuration)
 	if e != nil {

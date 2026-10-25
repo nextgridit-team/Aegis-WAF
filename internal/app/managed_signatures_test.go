@@ -58,6 +58,9 @@ func TestManagedRequestSignatures(t *testing.T) {
 				if blocked != wantBlock {
 					t.Fatalf("blocked=%v expected=%v status=%d result=%+v", blocked, wantBlock, status, result)
 				}
+				if !test.attack && len(result.RuleIDs) > 0 {
+					t.Fatalf("benign request reported control flow as an attack: %+v", result)
+				}
 				if test.attack && len(result.RuleIDs) == 0 {
 					t.Fatal("attack had no signature attribution")
 				}

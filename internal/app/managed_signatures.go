@@ -19,6 +19,7 @@ import (
 	crs "github.com/corazawaf/coraza-coreruleset/crs/v4"
 	"github.com/corazawaf/coraza/v3"
 	"github.com/corazawaf/coraza/v3/debuglog"
+	"github.com/corazawaf/coraza/v3/experimental"
 	"github.com/corazawaf/coraza/v3/types"
 	"github.com/jackc/pgx/v5"
 	"github.com/jcchavezs/mergefs"
@@ -43,9 +44,10 @@ type signatureSet struct {
 	Files     signatureFS `json:"files,omitempty"`
 }
 type managedSignatureRuntime struct {
-	Options managedSignatureOptions
-	Set     signatureSet
-	WAF     coraza.WAF
+	Options    managedSignatureOptions
+	Set        signatureSet
+	WAF        coraza.WAF
+	Reportable map[int]bool
 }
 type managedSignatureResult struct {
 	SetID      string `json:"set_id,omitempty"`
@@ -233,11 +235,17 @@ func compileManagedSignatures(set signatureSet, options managedSignatureOptions)
 		}
 		configuration = configuration.WithDirectives("SecRuleRemoveById " + strings.Join(ids, " "))
 	}
+	reportable := map[int]bool{}
+	configuration = experimental.WAFConfigWithRuleObserver(configuration, func(rule types.RuleMetadata) {
+		if rule.ID() >= 910000 && rule.ID() < 950000 && signatureMessage.MatchString(rule.Raw()) {
+			reportable[rule.ID()] = true
+		}
+	})
 	waf, e := coraza.NewWAF(configuration)
 	if e != nil {
 		return nil, invalid("managed signature configuration could not compile")
 	}
-	return &managedSignatureRuntime{Options: options, Set: set, WAF: waf}, nil
+	return &managedSignatureRuntime{Options: options, Set: set, WAF: waf, Reportable: reportable}, nil
 }
 func managedRuntimeKey(o managedSignatureOptions) string {
 	raw, _ := json.Marshal(o)

@@ -13,6 +13,7 @@ All endpoint paths below are relative to `/api` on the management listener. Ther
 - `GET/POST /dns/credentials`, `PUT/DELETE /dns/credentials/{id}`: encrypted Cloudflare token management; read APIs return metadata only.
 - `GET /acme/jobs`, `POST /acme/jobs/{id}/retry`: newest 100 jobs with order history; retry only accepts jobs in `retry` state.
 - `GET /audit`, `GET /access-logs`: latest 200 records.
+- `GET /access-logs/{id}`: request metadata, recorded policy/custom-rule definitions, matched managed-signature metadata and only unexpired retained evidence. See [request investigation](request-investigation.md).
 - Rule lifecycle, JSON schema, traffic settings, evidence and offline replay: see the [rules API](rules.md#management-api).
 
 For mutations, send `Content-Type: application/json`, `X-Requested-With: aegis-waf`, and the current `X-CSRF-Token` (except setup/login, which have no session yet). Errors return JSON with an `error` field. Database failures return 503 without claiming success; invalid input returns 400; conflicts return 409. A connection loss exactly at commit can leave an ambiguous result; refresh state before repeating a create operation.

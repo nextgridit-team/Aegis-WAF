@@ -1,6 +1,7 @@
 export type SignatureEntry = {
   id: number;
   name: string;
+  has_message?: boolean;
   category: string;
   severity: string;
   phase: number;

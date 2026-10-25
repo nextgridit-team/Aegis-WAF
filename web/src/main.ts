@@ -1,3 +1,4 @@
+import { makeRequestDetails } from "./request-details";
 import { makeSignatureSetsUI, managedSignatureSummary } from "./signature-sets";
 import type { Site, Certificate, Account, DNSCredential, Job, Gateway, Audit, Access, State } from "./types";
 import {esc,date,dateTime,icon,button,badge,field,check,actions,names,authority,heading,table} from "./ui";
@@ -346,7 +347,7 @@ async function render() {
       }</section><section class="section"><div class="section-heading"><h2>Application requests</h2><span class="muted">Latest 200 requests</span></div>${
         access.length
           ? table(
-              ["Time", "Site / sender", "Request", "Rule outcomes", "Duration"],
+              ["Time", "Site / sender", "Request", "Rule outcomes", "Duration", ""],
               access.map((a) => [
                 esc(dateTime(a.at)),
                 `${a.site_id}<small>${esc(a.peer)}</small>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}${managedSignatureSummary(a.managed_signatures,esc)}`,
@@ -367,6 +368,7 @@ async function render() {
                   ),
                 ].join("<br>") || "—",
                 `${a.duration_ms} ms`,
+                `<button type="button" class="secondary compact" data-action="request-details" data-id="${a.id}">View details</button>`,
               ]),
               "Application requests",
             )
@@ -482,7 +484,7 @@ function closeEditor() {
 function siteProtectionMarkup(p: Protection, policies: PolicySummary[] = []) {
   const mode = (name: string, label: string, value: string) =>
     `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
-  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small></div><details class="advanced"><summary>Protection options</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p)}</details>`;
+  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small></div><details class="advanced"><summary>Client identity, trusted proxies and exemptions</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p)}</details>`;
 }
 async function siteForm(site?: Site, certificate?: Certificate) {
  const initialPolicies = site ? [] : await api<{id:number;spec:{name:string;mode:string}}[]>("/policies");
@@ -562,6 +564,9 @@ root.addEventListener("click", async (e) => {
     if (await feedsUI.handle(action, id)) return;
     if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
+      case "request-details":
+        await requestDetails(id);
+        break;
       case "protection":
         await dashboardUI.protectionForm();
         break;
@@ -687,6 +692,7 @@ const policyPage = makePoliciesPage({
   refresh,
   notice,
 });
+const requestDetails = makeRequestDetails({api,esc,table,openEditor});
 const aiPage = makeAIPage({ api, esc, heading, notice, handleError });
 const signatureSetsUI=makeSignatureSetsUI({api,esc,heading,table,refresh,notice,openEditor,applyToPolicy: set => policyPage.applySignatureSet(set)});
 const feedsUI = makeFeedsUI({

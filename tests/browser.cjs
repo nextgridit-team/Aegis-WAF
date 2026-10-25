@@ -835,7 +835,7 @@ const { execFileSync } = require("node:child_process");
     await headerSite()
       .getByRole("button", { name: "Edit", exact: true })
       .click();
-    await dialog().getByText("Protection options", { exact: true }).click();
+    await dialog().getByText("Client identity, trusted proxies and exemptions", { exact: true }).click();
     assert.equal(
       await dialog()
         .getByLabel("Client IP header", { exact: true })
@@ -1084,6 +1084,27 @@ const { execFileSync } = require("node:child_process");
     assert.equal(await resources.locator("tbody tr").count(),2,"missing replica resource rows");
     assert.match(await resources.innerText(), /MiB|GiB/);
     await screenshot("system-performance");
+    await page.getByRole("region",{name:"Recent requests",exact:true}).getByRole("button",{name:"View details",exact:true}).first().click();
+    await dialog().getByRole("heading",{name:/Request #/}).waitFor();
+    await dialog().getByRole("heading",{name:"Retained request evidence",exact:true}).waitFor();
+    for(const width of [320,390,768,1440]){
+      await page.setViewportSize({width,height:1000});
+      assert.ok(await dialog().evaluate(el=>el.scrollWidth<=el.clientWidth+1),"request details overflow dialog");
+      await dialog().evaluate(el=>{el.scrollTop=0});
+      await screenshot("request-details-"+width);
+    }
+    await dialog().getByRole("button",{name:"Close",exact:true}).click();
+    await nav("Activity").click();
+    const logged=await (await page.request.get(base+"/api/access-logs")).json();
+    for(const outcome of ["allowed","flagged","blocked"]){
+      const entry=logged.find(event=>outcome==="blocked"?event.blocked:outcome==="flagged"?!event.blocked&&(event.signals.length>0||event.rule_results.some(r=>r.result==="matched"&&r.action==="observe")):!event.blocked&&!event.signals.length&&!event.rule_results.some(r=>r.result==="matched"&&r.action==="observe"));
+      assert.ok(entry,"missing "+outcome+" fixture request");
+      await page.locator(`button[data-action="request-details"][data-id="${entry.id}"]`).click();
+      await dialog().getByRole("heading",{name:"Request #"+entry.id,exact:true}).waitFor();
+      await dialog().getByRole("heading",{name:outcome==="blocked"?"Blocked":outcome==="flagged"?"Flagged · allowed":"Allowed",exact:true}).waitFor();
+      await dialog().getByRole("button",{name:"Close",exact:true}).click();
+    }
+
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const label of [
@@ -1188,7 +1209,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 48 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 52 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

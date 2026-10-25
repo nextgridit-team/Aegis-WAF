@@ -17,17 +17,17 @@ _Actual application screens with isolated test traffic and example domains. Scre
 
 ## What it does today
 
-| Area                       | Implemented behavior                                                                                                                                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Certificates**           | Guided ACME issuance and renewal; Cloudflare DNS-01, including wildcards; HTTP-01; staging, production and custom ACME directories; PEM upload and replacement.                                                                |
-| **Reverse proxy**          | Exact-host routing to HTTP(S) upstreams, TLS termination, optional HTTPS redirects, WebSockets and streaming, verified upstream TLS, and configurable request/response headers.                                                |
-| **Managed signatures**     | Coraza with bundled OWASP CRS v4.30.0. Explicitly load a version and select it in a policy. Observe/Block modes, anomaly threshold, paranoia level, body limits and rule-ID exclusions.                                        |
-| **Policies**               | Reusable bot/flood controls and custom rule groups assigned to applications. Ordered source-IP/CIDR assignments support different internal and external policies.                                                              |
-| **Custom rules and feeds** | Visual condition editor, JSON import/export, standalone rule activation/expiry, history, rollback and replay against retained facts. Public HTTPS JSON feeds sync every 12 hours or on demand and stage candidates for review. |
-| **Bot and flood controls** | Basic scanner/headless User-Agent signals and configurable per-client/application rate limits. Independent bot/flood CIDR exemptions. Limits are per replica.                                                                  |
-| **Visibility**             | Global/application traffic, requests per second, connections, status codes, blocking statistics, optional local country lookup, replica CPU/RAM, access logs and administrative audit events.                                  |
-| **Evidence**               | Opt-in sampled, bounded request facts with allowlists, redaction and expiry. Custom-rule replay does not send requests upstream.                                                                                               |
-| **AI connection setup**    | OpenAI-compatible endpoint, optional encrypted API key, model-list discovery and model selection. No inference or traffic submission.                                                                                          |
+| Area                       | Implemented behavior                                                                                                                                                                                                                                                                            |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Certificates**           | Guided ACME issuance and renewal; Cloudflare DNS-01, including wildcards; HTTP-01; staging, production and custom ACME directories; PEM upload and replacement.                                                                                                                                 |
+| **Reverse proxy**          | Exact-host routing to HTTP(S) upstreams, TLS termination, optional HTTPS redirects, WebSockets and streaming, verified upstream TLS, and configurable request/response headers.                                                                                                                 |
+| **Managed signatures**     | Coraza with bundled OWASP CRS v4.30.0. Explicitly load a version and select it in a policy. Observe/Block modes, anomaly threshold, paranoia level, body limits and rule-ID exclusions.                                                                                                         |
+| **Policies**               | Reusable bot/flood controls and custom rule groups assigned to applications. Ordered source-IP/CIDR assignments support different internal and external policies.                                                                                                                               |
+| **Custom rules and feeds** | Visual condition editor, JSON import/export, standalone rule activation/expiry, history, rollback and replay against retained facts. Public HTTPS JSON feeds sync every 12 hours or on demand and stage candidates for review.                                                                  |
+| **Bot and flood controls** | Basic scanner/headless User-Agent signals and configurable per-client/application rate limits. Independent bot/flood CIDR exemptions. Limits are per replica.                                                                                                                                   |
+| **Visibility**             | Global/application traffic, requests per second, connections, status codes, blocking statistics, optional local country lookup, replica CPU/RAM, access logs and administrative audit events. Click any listed request for its recorded decision, rule/signature details and retained evidence. |
+| **Evidence**               | Opt-in sampled, bounded request facts with allowlists, redaction and expiry. Custom-rule replay does not send requests upstream.                                                                                                                                                                |
+| **AI connection setup**    | OpenAI-compatible endpoint, optional encrypted API key, model-list discovery and model selection. No inference or traffic submission.                                                                                                                                                           |
 
 Sites, certificates, policies and application settings are managed through the dashboard or management API. Site changes do not require configuration-file edits or image rebuilds.
 
@@ -137,16 +137,16 @@ For reproducible deployment or rollback, pin `AEGIS_IMAGE` to a unique build tag
 
 ## Documentation
 
-| Task                                                                    | Guide                                                                                             |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Deploy, configure listeners, enable HTTPS management, scale and recover | [Deployment](docs/deployment.md)                                                                  |
-| Request certificates through Cloudflare                                 | [Cloudflare DNS-01](docs/cloudflare.md)                                                           |
-| Set up policies, groups and internal/external assignments               | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md)                   |
-| Create rules, consume feeds and replay retained facts                   | [Custom rules](docs/rules.md) · [Rule feeds](docs/rule-feeds.md)                                  |
-| Configure forwarded identity, headers and exemptions                    | [Headers and CIDRs](docs/headers-and-cidrs.md)                                                    |
-| Understand metrics, logs and evidence storage                           | [Dashboard](docs/dashboard.md) · [Logging](docs/logging.md) · [Privacy](docs/evidence-privacy.md) |
-| Configure an AI endpoint or read the proposed AI workflow               | [Provider setup](docs/ai-provider.md) · [Build-sheet review](docs/ai-use-cases-review.md)         |
-| Automate or develop                                                     | [Management API](docs/management-api.md) · [Development and tests](docs/development.md)           |
+| Task                                                                    | Guide                                                                                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy, configure listeners, enable HTTPS management, scale and recover | [Deployment](docs/deployment.md)                                                                                                                           |
+| Request certificates through Cloudflare                                 | [Cloudflare DNS-01](docs/cloudflare.md)                                                                                                                    |
+| Set up policies, groups and internal/external assignments               | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md)                                                                            |
+| Create rules, consume feeds and replay retained facts                   | [Custom rules](docs/rules.md) · [Rule feeds](docs/rule-feeds.md)                                                                                           |
+| Configure forwarded identity, headers and exemptions                    | [Headers and CIDRs](docs/headers-and-cidrs.md)                                                                                                             |
+| Understand metrics, logs and evidence storage                           | [Dashboard](docs/dashboard.md) · [Request investigation](docs/request-investigation.md) · [Logging](docs/logging.md) · [Privacy](docs/evidence-privacy.md) |
+| Configure an AI endpoint or read the proposed AI workflow               | [Provider setup](docs/ai-provider.md) · [Build-sheet review](docs/ai-use-cases-review.md)                                                                  |
+| Automate or develop                                                     | [Management API](docs/management-api.md) · [Development and tests](docs/development.md)                                                                    |
 
 ## Support and contributions
 
