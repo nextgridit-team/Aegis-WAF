@@ -160,9 +160,11 @@ func (a *App) registerAccount(w http.ResponseWriter, r *http.Request, i identity
 }
 func (a *App) issue(w http.ResponseWriter, r *http.Request, i identity) error {
 	var b struct {
-		Name      string   `json:"name"`
-		Domains   []string `json:"domains"`
-		AccountID int64    `json:"account_id"`
+		Name            string   `json:"name"`
+		Domains         []string `json:"domains"`
+		AccountID       int64    `json:"account_id"`
+		ChallengeType   string   `json:"challenge_type"`
+		DNSCredentialID *int64   `json:"dns_credential_id"`
 	}
 	if e := decode(w, r, &b); e != nil {
 		return e
@@ -170,7 +172,19 @@ func (a *App) issue(w http.ResponseWriter, r *http.Request, i identity) error {
 	if strings.TrimSpace(b.Name) == "" || len(b.Name) > 120 {
 		return invalid("name must be 1–120 characters")
 	}
-	d, e := domains(b.Domains)
+	if b.ChallengeType == "" {
+		b.ChallengeType = "http-01"
+	}
+	if b.ChallengeType != "http-01" && b.ChallengeType != "dns-01" {
+		return invalid("challenge_type must be http-01 or dns-01")
+	}
+	if b.ChallengeType == "dns-01" && b.DNSCredentialID == nil {
+		return invalid("select a Cloudflare DNS credential")
+	}
+	if b.ChallengeType == "http-01" && b.DNSCredentialID != nil {
+		return invalid("DNS credentials require DNS-01")
+	}
+	d, e := certificateDomains(b.Domains, b.ChallengeType)
 	if e != nil {
 		return invalid(e.Error())
 	}
@@ -183,7 +197,16 @@ func (a *App) issue(w http.ResponseWriter, r *http.Request, i identity) error {
 		if !exists {
 			return invalid("ACME account not found")
 		}
-		if e := tx.QueryRow(r.Context(), "INSERT INTO certificates(name,origin,domains,account_id) VALUES($1,'acme',$2,$3) RETURNING id", b.Name, d, b.AccountID).Scan(&id); e != nil {
+		if b.DNSCredentialID != nil {
+			var found bool
+			if e := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM dns_credentials WHERE id=$1)", *b.DNSCredentialID).Scan(&found); e != nil {
+				return e
+			}
+			if !found {
+				return invalid("DNS credential not found")
+			}
+		}
+		if e := tx.QueryRow(r.Context(), "INSERT INTO certificates(name,origin,domains,account_id,challenge_type,dns_credential_id) VALUES($1,'acme',$2,$3,$4,$5) RETURNING id", b.Name, d, b.AccountID, b.ChallengeType, b.DNSCredentialID).Scan(&id); e != nil {
 			return e
 		}
 		if _, e := tx.Exec(r.Context(), "INSERT INTO jobs(certificate_id) VALUES($1)", id); e != nil {
@@ -242,7 +265,7 @@ func (p http01Provider) CleanUp(ctx context.Context, job int64) error {
 func acmeFailure(stage string, e error) string {
 	var ae *acme.Error
 	if errors.As(e, &ae) {
-		return fmt.Sprintf("%s failed (ACME HTTP %d); check DNS, port 80 reachability and CA policy", stage, ae.StatusCode)
+		return fmt.Sprintf("%s failed (ACME HTTP %d); check the selected challenge method, DNS permissions/reachability and CA policy", stage, ae.StatusCode)
 	}
 	if errors.Is(e, context.DeadlineExceeded) {
 		return stage + " timed out; will retry"
@@ -270,6 +293,7 @@ func (a *App) schedule(ctx context.Context) {
 	defer cancel()
 	_, _ = a.db.Exec(c, `INSERT INTO jobs(certificate_id) SELECT id FROM certificates WHERE origin='acme' AND (not_after IS NULL OR not_after<now()+LEAST(interval '30 days',(not_after-not_before)/3)) ON CONFLICT DO NOTHING`)
 	_, _ = a.db.Exec(c, "DELETE FROM sessions WHERE expires_at<now(); DELETE FROM login_limits WHERE expires_at<now(); DELETE FROM acme_challenges WHERE expires_at<now()")
+	_ = a.cleanupDNSRecords(c, 0, true)
 }
 func (a *App) runJobs(ctx context.Context) {
 	c, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -349,7 +373,10 @@ func (a *App) runJob(parent context.Context, job, cert int64) {
 	if e != nil {
 		return
 	}
-	e = a.obtain(ctx, job, cert, owner)
+	e = a.cleanupDNSRecords(ctx, job, false)
+	if e == nil {
+		e = a.obtain(ctx, job, cert, owner)
+	}
 	if lost.Load() {
 		return
 	}
@@ -378,9 +405,9 @@ func (a *App) runJob(parent context.Context, job, cert int64) {
 }
 func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 	var hosts []string
-	var directory, kid, keyID string
+	var directory, kid, keyID, challengeType string
 	var encrypted []byte
-	if e := a.db.QueryRow(ctx, "SELECT c.domains,a.directory,a.account_url,a.key_cipher,a.key_id FROM certificates c JOIN acme_accounts a ON a.id=c.account_id WHERE c.id=$1", cert).Scan(&hosts, &directory, &kid, &encrypted, &keyID); e != nil {
+	if e := a.db.QueryRow(ctx, "SELECT c.domains,a.directory,a.account_url,a.key_cipher,a.key_id,c.challenge_type FROM certificates c JOIN acme_accounts a ON a.id=c.account_id WHERE c.id=$1", cert).Scan(&hosts, &directory, &kid, &encrypted, &keyID, &challengeType); e != nil {
 		return e
 	}
 	if keyID != a.cfg.KeyID {
@@ -411,7 +438,19 @@ func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 			_, _ = a.db.Exec(c, "UPDATE acme_orders SET status='failed',error='Issuance interrupted or failed; see job status' WHERE id=$1", orderID)
 		}
 	}()
-	provider := http01Provider{a}
+	var provider ChallengeProvider = http01Provider{a}
+	if challengeType == "dns-01" {
+		p, e := a.cloudflareForCertificate(ctx, cert, job)
+		if e != nil {
+			return e
+		}
+		provider = p
+		defer func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_ = p.CleanUp(cleanup, job)
+		}()
+	}
 	for _, authURL := range order.AuthzURLs {
 		auth, e := client.GetAuthorization(ctx, authURL)
 		if e != nil {
@@ -420,18 +459,18 @@ func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 		if auth.Status == acme.StatusValid {
 			continue
 		}
-		if auth.Wildcard {
+		if auth.Wildcard && challengeType != "dns-01" {
 			return invalid("HTTP-01 cannot validate wildcard domains")
 		}
 		var ch *acme.Challenge
 		for _, v := range auth.Challenges {
-			if v.Type == "http-01" {
+			if v.Type == challengeType {
 				ch = v
 				break
 			}
 		}
 		if ch == nil {
-			return invalid("CA did not offer HTTP-01")
+			return invalid("CA did not offer the selected challenge method")
 		}
 		response, e := client.HTTP01ChallengeResponse(ch.Token)
 		if e != nil {
@@ -439,6 +478,18 @@ func (a *App) obtain(ctx context.Context, job, cert int64, owner string) error {
 		}
 		if e = provider.Present(ctx, auth.Identifier.Value, ch.Token, response, job); e != nil {
 			return e
+		}
+		if challengeType == "dns-01" {
+			propagation, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			if a.dnsWait != nil {
+				e = a.dnsWait(propagation, auth.Identifier.Value, response)
+			} else {
+				e = waitDNSRecord(propagation, auth.Identifier.Value, response)
+			}
+			cancel()
+			if e != nil {
+				return invalid(e.Error())
+			}
 		}
 		if _, e = client.Accept(ctx, ch); e != nil {
 			return e

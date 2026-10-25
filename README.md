@@ -19,11 +19,11 @@ Manage all sites, certificates, and ACME accounts through the dashboard or manag
 
 ### Protect an application
 
-1. Open **Certificates → Request certificate**. If needed, the guided flow creates an ACME account after you review and accept the authority’s terms. Enter your domains and confirm DNS/port-80 prerequisites. **Upload PEM** supports an existing certificate and private key.
+1. Open **Certificates → Request certificate**. If needed, the guided flow creates an ACME account after you review and accept the authority’s terms. Enter your domains and select HTTP-01 or Cloudflare DNS-01 verification. **Upload PEM** supports an existing certificate and private key.
 2. Issuance progress updates automatically. When a certificate is valid, choose **Connect site** to open a proxy-host form with its domains and certificate already selected. Enter the application’s HTTP(S) upstream URL and save.
 3. Manage routing in **Proxy hosts**. Choose HTTP-to-HTTPS redirection, Host-header handling, and whether the route is enabled. Allow up to **2 seconds** for each replica to load committed changes. HTTP-only proxy hosts are also supported.
 
-The certificate inventory shows validity, expiration, renewal mode, and site assignments. **Certificate authorities** manages ACME accounts. Status polling runs every four seconds while the page is visible and pauses during editing so entered values and focus are preserved.
+Use the **Dark mode / Light mode** control to switch themes. The initial theme follows your system and a manual choice is saved in your browser. The certificate inventory shows validity, expiration, renewal mode, and site assignments. **Certificate authorities** manages ACME accounts. Status polling runs every four seconds while the page is visible and pauses during editing so entered values and focus are preserved.
 
 ![Aegis WAF certificate dashboard with local test certificates](docs/screenshots/certificates.png)
 
@@ -37,7 +37,7 @@ Unknown hosts and mismatched TLS SNI/Host requests receive HTTP 421. Unknown or 
 
 Register an account using the staging, production, or custom **HTTPS ACME directory URL**. Load and review the CA terms and explicitly accept them. The application stores the account key encrypted and records acceptance. Start with Let's Encrypt staging to test reachability, then use a production account for browser-trusted certificates. Private CAs must be trusted by the application's system CA bundle; mount a suitable read-only CA bundle and set `SSL_CERT_FILE` if needed.
 
-Request certificates for administrator-provided exact DNS hostnames. Public port **80** must reach the HTTP listener on every replica; DNS A/AAAA records must resolve correctly. Challenges bypass site routing and HTTPS redirects, including before any site exists, and are served from PostgreSQL by all replicas. HTTP-01 cannot issue wildcard certificates. A `ChallengeProvider` interface leaves room for DNS-01 later; no DNS provider is included.
+Choose **HTTP-01** or **DNS-01 · Cloudflare** when requesting a certificate. For HTTP-01, public port **80** must reach the HTTP listener on every replica and DNS A/AAAA records must resolve correctly. Challenges bypass site routing and HTTPS redirects, including before any site exists, and are served from PostgreSQL by all replicas. HTTP-01 cannot issue wildcard certificates. Cloudflare DNS-01 supports exact names and wildcards without inbound port 80. See [Cloudflare DNS setup](docs/cloudflare.md). DNS-provider credentials and challenge record IDs are persisted in PostgreSQL.
 
 Workers poll every **5 seconds**. Renewals begin when remaining validity is less than **30 days or one-third of the certificate lifetime**, whichever is shorter. Jobs retain attempts, next-run time, sanitized errors, and order URLs/status. Failures retry with exponential backoff from 1 minute to 24 hours, indefinitely. **Retry now** advances a failed job. Five-minute execution limits bound stuck orders. A crashed worker's running job is eligible for another worker once its database advisory lock is released. Each attempt starts a fresh ACME order; interrupted orders remain in history. A valid active certificate is retained during failures.
 
@@ -97,7 +97,8 @@ All authenticated paths live under `/api` on the management listener. There are 
 - `GET /certificates`: metadata, validity, and assignments. `POST /certificates`, `PUT /certificates/{id}`: `name`, `chain_pem`, `private_key_pem`. PUT replaces an uploaded certificate only. `DELETE /certificates/{id}` requires no assignments or active jobs.
 - `GET /acme/directory?url=staging|production|<encoded HTTPS URL>`: discover CA terms.
 - `GET /acme/accounts`, `POST /acme/accounts`: registration fields `directory` (`staging`, `production`, or HTTPS URL), `email`, `accept_terms: true`.
-- `POST /acme/certificates`: `name`, `domains`, `account_id`; returns 202 after queuing issuance. Attach it to sites after issuance succeeds.
+- `POST /acme/certificates`: `name`, `domains`, `account_id`, optional `challenge_type` (`http-01` by default or `dns-01`), and `dns_credential_id` for DNS-01; returns 202 after queuing issuance. Attach it to sites after issuance succeeds.
+- `GET/POST /dns/credentials`, `PUT/DELETE /dns/credentials/{id}`: encrypted Cloudflare token management; read APIs return metadata only.
 - `GET /acme/jobs`, `POST /acme/jobs/{id}/retry`: newest 100 jobs with order history; retry only accepts jobs in `retry` state.
 - `GET /audit`, `GET /access-logs`: latest 200 records.
 - Rule lifecycle, JSON schema, traffic settings, evidence and offline replay: see the [rules API](docs/rules.md#management-api).

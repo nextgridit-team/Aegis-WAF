@@ -1,3 +1,4 @@
+import { themeControl, toggleTheme } from "./theme";
 import { makePolicyUI } from "./policies";
 export {};
 type Site = {
@@ -11,6 +12,9 @@ type Site = {
   enabled: boolean;
 };
 type Certificate = {
+  challenge_type?: string;
+  dns_credential_id?: number;
+  pending_dns_cleanup?: boolean;
   id: number;
   name: string;
   origin: string;
@@ -21,6 +25,7 @@ type Certificate = {
   validity: string;
   assigned_sites: { id: number; name: string }[];
 };
+type DNSCredential = { id: number; name: string; provider: string };
 type Account = {
   id: number;
   directory: string;
@@ -66,9 +71,11 @@ type State = {
   accounts: Account[];
   jobs: Job[];
   gateway: Gateway;
+  dns: DNSCredential[];
 };
 const root = document.querySelector<HTMLDivElement>("#app")!;
 let state: State = {
+  dns: [],
   sites: [],
   certs: [],
   accounts: [],
@@ -193,14 +200,15 @@ async function api<T>(
   return data as T;
 }
 async function fetchState(): Promise<State> {
-  const [sites, certs, accounts, jobs, gateway] = await Promise.all([
+  const [sites, certs, accounts, jobs, gateway, dns] = await Promise.all([
     api<Site[]>("/sites"),
     api<Certificate[]>("/certificates"),
     api<Account[]>("/acme/accounts"),
     api<Job[]>("/acme/jobs"),
     api<Gateway>("/status"),
+    api<DNSCredential[]>("/dns/credentials"),
   ]);
-  return { sites, certs, accounts, jobs, gateway };
+  return { sites, certs, accounts, jobs, gateway, dns };
 }
 function notice(message: string, error = false) {
   const area =
@@ -278,7 +286,7 @@ function shell() {
     ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div id="connection" class="connection"><span></span>Gateway connected</div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -394,7 +402,19 @@ async function render() {
       (!state.accounts.length
         ? `<section class="empty-state"><div class="empty-icon">${icon("key")}</div><h2>Choose your certificate authority</h2><p>Connect to Let’s Encrypt or a custom ACME server.<br class="desktop-only"> You’ll review its terms before creating an account.</p>${button("new-account", "Set up ACME")}</section>`
         : `<div class="authority-list">${state.accounts.map((a) => `<article class="authority-card"><span class="resource-icon">${icon("key")}</span><div><h2>${esc(authority(a))}</h2><p>${esc(a.email)}</p><span class="domain muted">${esc(a.directory)}</span><small>Terms accepted ${esc(date(a.tos_accepted_at))}</small></div>${badge(a.directory.includes("staging") ? "Test certificates" : "Registered", a.directory.includes("staging") ? "warning" : "success")}</article>`).join("")}</div>`) +
-      `<div class="info-panel"><h3>Start with staging</h3><p>Use Let’s Encrypt staging to check DNS and HTTP-01 reachability. Switch to production for certificates trusted by browsers.</p></div>`;
+      `<div class="info-panel"><h3>Start with staging</h3><p>Use Let’s Encrypt staging to check DNS and HTTP-01 reachability. Switch to production for certificates trusted by browsers.</p></div><section class="section"><div class="section-heading"><div><h2>DNS providers</h2><p>Cloudflare DNS-01 verifies domains without inbound port 80.</p></div>${button("new-dns", "Connect Cloudflare", "secondary")}</div>${
+        state.dns.length
+          ? table(
+              ["Name", "Provider", ""],
+              state.dns.map((d) => [
+                esc(d.name),
+                "Cloudflare",
+                `<div class="row-actions">${button("edit-dns", "Edit", "secondary compact", d.id)}${button("delete-dns", "Delete", "danger compact", d.id)}</div>`,
+              ]),
+              "DNS providers",
+            )
+          : '<div class="simple-empty">Connect a scoped Cloudflare API token, then select DNS-01 when requesting a certificate.</div>'
+      }</section>`;
   if (page === "activity") {
     view.innerHTML =
       heading(
@@ -603,6 +623,48 @@ function uploadForm(c?: Certificate) {
     );
   });
 }
+function dnsCredentialForm(credential?: DNSCredential) {
+  const issue = document.getElementById("issue-form") as HTMLFormElement | null;
+  const issueDraft = issue ? new FormData(issue) : null;
+  openEditor(
+    credential ? "Edit Cloudflare credential" : "Connect Cloudflare",
+    `<p class="form-intro">Create an API token in Cloudflare with Zone → Zone → Read and Zone → DNS → Edit, scoped only to the zones you want Aegis to manage.</p><form id="dns-form">${field("name", "Credential name", credential?.name || "", "text", 'required maxlength="120" placeholder="Cloudflare production"')}${field("api_token", credential ? "New API token (leave blank to keep)" : "Cloudflare API token", "", "password", `autocomplete="new-password" ${credential ? "" : "required"}`)}<small>Tokens are encrypted in PostgreSQL and never returned by read APIs. Do not use your global API key.</small>${actions("Save Cloudflare credential")}</form>`,
+  );
+  formHandler("dns-form", async (f) => {
+    const saved = await api<{ id: number }>(
+      "/dns/credentials" + (credential ? "/" + credential.id : ""),
+      credential ? "PUT" : "POST",
+      { name: f.get("name"), api_token: f.get("api_token") },
+    );
+    closeEditor();
+    state = await fetchState();
+    if (issueDraft) {
+      issueForm(Number(issueDraft.get("account_id")));
+      const form = document.getElementById("issue-form") as HTMLFormElement;
+      for (const key of ["domains", "name"]) {
+        (form.elements.namedItem(key) as HTMLInputElement).value = String(
+          issueDraft.get(key) || "",
+        );
+      }
+      const method = form.elements.namedItem(
+        "challenge_type",
+      ) as HTMLSelectElement;
+      method.value = "dns-01";
+      method.dispatchEvent(new Event("change"));
+      (
+        form.elements.namedItem("dns_credential_id") as HTMLSelectElement
+      ).value = String(saved.id);
+      notice(
+        "Cloudflare connected. Your certificate request has been preserved.",
+      );
+    } else {
+      await refresh();
+      notice(
+        "Cloudflare credential saved. Select DNS-01 when requesting a certificate.",
+      );
+    }
+  });
+}
 function accountForm(continueToIssue = false) {
   reviewedDirectory = "";
   openEditor(
@@ -743,15 +805,32 @@ function issueForm(accountID?: number) {
     state.accounts.find((a) => a.id === accountID) || state.accounts[0];
   openEditor(
     "Request a certificate",
-    `<p class="form-intro">Tell Aegis which domains to secure. Your certificate will renew automatically after issuance.</p><form id="issue-form"><label class="field" for="issue-account">Certificate authority</label><select id="issue-account" name="account_id">${state.accounts.map((a) => `<option value="${a.id}" ${a.id === account.id ? "selected" : ""}>${esc(authority(a))} · ${esc(a.email)}</option>`).join("")}</select>${field("domains", "Domains", "", "text", 'required placeholder="app.example.com, www.example.com"')}<small>Use exact domain names. HTTP-01 does not support wildcards.</small>${field("name", "Certificate name (optional)", "", "text", 'maxlength="120" placeholder="Uses your first domain"')}<div class="info-panel compact-info"><h3>Before you request</h3><p>Point each domain’s DNS to this gateway and forward public port 80 to its HTTP listener. An existing proxy host isn’t required.</p>${check("dns_ready", "My DNS and port 80 forwarding are ready.", false, "required")}</div>${actions("Request certificate")}</form>`,
+    `<p class="form-intro">Tell Aegis which domains to secure. Your certificate will renew automatically after issuance.</p><form id="issue-form"><label class="field" for="issue-account">Certificate authority</label><select id="issue-account" name="account_id">${state.accounts.map((a) => `<option value="${a.id}" ${a.id === account.id ? "selected" : ""}>${esc(authority(a))} · ${esc(a.email)}</option>`).join("")}</select>${field("domains", "Domains", "", "text", 'required placeholder="app.example.com, www.example.com"')}<small>Separate hostnames with commas. Wildcards require DNS-01.</small><label class="field" for="challenge-type">Domain verification</label><select id="challenge-type" name="challenge_type"><option value="http-01">HTTP-01 · public port 80</option><option value="dns-01">DNS-01 · Cloudflare</option></select><div id="dns-verification" hidden><label class="field" for="dns-credential">Cloudflare credential</label><select id="dns-credential" name="dns_credential_id">${state.dns.map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join("")}</select>${button("new-dns", "Connect Cloudflare", "secondary compact")}<small>Uses a scoped API token to add and remove challenge TXT records. No inbound port 80 is needed.</small></div>${field("name", "Certificate name (optional)", "", "text", 'maxlength="120" placeholder="Uses your first domain"')}<div id="http-verification" class="info-panel compact-info"><h3>Before you request</h3><p>Point each domain’s DNS to this gateway and forward public port 80 to its HTTP listener. An existing proxy host isn’t required.</p>${check("dns_ready", "My DNS and port 80 forwarding are ready.", false, "required")}</div>${actions("Request certificate")}</form>`,
     2,
   );
+  const verification = document.getElementById(
+    "challenge-type",
+  ) as HTMLSelectElement;
+  verification.addEventListener("change", () => {
+    const dns = verification.value === "dns-01";
+    document.getElementById("dns-verification")!.hidden = !dns;
+    document.getElementById("http-verification")!.hidden = dns;
+    const ready = document.querySelector<HTMLInputElement>("[name=dns_ready]")!;
+    ready.required = !dns;
+    ready.disabled = dns;
+    (document.getElementById("dns-credential") as HTMLSelectElement).required =
+      dns;
+  });
   formHandler("issue-form", async (f) => {
     const hosts = names(f.get("domains"));
     await api("/acme/certificates", "POST", {
       name: String(f.get("name") || "").trim() || hosts[0],
       domains: hosts,
       account_id: Number(f.get("account_id")),
+      challenge_type: f.get("challenge_type"),
+      ...(f.get("challenge_type") === "dns-01"
+        ? { dns_credential_id: Number(f.get("dns_credential_id")) }
+        : {}),
     });
     closeEditor();
     if (page !== "certificates") history.pushState(null, "", "#certificates");
@@ -765,7 +844,7 @@ function certificateDetails(c: Certificate) {
   const job = newestJob(c.id);
   openEditor(
     c.name,
-    `<div class="detail-status">${certStatus(c)}${badge(c.origin === "acme" ? "Automatic renewal" : "Uploaded PEM")}</div><dl class="details"><dt>Covered domains</dt><dd class="domain">${c.domains.map(esc).join("<br>")}</dd><dt>Issuer</dt><dd>${esc(c.issuer || "Waiting for issuance")}</dd><dt>Valid from</dt><dd>${esc(date(c.not_before))}</dd><dt>Expires</dt><dd>${esc(date(c.not_after))}</dd><dt>Connected sites</dt><dd>${c.assigned_sites.map((s) => esc(s.name)).join(", ") || "Not connected yet"}</dd></dl>${job ? `<details class="advanced"><summary>ACME details</summary><p>Attempt ${job.attempts} · ${esc(job.status)}</p>${job.error ? `<p class="error-text">${esc(job.error)}</p>` : ""}${job.orders.map((o) => `<small class="domain">${esc(o.status)} · ${esc(o.url)}</small>`).join("")}</details>` : ""}<div class="form-actions split-actions">${button("delete-cert", "Delete certificate", "danger", c.id)}<div>${c.origin === "upload" ? button("replace", "Replace PEM", "secondary", c.id) : ""}${c.validity === "valid" ? button("connect", `${icon("arrow")}Connect site`, "primary", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry now", "primary", job.id) : ""}</div></div>`,
+    `<div class="detail-status">${certStatus(c)}${badge(c.origin === "acme" ? "Automatic renewal" : "Uploaded PEM")}</div><dl class="details"><dt>Covered domains</dt><dd class="domain">${c.domains.map(esc).join("<br>")}</dd><dt>Issuer</dt><dd>${esc(c.issuer || "Waiting for issuance")}</dd><dt>Valid from</dt><dd>${esc(date(c.not_before))}</dd><dt>Expires</dt><dd>${esc(date(c.not_after))}</dd>${c.origin === "acme" ? `<dt>Verification</dt><dd>${c.challenge_type === "dns-01" ? "DNS-01 · Cloudflare" : "HTTP-01"}</dd>` : ""}<dt>Connected sites</dt><dd>${c.assigned_sites.map((s) => esc(s.name)).join(", ") || "Not connected yet"}</dd></dl>${c.pending_dns_cleanup && job?.status === "succeeded" ? `<div class="info-panel"><p>Challenge TXT cleanup is pending and will retry automatically. Check Cloudflare token permissions if it persists.</p></div>` : ""}${job ? `<details class="advanced"><summary>ACME details</summary><p>Attempt ${job.attempts} · ${esc(job.status)}</p>${job.error ? `<p class="error-text">${esc(job.error)}</p>` : ""}${job.orders.map((o) => `<small class="domain">${esc(o.status)} · ${esc(o.url)}</small>`).join("")}</details>` : ""}<div class="form-actions split-actions">${button("delete-cert", "Delete certificate", "danger", c.id)}<div>${c.origin === "upload" ? button("replace", "Replace PEM", "secondary", c.id) : ""}${c.validity === "valid" ? button("connect", `${icon("arrow")}Connect site`, "primary", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry now", "primary", job.id) : ""}</div></div>`,
   );
 }
 root.addEventListener("click", async (e) => {
@@ -778,6 +857,22 @@ root.addEventListener("click", async (e) => {
   try {
     if (await policyUI.handleAction(action, id, b.dataset.id)) return;
     switch (action) {
+      case "toggle-theme":
+        toggleTheme();
+        break;
+      case "new-dns":
+        dnsCredentialForm();
+        break;
+      case "edit-dns":
+        dnsCredentialForm(state.dns.find((d) => d.id === id));
+        break;
+      case "delete-dns":
+        if (confirm("Delete this Cloudflare credential?")) {
+          await api(`/dns/credentials/${id}`, "DELETE");
+          await refresh();
+          notice("Cloudflare credential deleted.");
+        }
+        break;
       case "cancel":
         closeEditor();
         break;
@@ -892,9 +987,10 @@ async function start() {
     document.title = setup.setup_required
       ? "Set up your gateway · Aegis WAF"
       : "Sign in · Aegis WAF";
-    root.innerHTML = `<div class="auth-shell"><aside class="auth-story"><a href="#certificates" class="brand">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div><div class="eyebrow">YOUR APPLICATIONS. YOUR EDGE.</div><h2>A secure home for<br>every application.</h2><p>Manage your certificates.<br>Connect your domains.<br>Keep your infrastructure yours.</p></div><small>Self-hosted · Certificate management & reverse proxy</small></aside><main class="auth-main" id="content"><div class="auth-card"><span class="auth-symbol">${icon("shield")}</span><h1>${setup.setup_required ? "Set up your gateway" : "Welcome back"}</h1><p class="muted">${setup.setup_required ? "Create the administrator account for your Aegis workspace." : "Sign in to manage certificates and proxy hosts."}</p><div id="message" aria-live="polite"></div><form id="auth-form">${setup.setup_required ? field("secret", "Bootstrap secret", "", "password", 'required autocomplete="off"') : ""}${field("username", "Username", "", "text", 'required minlength="3" maxlength="64" autocomplete="username"')}${field("password", "Password", "", "password", `required ${setup.setup_required ? 'minlength="14" maxlength="72" autocomplete="new-password"' : 'autocomplete="current-password"'}`)}${setup.setup_required ? "<small>Use a unique password of 14–72 bytes. Your bootstrap secret comes from deployment setup.</small>" : ""}<button class="primary auth-submit" type="submit" data-label="${setup.setup_required ? "Create administrator" : "Sign in"}">${setup.setup_required ? "Create administrator" : "Sign in"}${icon("arrow")}</button></form><div class="auth-footnote">${icon("key")}Your workspace. Your infrastructure.</div></div></main></div>`;
+    root.innerHTML = `<div class="auth-shell"><aside class="auth-story"><a href="#certificates" class="brand">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div><div class="eyebrow">YOUR APPLICATIONS. YOUR EDGE.</div><h2>A secure home for<br>every application.</h2><p>Manage your certificates.<br>Connect your domains.<br>Keep your infrastructure yours.</p></div><small>Self-hosted · Certificate management & reverse proxy</small></aside><main class="auth-main" id="content"><div class="auth-theme">${themeControl()}</div><div class="auth-card"><span class="auth-symbol">${icon("shield")}</span><h1>${setup.setup_required ? "Set up your gateway" : "Welcome back"}</h1><p class="muted">${setup.setup_required ? "Create the administrator account for your Aegis workspace." : "Sign in to manage certificates and proxy hosts."}</p><div id="message" aria-live="polite"></div><form id="auth-form">${setup.setup_required ? field("secret", "Bootstrap secret", "", "text", 'required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"') : ""}${field("username", "Username", "", "text", 'required minlength="3" maxlength="64" autocomplete="username"')}${field("password", "Password", "", "password", `required ${setup.setup_required ? 'minlength="14" maxlength="72" autocomplete="new-password"' : 'autocomplete="current-password"'}`)}${setup.setup_required ? "<small>Use a unique password of 14–72 bytes. Your bootstrap secret comes from deployment setup.</small>" : ""}<button class="primary auth-submit" type="submit" data-label="${setup.setup_required ? "Create administrator" : "Sign in"}">${setup.setup_required ? "Create administrator" : "Sign in"}${icon("arrow")}</button></form><div class="auth-footnote">${icon("key")}Your workspace. Your infrastructure.</div></div></main></div>`;
     formHandler("auth-form", async (f) => {
       if (setup.setup_required) {
+        f.set("secret", String(f.get("secret") || "").trim());
         await api("/setup", "POST", Object.fromEntries(f));
         await start();
         notice("Administrator created. Sign in to get started.");

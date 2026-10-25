@@ -110,6 +110,13 @@ func (a *App) deleteCertificate(w http.ResponseWriter, r *http.Request, i identi
 		if used {
 			return apiError{409, "detach this certificate from its sites first"}
 		}
+		var pendingDNS bool
+		if e := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM dns_challenges d JOIN jobs j ON j.id=d.job_id WHERE j.certificate_id=$1)", id).Scan(&pendingDNS); e != nil {
+			return e
+		}
+		if pendingDNS {
+			return apiError{409, "DNS challenge cleanup is pending; check the Cloudflare credential"}
+		}
 		var active bool
 		if e := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM jobs WHERE certificate_id=$1 AND status IN ('queued','retry','running'))", id).Scan(&active); e != nil {
 			return e

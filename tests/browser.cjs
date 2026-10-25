@@ -107,9 +107,30 @@ const { execFileSync } = require("node:child_process");
     await page.goto(base);
     await page.getByRole("heading", { name: "Set up your gateway" }).waitFor();
     await screenshot("setup-desktop");
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.waitForFunction(
+      () => document.documentElement.dataset.theme === "dark",
+    );
+    await screenshot("setup-dark");
+    await page
+      .getByRole("button", { name: "Switch color theme", exact: true })
+      .click();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.dataset.theme),
+      "light",
+    );
+    await page.reload();
+    await page
+      .getByRole("heading", { name: "Set up your gateway", exact: true })
+      .waitFor();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.dataset.theme),
+      "light",
+    );
+
     await page
       .getByLabel("Bootstrap secret", { exact: true })
-      .fill(state.secret);
+      .fill("  " + state.secret + "  ");
     await page.getByLabel("Username", { exact: true }).fill("browser-admin");
     await page.getByLabel("Password", { exact: true }).fill(state.password);
     await page
@@ -322,6 +343,102 @@ const { execFileSync } = require("node:child_process");
       true,
     );
     // Configure opt-in evidence, draft a rule, replay it, then enforce on both replicas.
+    // Cloudflare credentials are managed in the browser; never returned by reads.
+    await nav("Certificate authorities").click();
+    await page
+      .getByRole("heading", { name: "Certificate authorities", exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "Connect Cloudflare", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Credential name", { exact: true })
+      .fill("Cloudflare browser test");
+    await dialog()
+      .getByLabel("Cloudflare API token", { exact: true })
+      .fill("invalid");
+    await dialog()
+      .getByRole("button", { name: "Save Cloudflare credential", exact: true })
+      .click();
+    await dialog().getByRole("alert").waitFor();
+    const mockToken = "browser_test_" + "c".repeat(32);
+    await dialog()
+      .getByLabel("Cloudflare API token", { exact: true })
+      .fill(mockToken);
+    await dialog()
+      .getByRole("button", { name: "Save Cloudflare credential", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    const dnsMetadata = await (
+      await page.request.get(base + "/api/dns/credentials")
+    ).text();
+    assert.ok(!dnsMetadata.includes(mockToken));
+    await nav("Certificates").click();
+    await page
+      .getByRole("button", { name: "Request certificate", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Domain verification", { exact: true })
+      .selectOption("dns-01");
+    await dialog()
+      .getByLabel("Cloudflare credential", { exact: true })
+      .selectOption({ label: "Cloudflare browser test" });
+    assert.equal(await dialog().locator("[name=dns_ready]").isEnabled(), false);
+    await dialog()
+      .getByLabel("Domains", { exact: true })
+      .fill("*.example.test");
+    await screenshot("cloudflare-dns-form");
+    await dialog()
+      .getByRole("button", { name: "Connect Cloudflare", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Credential name", { exact: true })
+      .fill("Cloudflare inline test");
+    await dialog()
+      .getByLabel("Cloudflare API token", { exact: true })
+      .fill(mockToken);
+    await dialog()
+      .getByRole("button", { name: "Save Cloudflare credential", exact: true })
+      .click();
+    await dialog()
+      .getByRole("heading", { name: "Request a certificate", exact: true })
+      .waitFor();
+    assert.equal(
+      await dialog().getByLabel("Domains", { exact: true }).inputValue(),
+      "*.example.test",
+    );
+    assert.equal(
+      await dialog()
+        .getByLabel("Domain verification", { exact: true })
+        .inputValue(),
+      "dns-01",
+    );
+    assert.equal(
+      await dialog()
+        .getByLabel("Cloudflare credential", { exact: true })
+        .locator("option:checked")
+        .textContent(),
+      "Cloudflare inline test",
+    );
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Switch color theme", exact: true })
+      .click();
+    assert.notEqual(
+      await page
+        .locator(".inventory")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      "rgb(255, 255, 255)",
+    );
+    await screenshot("certificates-dark");
+    await page.reload();
+    await page
+      .getByRole("heading", { name: "Certificates", exact: true })
+      .waitFor();
+    assert.equal(
+      await page.evaluate(() => document.documentElement.dataset.theme),
+      "dark",
+    );
     await nav("Traffic").click();
     await page
       .getByRole("heading", { name: "Traffic evidence", exact: true })

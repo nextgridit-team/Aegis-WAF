@@ -56,13 +56,16 @@ type accessEvent struct {
 	evidence *evidenceEvent
 }
 type App struct {
-	cfg         Config
-	db          *pgxpool.Pool
-	active      atomic.Pointer[snapshot]
-	dbOK        atomic.Bool
-	initialized atomic.Bool
-	access      chan accessEvent
-	dropped     atomic.Uint64
+	dnsFactory   func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
+	dnsWait      func(context.Context, string, string) error
+	dnsTransport http.RoundTripper
+	cfg          Config
+	db           *pgxpool.Pool
+	active       atomic.Pointer[snapshot]
+	dbOK         atomic.Bool
+	initialized  atomic.Bool
+	access       chan accessEvent
+	dropped      atomic.Uint64
 }
 
 func New(ctx context.Context, cfg Config) (*App, error) {

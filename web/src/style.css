@@ -1568,3 +1568,255 @@ input[type="checkbox"] {
     font-size: 16px;
   }
 }
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.auth-main {
+  position: relative;
+}
+.auth-theme {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+}
+.theme-toggle {
+  white-space: nowrap;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #e4edf1;
+  background: #10181e;
+  --ink: #e4edf1;
+  --muted: #a3b4be;
+  --line: #30414b;
+  --accent: #78d8bc;
+  --soft: #183a32;
+  --surface: #18232b;
+  --danger: #ffaaa7;
+}
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .workspace {
+  background: #10181e;
+  color: var(--ink);
+}
+:root[data-theme="dark"]
+  :is(
+    .sidebar,
+    .topbar,
+    dialog,
+    .table-wrap,
+    .authority-card,
+    .auth-main,
+    .auth-card,
+    .job-list,
+    .job-card,
+    .onboarding,
+    .empty-state,
+    .route-guide
+  ) {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+:root[data-theme="dark"]
+  :is(
+    h1,
+    h2,
+    h3,
+    strong,
+    .brand,
+    .text-button,
+    .details dd,
+    .dialog-heading,
+    .page-heading,
+    .resource,
+    .authority-card h2
+  ) {
+  color: var(--ink);
+}
+:root[data-theme="dark"]
+  :is(
+    p,
+    small,
+    .muted,
+    .nav-label,
+    .breadcrumb,
+    .workspace-footer,
+    .auth-footnote,
+    .form-intro,
+    .condition-help,
+    .page-note,
+    .live-caption
+  ) {
+  color: var(--muted);
+}
+:root[data-theme="dark"] :is(input, textarea, select) {
+  background: #101b22;
+  color: var(--ink);
+  border-color: #465d69;
+}
+:root[data-theme="dark"] :is(input, textarea)::placeholder {
+  color: #8da3b0;
+}
+:root[data-theme="dark"] :is(.field, th, td, .details dt) {
+  color: var(--ink);
+  border-color: var(--line);
+}
+:root[data-theme="dark"]
+  :is(
+    thead,
+    th,
+    .terms-box,
+    .json-view,
+    .rule-condition,
+    .sample-picker,
+    .advanced,
+    .simple-empty
+  ) {
+  background: #1e2d36;
+  border-color: var(--line);
+}
+:root[data-theme="dark"] tr:hover {
+  background: #22343f;
+}
+:root[data-theme="dark"] .sidebar nav a {
+  color: var(--muted);
+}
+:root[data-theme="dark"] .sidebar nav a:hover {
+  background: #24373f;
+}
+:root[data-theme="dark"] .sidebar nav a[aria-current="page"] {
+  color: #a3eed4;
+  background: #1b3c35;
+}
+:root[data-theme="dark"]
+  :is(
+    .nav-count,
+    .avatar,
+    .resource-icon,
+    .auth-symbol,
+    .empty-icon,
+    .route-active
+  ) {
+  color: #a3eed4;
+  background: #23483d;
+}
+:root[data-theme="dark"]
+  :is(.info-panel, .route-guide, .onboarding, .terms-box) {
+  background: #172e2b;
+  border-color: #33544a;
+}
+:root[data-theme="dark"] .info-panel :is(h3, p) {
+  color: #b3dacf;
+}
+:root[data-theme="dark"] button.secondary {
+  background: #20313c;
+  color: var(--ink);
+  border-color: #49606d;
+}
+:root[data-theme="dark"] button.secondary:hover {
+  background: #2d4552;
+}
+:root[data-theme="dark"] button.primary {
+  color: #09271f;
+}
+:root[data-theme="dark"] button.primary:hover {
+  background: #a3eed4;
+  border-color: #a3eed4;
+}
+:root[data-theme="dark"] button.subtle {
+  color: #b8c9d3;
+}
+:root[data-theme="dark"] button.subtle:hover {
+  background: #2d4552;
+}
+:root[data-theme="dark"] button.danger {
+  background: #352527;
+  border-color: #795050;
+  color: #ffbbb7;
+}
+:root[data-theme="dark"] button.danger:hover {
+  background: #523236;
+}
+:root[data-theme="dark"] :is(.badge.neutral, .badge.info) {
+  background: #263e50;
+  color: #d2e8f6;
+  border-color: #46647a;
+}
+:root[data-theme="dark"] :is(.badge.success, .notice:not(.error)) {
+  background: #1d3c32;
+  color: #b2ebcf;
+  border-color: #3c6652;
+}
+:root[data-theme="dark"] .badge.warning {
+  background: #44391f;
+  color: #f5d993;
+  border-color: #766239;
+}
+:root[data-theme="dark"] :is(.badge.danger, .notice.error) {
+  background: #442b30;
+  color: #ffc0bd;
+  border-color: #79545a;
+}
+:root[data-theme="dark"] .auth-story {
+  background: #162d29;
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .auth-story :is(h2, p, small, .eyebrow) {
+  color: #b3dacf;
+}
+:root[data-theme="dark"]
+  :is(
+    .brand-suffix,
+    .auth-footnote,
+    .check,
+    .connection,
+    .section-heading,
+    .renewal
+  ) {
+  color: var(--muted);
+}
+:root[data-theme="dark"] .icon-button {
+  color: var(--ink);
+}
+:root[data-theme="dark"] .icon-button:hover {
+  background: #2d4552;
+}
+:root[data-theme="dark"] .dialog-heading,
+.nav-divider {
+  border-color: var(--line);
+}
+:root[data-theme="dark"] a {
+  color: #91dcca;
+}
+@media (max-width: 600px) {
+  .header-tools {
+    gap: 8px;
+  }
+  .theme-toggle {
+    font-size: 10px;
+    min-height: 32px;
+    padding: 6px 8px;
+  }
+  .auth-theme {
+    top: 14px;
+    right: 14px;
+  }
+}
+:root[data-theme="dark"] :is(.inventory, .auth-shell, .skip) {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+:root[data-theme="dark"] :is(.count, .job-icon) {
+  background: #24483d;
+  color: #b4eed6;
+  border-color: #466959;
+}
+:root[data-theme="dark"] .job-icon.warning {
+  background: #44391f;
+  color: #f5d993;
+}

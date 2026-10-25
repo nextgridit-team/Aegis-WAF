@@ -164,6 +164,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
 	m.HandleFunc("GET /api/access-logs", a.wrap(true, a.listAccess))
 	ruleAPI(a, m)
+	dnsAPI(a, m)
 	f, _ := fs.Sub(assets, "assets")
 	m.Handle("GET /", http.FileServer(http.FS(f)))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -208,7 +209,8 @@ func (a *App) setup(w http.ResponseWriter, r *http.Request, _ identity) error {
 	if e := decode(w, r, &body); e != nil {
 		return e
 	}
-	provided, expected := sha256.Sum256([]byte(body.Secret)), sha256.Sum256([]byte(a.cfg.BootstrapSecret))
+	// Deployment secret files already trim surrounding whitespace; pasted codes do too.
+	provided, expected := sha256.Sum256([]byte(strings.TrimSpace(body.Secret))), sha256.Sum256([]byte(a.cfg.BootstrapSecret))
 	if subtle.ConstantTimeCompare(provided[:], expected[:]) != 1 {
 		return apiError{403, "bootstrap secret rejected"}
 	}
@@ -339,7 +341,7 @@ func (a *App) listSites(w http.ResponseWriter, r *http.Request, _ identity) erro
 	return a.list(w, r, "SELECT * FROM sites ORDER BY id")
 }
 func (a *App) listCertificates(w http.ResponseWriter, r *http.Request, _ identity) error {
-	return a.list(w, r, `SELECT c.id,c.name,c.origin,c.domains,c.issuer,c.not_before,c.not_after,c.account_id,c.updated_at,CASE WHEN c.not_before IS NULL THEN 'pending' WHEN now()<c.not_before THEN 'not yet valid' WHEN now()>=c.not_after THEN 'expired' ELSE 'valid' END AS validity,coalesce((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.name)) FROM sites s WHERE s.certificate_id=c.id),'[]'::jsonb) AS assigned_sites FROM certificates c ORDER BY c.id`)
+	return a.list(w, r, `SELECT c.id,c.name,c.origin,c.domains,c.issuer,c.not_before,c.not_after,c.account_id,c.challenge_type,c.dns_credential_id,c.updated_at,EXISTS(SELECT 1 FROM dns_challenges d JOIN jobs j ON j.id=d.job_id WHERE j.certificate_id=c.id) AS pending_dns_cleanup,CASE WHEN c.not_before IS NULL THEN 'pending' WHEN now()<c.not_before THEN 'not yet valid' WHEN now()>=c.not_after THEN 'expired' ELSE 'valid' END AS validity,coalesce((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.name)) FROM sites s WHERE s.certificate_id=c.id),'[]'::jsonb) AS assigned_sites FROM certificates c ORDER BY c.id`)
 }
 func (a *App) listAccounts(w http.ResponseWriter, r *http.Request, _ identity) error {
 	return a.list(w, r, "SELECT id,directory,email,account_url,tos_accepted_at FROM acme_accounts ORDER BY id")

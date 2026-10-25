@@ -135,6 +135,7 @@ func TestIntegration(t *testing.T) {
 		other.t = t
 		c.call("GET", "/api/me", nil, 401)
 		c.call("POST", "/api/setup", map[string]string{"username": "admin", "password": password, "secret": "incorrect"}, 403)
+		c.call("POST", "/api/setup", map[string]string{"username": "", "password": "", "secret": " \t" + cfg.BootstrapSecret + "\r\n "}, 400)
 		c.call("POST", "/api/setup", map[string]string{"username": "admin", "password": password, "secret": cfg.BootstrapSecret}, 201)
 		c.call("POST", "/api/setup", map[string]string{"username": "other", "password": password, "secret": cfg.BootstrapSecret}, 409)
 		data := c.call("POST", "/api/login", map[string]string{"username": "admin", "password": password}, 200)
@@ -385,6 +386,8 @@ func TestIntegration(t *testing.T) {
 // testCA implements a local RFC 8555 interaction fixture. It exercises the real
 // x/crypto/acme client; it is not used by the application or shipped as a service.
 type testCA struct {
+	dns                   bool
+	dnsValidate           func() bool
 	server                *httptest.Server
 	orders, challenges    atomic.Int64
 	fail                  atomic.Bool
@@ -462,8 +465,17 @@ func (ca *testCA) serve(w http.ResponseWriter, r *http.Request) {
 		if ca.authorized {
 			state = "valid"
 		}
-		respond(w, 200, map[string]any{"status": state, "identifier": map[string]string{"type": "dns", "value": "acme.example.com"}, "challenges": []map[string]string{{"type": "http-01", "url": base + "/challenge/1", "status": state, "token": "shared-challenge-token"}}})
+		challengeType := "http-01"
+		if ca.dns {
+			challengeType = "dns-01"
+		}
+		respond(w, 200, map[string]any{"status": state, "wildcard": ca.dns, "identifier": map[string]string{"type": "dns", "value": "acme.example.com"}, "challenges": []map[string]string{{"type": challengeType, "url": base + "/challenge/1", "status": state, "token": "shared-challenge-token"}}})
 	case "/challenge/1":
+		if ca.dns && (ca.dnsValidate == nil || !ca.dnsValidate()) {
+			ca.t.Error("DNS TXT challenge missing at validation")
+			w.WriteHeader(400)
+			return
+		}
 		for _, a := range ca.replicas {
 			r := httptest.NewRequest("GET", "http://acme.example.com/.well-known/acme-challenge/shared-challenge-token", nil)
 			rec := httptest.NewRecorder()

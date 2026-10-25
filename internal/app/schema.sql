@@ -28,3 +28,10 @@ CREATE INDEX IF NOT EXISTS traffic_evidence_expiry ON traffic_evidence(expires_a
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS rule_results jsonb NOT NULL DEFAULT '[]';
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS event_id text NOT NULL DEFAULT '';
 INSERT INTO schema_version VALUES (2) ON CONFLICT DO NOTHING;
+-- Version 3: encrypted Cloudflare DNS credentials and per-certificate challenge selection.
+CREATE TABLE IF NOT EXISTS dns_credentials(id bigserial PRIMARY KEY,name text NOT NULL,token_cipher bytea NOT NULL,key_id text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE certificates ADD COLUMN IF NOT EXISTS challenge_type text NOT NULL DEFAULT 'http-01' CHECK(challenge_type IN ('http-01','dns-01'));
+ALTER TABLE certificates ADD COLUMN IF NOT EXISTS dns_credential_id bigint REFERENCES dns_credentials(id);
+INSERT INTO schema_version VALUES(3) ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS dns_challenges(id bigserial PRIMARY KEY,job_id bigint NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,credential_id bigint NOT NULL REFERENCES dns_credentials(id),zone_id text NOT NULL,record_id text NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS dns_challenges_job ON dns_challenges(job_id);
