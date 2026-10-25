@@ -286,6 +286,7 @@ func (a *App) loadManagedSignatures(ctx context.Context, tx pgx.Tx, next *snapsh
 	return nil
 }
 func signatureAPI(a *App, m *http.ServeMux) {
+	m.HandleFunc("GET /api/signature-sets/{id}/rules", a.wrap(true, a.signatureInventory))
 	m.HandleFunc("GET /api/signature-sets", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		return a.list(w, r, "SELECT id,name,version,digest,rule_count,created_at FROM signature_sets ORDER BY created_at,id")
 	}))

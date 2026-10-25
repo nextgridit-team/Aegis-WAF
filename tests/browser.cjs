@@ -992,8 +992,24 @@ const { execFileSync } = require("node:child_process");
       .waitFor();
     await screenshot("rule-feeds-live");
     await nav("Signature sets").click();
-    await page.getByRole("button",{name:"Load signature set",exact:true}).click();
-    await message("Signature set loaded").waitFor();
+    await page.getByRole("region",{name:"Available signature sets",exact:true}).getByRole("button",{name:"View signatures",exact:true}).click();
+    await dialog().getByLabel("Search signatures",{exact:true}).fill("942100");
+    await dialog().getByRole("region",{name:"Signature inventory",exact:true}).getByText(/SQL Injection Attack Detected/i).waitFor();
+    await dialog().getByLabel("Search signatures",{exact:true}).fill("");
+    await dialog().getByRole("button",{name:"Next",exact:true}).click();
+    await dialog().getByText(/Page 2 of/).waitFor();
+    await dialog().getByRole("button",{name:"Previous",exact:true}).click();
+    await dialog().getByLabel("Entry type",{exact:true}).selectOption("response");
+    assert.ok(await dialog().getByRole("region",{name:"Signature inventory",exact:true}).getByText("Response · not inspected",{exact:true}).count());
+    await dialog().getByLabel("Entry type",{exact:true}).selectOption("request");
+    for(const width of [320,390,768,1440]){
+      await page.setViewportSize({width,height:1000});
+      assert.ok(await dialog().evaluate(el=>el.scrollWidth<=el.clientWidth+1),"signature browser overflows dialog");
+      await dialog().evaluate(el=>{el.scrollTop=0});
+      await screenshot("signature-browser-"+width);
+    }
+    await dialog().getByRole("button",{name:"Close",exact:true}).click();
+
     await page.getByRole("region",{name:"Loaded signature sets",exact:true}).getByText("OWASP Core Rule Set",{exact:true}).waitFor();
     assert.equal(await page.getByRole("navigation",{name:"Rule workspace",exact:true}).evaluate(el=>getComputedStyle(el).flexDirection),"row","rule workspace tabs should stay horizontal");
     await screenshot("signature-set-loaded");
@@ -1011,8 +1027,12 @@ const { execFileSync } = require("node:child_process");
     assert.equal(await page.getByLabel("Model",{exact:true}).inputValue(),"test-chat-model");
     assert.equal(await page.getByLabel("API key",{exact:true}).inputValue(),"");
     await screenshot("ai-provider-configured");
-    await nav("Policies").click();
-    await page.getByRole("button",{name:"Create policy",exact:true}).click();
+    await nav("Signature sets").click();
+    await page.getByRole("region",{name:"Loaded signature sets",exact:true}).getByRole("button",{name:"Apply to policy",exact:true}).click();
+    await dialog().getByLabel("Policy",{exact:true}).selectOption("");
+    await dialog().getByRole("button",{name:"Configure policy",exact:true}).click();
+    assert.equal(await dialog().getByLabel("Signature mode",{exact:true}).inputValue(),"observe");
+    assert.ok(await dialog().getByLabel("Signature set",{exact:true}).inputValue());
     await dialog().getByLabel("Policy name",{exact:true}).fill("External test policy");
     await dialog().getByLabel("Policy mode",{exact:true}).selectOption("block");
     await dialog().getByLabel("Enable anti-bot signals",{exact:true}).check();
@@ -1025,6 +1045,7 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByLabel("Assignment application",{exact:true}).selectOption({label:"Manual TLS"});
     await dialog().getByRole("button",{name:"Save policy",exact:true}).click();
     await dialog().waitFor({state:"detached"});
+    await nav("Policies").click();
     await page.getByRole("heading",{name:"Policies",exact:true}).waitFor();
     await screenshot("policies-assigned");
     await eventually(async()=>assert.equal((await httpsRequest(Number(process.env.BROWSER_HTTPS_PORT),"manual.example.test",null,"/",{"User-Agent":"sqlmap"})).status,403));
@@ -1032,13 +1053,27 @@ const { execFileSync } = require("node:child_process");
     const managedHeaders={"User-Agent":"browser","Accept":"text/html"};
     await eventually(async()=>assert.equal((await httpsRequest(Number(process.env.BROWSER_HTTPS_PORT),"manual.example.test",null,managedAttack,managedHeaders)).status,200));
     const policyRow=page.locator("tbody tr").filter({hasText:"External test policy"}).filter({has:page.getByRole("button",{name:"Edit",exact:true})});
-    await policyRow.getByRole("button",{name:"Edit",exact:true}).click();
+    await nav("Signature sets").click();
+    await page.getByRole("region",{name:"Loaded signature sets",exact:true}).getByRole("button",{name:"Apply to policy",exact:true}).click();
+    await dialog().getByLabel("Policy",{exact:true}).selectOption({label:"External test policy"});
+    await dialog().getByRole("button",{name:"Configure policy",exact:true}).click();
+    assert.equal(await dialog().getByLabel("Policy name",{exact:true}).inputValue(),"External test policy");
+    assert.equal(await dialog().getByLabel("Group name",{exact:true}).inputValue(),"Imported signatures");
+    assert.equal(await dialog().getByLabel("Assignment application",{exact:true}).locator("option:checked").textContent(),"Manual TLS");
+    await dialog().getByRole("button",{name:"Browse signatures and exclusions",exact:true}).click();
+    await dialog().getByLabel("Search signatures",{exact:true}).fill("942100");
+    await dialog().getByLabel("Exclude rule 942100",{exact:true}).check();
+    assert.equal(await dialog().getByLabel("Excluded CRS rule IDs",{exact:true}).inputValue(),"942100");
+    await screenshot("policy-signature-exclusions");
+    await dialog().getByLabel("Exclude rule 942100",{exact:true}).uncheck();
+    assert.equal(await dialog().getByLabel("Excluded CRS rule IDs",{exact:true}).inputValue(),"");
     await dialog().getByLabel("Signature mode",{exact:true}).selectOption("block");
     await dialog().getByRole("button",{name:"Save policy",exact:true}).click();
     await dialog().waitFor({state:"detached"});
     for(const port of [process.env.BROWSER_HTTPS_PORT,process.env.BROWSER_ALT_HTTPS_PORT]){
       await eventually(async()=>assert.equal((await httpsRequest(Number(port),"manual.example.test",null,managedAttack,managedHeaders)).status,403));
     }
+    await nav("Policies").click();
     await screenshot("managed-signature-policy");
     await nav("Dashboard").click();
     const resources=page.locator("section").filter({has:page.getByRole("heading",{name:"System performance",exact:true})});
@@ -1111,6 +1146,20 @@ const { execFileSync } = require("node:child_process");
       .getByRole("heading", { name: "Certificates", exact: true })
       .waitFor();
     await screenshot("certificates-desktop");
+    // The shipped baseline can be selected atomically while creating a host.
+    await nav("Proxy hosts").click();
+    await page.getByRole("button",{name:"Add proxy host",exact:true}).click();
+    await dialog().getByLabel("Name",{exact:true}).fill("Baseline-protected app");
+    await dialog().getByLabel("Domains",{exact:true}).fill("baseline.example.test");
+    await dialog().getByLabel("Upstream URL",{exact:true}).fill(upstream);
+    await dialog().getByLabel("Initial protection policy",{exact:true}).selectOption({label:"Baseline protection · block"});
+    await screenshot("baseline-application-policy");
+    await dialog().getByRole("button",{name:"Save proxy host",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    await eventually(async()=>{
+      const response=await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"text/html"}});
+      assert.equal(response.status(),403);
+    });
     // A mutation failure keeps the form editable and does not claim success.
     await nav("Proxy hosts").click();
     const manualSite = page
@@ -1139,7 +1188,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 44 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 48 responsive checks, CPU/RAM replica telemetry, provider setup and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");

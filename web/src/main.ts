@@ -484,7 +484,8 @@ function siteProtectionMarkup(p: Protection, policies: PolicySummary[] = []) {
     `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
   return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small></div><details class="advanced"><summary>Protection options</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p)}</details>`;
 }
-function siteForm(site?: Site, certificate?: Certificate) {
+async function siteForm(site?: Site, certificate?: Certificate) {
+ const initialPolicies = site ? [] : await api<{id:number;spec:{name:string;mode:string}}[]>("/policies");
   const c = site
     ? state.certs.find((c) => c.id === site.certificate_id)
     : certificate;
@@ -498,7 +499,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
       )
       .join(
         "",
-      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${!site?`<label class="field">Initial protection policy<select name="initial_policy_id" aria-label="Initial protection policy"><option value="">Local application settings · no policy assignment</option>${initialPolicies.map(p=>`<option value="${p.id}">${esc(p.spec.name)} · ${esc(p.spec.mode)}</option>`).join("")}</select></label><small>Choose Baseline protection for the included CRS policy, or keep local settings. Policy assignment replaces local bot/flood and standalone-rule activation. Manage later assignments in Policies.</small>`:""}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
   );
   const select = document.getElementById(
     "site-certificate",
@@ -519,6 +520,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
   bindHeaderEditor(document.getElementById("site-form") as HTMLFormElement);
   formHandler("site-form", async (f) => {
     await api("/sites" + (site ? "/" + site.id : ""), site ? "PUT" : "POST", {
+      ...(!site ? {initial_policy_id:Number(f.get("initial_policy_id"))||0}:{}),
       name: f.get("name"),
       hostnames: names(f.get("hostnames")),
       upstream: f.get("upstream"),
@@ -607,10 +609,10 @@ root.addEventListener("click", async (e) => {
         );
         break;
       case "new-site":
-        siteForm();
+        await siteForm();
         break;
       case "edit-site":
-        siteForm(state.sites.find((s) => s.id === id));
+        await siteForm(state.sites.find((s) => s.id === id));
         break;
       case "connect": {
         const c = state.certs.find((c) => c.id === id);
@@ -619,7 +621,7 @@ root.addEventListener("click", async (e) => {
           history.pushState(null, "", "#proxy-hosts");
           await refresh();
         }
-        siteForm(undefined, c);
+        await siteForm(undefined, c);
         break;
       }
       case "upload":
@@ -686,7 +688,7 @@ const policyPage = makePoliciesPage({
   notice,
 });
 const aiPage = makeAIPage({ api, esc, heading, notice, handleError });
-const signatureSetsUI=makeSignatureSetsUI({api,esc,heading,table,refresh,notice});
+const signatureSetsUI=makeSignatureSetsUI({api,esc,heading,table,refresh,notice,openEditor,applyToPolicy: set => policyPage.applySignatureSet(set)});
 const feedsUI = makeFeedsUI({
   api,
   sites: () => state.sites,

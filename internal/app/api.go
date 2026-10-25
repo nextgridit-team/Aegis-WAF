@@ -385,9 +385,16 @@ func (a *App) change(ctx context.Context, fn func(pgx.Tx) error) error {
 	return tx.Commit(ctx)
 }
 func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error {
-	var s Site
-	if e := decode(w, r, &s); e != nil {
+	var input struct {
+		Site
+		InitialPolicyID int64 `json:"initial_policy_id"`
+	}
+	if e := decode(w, r, &input); e != nil {
 		return e
+	}
+	s := input.Site
+	if input.InitialPolicyID < 0 || (r.Method != "POST" && input.InitialPolicyID != 0) {
+		return invalid("initial policy is only supported when creating an application")
 	}
 	if s.Headers != nil {
 		normalized, e := normalizeHeaders(*s.Headers)
@@ -488,6 +495,30 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 				return e
 			}
 			if e := audit(r.Context(), tx, i.Username, "proxy.headers.saved", strconv.FormatInt(s.ID, 10)); e != nil {
+				return e
+			}
+		}
+		if input.InitialPolicyID != 0 {
+			var revision int64
+			var raw []byte
+			if e := tx.QueryRow(r.Context(), "SELECT revision,spec FROM policies WHERE id=$1 FOR UPDATE", input.InitialPolicyID).Scan(&revision, &raw); e == pgx.ErrNoRows {
+				return invalid("selected initial policy no longer exists")
+			} else if e != nil {
+				return e
+			}
+			if _, e := tx.Exec(r.Context(), "INSERT INTO policy_assignments(policy_id,site_id,source_cidrs,priority) VALUES($1,$2,'{}',10000)", input.InitialPolicyID, s.ID); e != nil {
+				return e
+			}
+			if e := checkPolicyAssignments(r.Context(), tx); e != nil {
+				return e
+			}
+			if _, e := tx.Exec(r.Context(), "UPDATE policies SET revision=revision+1 WHERE id=$1", input.InitialPolicyID); e != nil {
+				return e
+			}
+			if _, e := tx.Exec(r.Context(), "INSERT INTO policy_revisions(policy_id,revision,spec,actor) VALUES($1,$2,$3,$4)", input.InitialPolicyID, revision+1, raw, i.Username); e != nil {
+				return e
+			}
+			if e := audit(r.Context(), tx, i.Username, "policy.application_assigned", strconv.FormatInt(input.InitialPolicyID, 10)); e != nil {
 				return e
 			}
 		}

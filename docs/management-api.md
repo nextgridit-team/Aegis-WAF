@@ -5,7 +5,7 @@ All endpoint paths below are relative to `/api` on the management listener. Ther
 - `GET /setup`, `POST /setup` (`username`, `password`, `secret`): one-time administrator bootstrap.
 - `POST /login` (`username`, `password`): returns username and CSRF token and sets the session cookie. `GET /me` returns the current CSRF token. `POST /logout` revokes the session.
 - `GET /status`: this replica's loaded version, database refresh health, propagation interval, and access log drop count.
-- `GET /sites`, `POST /sites`, `PUT /sites/{id}`, `DELETE /sites/{id}`: site management. Write fields: `name`, `hostnames`, `upstream`, nullable `certificate_id`, `redirect_https`, `preserve_host`, `enabled`. Send all fields on PUT.
+- `GET /sites`, `POST /sites`, `PUT /sites/{id}`, `DELETE /sites/{id}`: site management. Write fields: `name`, `hostnames`, `upstream`, nullable `certificate_id`, `redirect_https`, `preserve_host`, `enabled`. Send all fields on PUT. POST also accepts optional `initial_policy_id` for atomic default-policy assignment; PUT rejects that create-only field when nonzero.
 - `GET /certificates`: metadata, validity, and assignments. `POST /certificates`, `PUT /certificates/{id}`: `name`, `chain_pem`, `private_key_pem`. PUT replaces an uploaded certificate only. `DELETE /certificates/{id}` requires no assignments or active jobs.
 - `GET /acme/directory?url=staging|production|<encoded HTTPS URL>`: discover CA terms.
 - `GET /acme/accounts`, `POST /acme/accounts`: registration fields `directory` (`staging`, `production`, or HTTPS URL), `email`, `accept_terms: true`.
@@ -20,7 +20,7 @@ For mutations, send `Content-Type: application/json`, `X-Requested-With: aegis-w
 ## Additional resources
 
 - [Policies and application assignments](policies.md).
-- [Managed signature sets](managed-signatures.md): `GET /api/signature-sets`, `GET /api/signature-sets/catalogue`, and `POST /api/signature-sets` with the catalogue set ID.
+- [Managed signature sets](managed-signatures.md): `GET /api/signature-sets`, `GET /api/signature-sets/catalogue`, `GET /api/signature-sets/{id}/rules` for static inventory, and `POST /api/signature-sets` with the catalogue set ID.
 - [Rule feeds](rule-feeds.md), [dashboard and protection](dashboard.md), [headers and CIDRs](headers-and-cidrs.md), and [AI provider configuration](ai-provider.md).
 
 This is a starting reference, not a generated complete API schema. Site writes also support the documented protection/header settings. Read each feature's API and limits before automating it.

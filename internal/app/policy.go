@@ -340,11 +340,11 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 		raw, _ := json.Marshal(spec)
 		if id == 0 {
 			var count int
-			if e = tx.QueryRow(ctx, "SELECT count(*) FROM policies").Scan(&count); e != nil {
+			if e = tx.QueryRow(ctx, "SELECT count(*) FROM policies p WHERE NOT EXISTS(SELECT 1 FROM built_in_policies b WHERE b.policy_id=p.id)").Scan(&count); e != nil {
 				return e
 			}
 			if count >= 50 {
-				return apiError{409, "at most 50 policies are supported"}
+				return apiError{409, "at most 50 custom policies are supported"}
 			}
 			if e = tx.QueryRow(ctx, "INSERT INTO policies(spec) VALUES($1) RETURNING id", raw).Scan(&id); e != nil {
 				return e
@@ -515,7 +515,7 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 }
 func policyAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/policies", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		return a.list(w, r, `SELECT p.id,p.revision,p.spec,coalesce((SELECT jsonb_agg(jsonb_build_object('site_id',b.site_id,'source_cidrs',b.source_cidrs,'priority',b.priority) ORDER BY b.priority,b.site_id) FROM policy_assignments b WHERE b.policy_id=p.id),'[]'::jsonb) AS applications FROM policies p ORDER BY p.id`)
+		return a.list(w, r, `SELECT p.id,p.revision,p.spec,EXISTS(SELECT 1 FROM built_in_policies builtin WHERE builtin.policy_id=p.id) AS built_in,coalesce((SELECT jsonb_agg(jsonb_build_object('site_id',b.site_id,'source_cidrs',b.source_cidrs,'priority',b.priority) ORDER BY b.priority,b.site_id) FROM policy_assignments b WHERE b.policy_id=p.id),'[]'::jsonb) AS applications FROM policies p ORDER BY p.id`)
 	}))
 	m.HandleFunc("POST /api/policies", a.wrap(true, a.savePolicy))
 	m.HandleFunc("PUT /api/policies/{id}", a.wrap(true, a.savePolicy))

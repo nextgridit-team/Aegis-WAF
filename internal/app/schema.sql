@@ -73,3 +73,7 @@ ALTER TABLE replica_metrics ADD COLUMN IF NOT EXISTS system jsonb NOT NULL DEFAU
 CREATE TABLE IF NOT EXISTS signature_sets(id text PRIMARY KEY,name text NOT NULL,version text NOT NULL,digest text NOT NULL,rule_count int NOT NULL,files jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS managed_signatures jsonb NOT NULL DEFAULT '{}';
 INSERT INTO schema_version VALUES(8) ON CONFLICT DO NOTHING;
+
+-- Version 9: one-time provisioned baseline policy, editable and removable.
+CREATE TABLE IF NOT EXISTS built_in_policies(key text PRIMARY KEY,policy_id bigint REFERENCES policies ON DELETE SET NULL,created_at timestamptz NOT NULL DEFAULT now());
+INSERT INTO schema_version VALUES(9) ON CONFLICT DO NOTHING;

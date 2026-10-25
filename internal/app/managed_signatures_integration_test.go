@@ -25,6 +25,7 @@ func TestManagedSignaturesIntegration(t *testing.T) {
 	jar, _ := cookiejar.New(nil)
 	api := testAPI{t, &http.Client{Jar: jar}, management.URL, ""}
 	api.call("GET", "/api/signature-sets/catalogue", nil, 401)
+	api.call("GET", "/api/signature-sets/unknown/rules", nil, 401)
 	api.call("POST", "/api/setup", map[string]string{"username": "admin", "password": "long managed signature password", "secret": cfg.BootstrapSecret}, 201)
 	var login map[string]string
 	json.Unmarshal(api.call("POST", "/api/login", map[string]string{"username": "admin", "password": "long managed signature password"}, 200), &login)
@@ -34,16 +35,30 @@ func TestManagedSignaturesIntegration(t *testing.T) {
 		Loaded bool         `json:"loaded"`
 	}
 	json.Unmarshal(api.call("GET", "/api/signature-sets/catalogue", nil, 200), &catalogue)
-	if len(catalogue) != 1 || catalogue[0].Loaded || len(catalogue[0].Set.Files) > 0 {
+	if len(catalogue) != 1 || !catalogue[0].Loaded || len(catalogue[0].Set.Files) > 0 {
 		t.Fatal("invalid public catalogue")
 	}
 	set := catalogue[0].Set
+	inventoryPath := "/api/signature-sets/" + set.ID + "/rules"
+	var inventory struct {
+		Rules  []signatureEntry `json:"rules"`
+		Loaded bool             `json:"loaded"`
+	}
+	rawInventory := api.call("GET", inventoryPath, nil, 200)
+	if e := json.Unmarshal(rawInventory, &inventory); e != nil || len(inventory.Rules) != set.RuleCount || !inventory.Loaded || strings.Contains(string(rawInventory), "SecRule") {
+		t.Fatal("invalid signature inventory", e)
+	}
+	api.call("GET", "/api/signature-sets/unknown/rules", nil, 404)
 	csrf := api.csrf
 	api.csrf = "wrong"
 	api.call("POST", "/api/signature-sets", map[string]string{"id": set.ID}, 403)
 	api.csrf = csrf
 	for n := 0; n < 2; n++ {
 		api.call("POST", "/api/signature-sets", map[string]string{"id": set.ID}, 200)
+	}
+	json.Unmarshal(api.call("GET", inventoryPath, nil, 200), &inventory)
+	if !inventory.Loaded || len(inventory.Rules) != set.RuleCount {
+		t.Fatal("loaded inventory unavailable")
 	}
 	var count int
 	a.db.QueryRow(ctx, "SELECT count(*) FROM signature_sets").Scan(&count)

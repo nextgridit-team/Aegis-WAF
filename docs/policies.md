@@ -4,6 +4,12 @@ Use **Policies** to create reusable protection and assign it to one or more appl
 
 **Rules** is one workspace with Signatures, Rule feeds and Signature sets tabs. [Managed signature sets](managed-signatures.md) can be selected directly in a policy. Create or import signature drafts there, then select them in policy groups. A published policy stores frozen copies: editing a signature or syncing a feed never silently changes live policy enforcement. Check **Refresh selected rule snapshots from the library** and save to publish changes. Policy History restores protection and signature snapshots for current application assignments; it does not restore historical assignments. Revisions reject stale saves. Policies remain configured until explicitly changed or removed; standalone rule activation keeps its existing TTL behavior.
 
+## Included baseline
+
+**Baseline protection** ships with request-side CRS enabled in Block mode, paranoia level 1, anomaly threshold 5 and a 1 MiB body limit. Bot and flood controls are off because their appropriate budgets vary by application. Requests above the body limit receive 413 when this policy enforces; tune upload-heavy applications before assignment.
+
+Choose this policy under **Initial protection policy** when creating a proxy host, or assign it from this page. Site creation and initial policy assignment commit atomically; a failed assignment creates neither. Omitting that choice preserves local application settings. Existing applications are never reassigned automatically. The baseline can be edited, renamed or deleted, and provisioning will not recreate or overwrite it on restart. Up to 50 custom policies are supported in addition to the included baseline.
+
 ## External and internal traffic
 
 Assign an External policy with **All other clients · default** first. Then assign an Internal or office policy to specific IPs/CIDRs with a priority of 0–9999. Smaller priorities match first. Every application using scoped policies must retain one default; choosing a new default replaces its old assignment atomically. Overlapping CIDRs use priority rather than longest-prefix matching. At most ten policies can be assigned to an application.
