@@ -1,0 +1,6 @@
+# Optional local source build; production defaults to the published image.
+services:
+  app:
+    image: aegis-waf:local
+    pull_policy: never
+    build: .
