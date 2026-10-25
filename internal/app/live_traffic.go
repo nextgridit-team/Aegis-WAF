@@ -10,6 +10,14 @@ import (
 )
 
 func (a *App) liveTraffic(w http.ResponseWriter, r *http.Request, _ identity) error {
+	excludeLocal, e := localMapFilter(r, "exclude_local")
+	if e != nil {
+		return e
+	}
+	localFilter := ""
+	if excludeLocal {
+		localFilter = " AND l.location_source NOT IN ('local_reference','local_unlocated')"
+	}
 	site := int64(0)
 	if raw := r.URL.Query().Get("site_id"); raw != "" {
 		var e error
@@ -21,7 +29,7 @@ func (a *App) liveTraffic(w http.ResponseWriter, r *http.Request, _ identity) er
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	var raw []byte
-	e := a.db.QueryRow(ctx, `SELECT coalesce(jsonb_agg(x ORDER BY x.id),'[]') FROM (SELECT l.id,l.at,l.site_id,s.name site_name,l.method,l.status,l.blocked,l.peer,l.country,l.region_code,l.region_name,l.response_source,l.observed_country,l.location_source,l.location_reference_ip FROM access_logs l LEFT JOIN sites s ON s.id=l.site_id WHERE l.at>=now()-interval '1 minute' AND ($1::bigint=0 OR l.site_id=$1) ORDER BY l.id DESC LIMIT 200) x`, site).Scan(&raw)
+	e = a.db.QueryRow(ctx, `SELECT coalesce(jsonb_agg(x ORDER BY x.id),'[]') FROM (SELECT l.id,l.at,l.site_id,s.name site_name,l.method,l.status,l.blocked,l.peer,l.country,l.region_code,l.region_name,l.response_source,l.observed_country,l.location_source,l.location_reference_ip FROM access_logs l LEFT JOIN sites s ON s.id=l.site_id WHERE l.at>=now()-interval '1 minute' AND ($1::bigint=0 OR l.site_id=$1) `+localFilter+` ORDER BY l.id DESC LIMIT 200) x`, site).Scan(&raw)
 	if e != nil {
 		return e
 	}
@@ -49,6 +57,6 @@ func (a *App) liveTraffic(w http.ResponseWriter, r *http.Request, _ identity) er
 	if point := livePointFor(city, gateway["country"], gateway["public_ip"]); point != nil {
 		location["map_point"] = point
 	}
-	respond(w, 200, map[string]any{"gateway_location": location, "events": json.RawMessage(raw), "at": time.Now().UTC(), "site_id": site, "limit": 200, "window_seconds": 60, "refresh_seconds": 1})
+	respond(w, 200, map[string]any{"exclude_local": excludeLocal, "gateway_location": location, "events": json.RawMessage(raw), "at": time.Now().UTC(), "site_id": site, "limit": 200, "window_seconds": 60, "refresh_seconds": 1})
 	return nil
 }

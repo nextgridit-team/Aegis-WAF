@@ -161,8 +161,11 @@ func (a *App) updateGeo(w http.ResponseWriter, r *http.Request, i identity) erro
 	return nil
 }
 func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) error {
+	excludeLocal, e := localMapFilter(r, "map_exclude_local")
+	if e != nil {
+		return e
+	}
 	site := int64(0)
-	var e error
 	if raw := r.URL.Query().Get("site_id"); raw != "" {
 		site, e = strconv.ParseInt(raw, 10, 64)
 		if e != nil || site < 1 {
@@ -191,13 +194,18 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 	since := now.Add(-time.Duration(minutes) * time.Minute)
 	var totals, series, countries, statuses, responseStatuses, signals, recent []byte
 	filter := " FROM access_logs WHERE at >= $1 AND at < $3::timestamptz AND ($2::bigint=0 OR site_id=$2)"
+	countriesFilter := filter
+	if excludeLocal {
+		countriesFilter += localLogExclusion
+	}
+
 	queries := []struct {
 		sql    string
 		target *[]byte
 	}{
 		{`SELECT jsonb_build_object('requests',count(*),'blocked',count(*) FILTER(WHERE blocked),'flagged',count(*) FILTER(WHERE signals<>'[]'::jsonb),'exempt',count(*) FILTER(WHERE protection_exemptions<>'[]'::jsonb),'errors',count(*) FILTER(WHERE status>=500),'rps',count(*) FILTER(WHERE at >= $3::timestamptz-interval '10 seconds')/10.0,'clients',count(DISTINCT peer),'mean_duration_ms',coalesce(avg(duration_ms),0))` + filter, &totals},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.at),'[]') FROM (SELECT date_bin(interval '10 seconds',at,timestamptz '2000-01-01') at,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY 1) x`, &series},
-		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY country) x`, &countries},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + countriesFilter + ` GROUP BY country) x`, &countries},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC,x.site_id,x.status,x.response_source),'[]') FROM (SELECT grouped.*,s.name site_name,coalesce(s.hostnames,'{}'::text[]) hostnames FROM (SELECT site_id,status,CASE WHEN response_source<>'' THEN response_source WHEN blocked THEN 'waf' ELSE 'unknown' END response_source,count(*) requests` + filter + ` GROUP BY site_id,status,CASE WHEN response_source<>'' THEN response_source WHEN blocked THEN 'waf' ELSE 'unknown' END) grouped LEFT JOIN sites s ON s.id=grouped.site_id ORDER BY grouped.requests DESC,grouped.site_id,grouped.status,grouped.response_source LIMIT 100) x`, &responseStatuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},

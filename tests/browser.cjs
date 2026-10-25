@@ -1209,7 +1209,16 @@ const { execFileSync } = require("node:child_process");
     await page.emulateMedia({reducedMotion:"reduce"});
     assert.equal(await page.locator('.live-flow').count(),0,"reduced motion should clear animations");
     for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'live map overflows at '+width);await screenshot('live-map-'+width);}
+    await page.getByRole('checkbox',{name:'Hide local traffic',exact:true}).check();
+    await eventually(async()=>assert.equal(await liveLog.getByText(/Local network ·/).count(),0));
+    const externalFeed=await (await page.request.get(base+'/api/live-traffic?exclude_local=true')).json();
+    assert.ok(externalFeed.events.every(event=>!event.location_source?.startsWith('local_')));
+    const retainedLocal=await (await page.request.get(base+'/api/access-logs')).json();
+    assert.ok(retainedLocal.some(event=>event.location_source?.startsWith('local_')),'hiding local traffic must retain logs');
     await page.getByRole("link",{name:"Back to dashboard",exact:true}).click();
+    await page.getByRole('checkbox',{name:'Hide local traffic on maps',exact:true}).waitFor();
+    assert.equal(await page.getByRole('checkbox',{name:'Hide local traffic on maps',exact:true}).isChecked(),true);
+    await page.getByRole('checkbox',{name:'Hide local traffic on maps',exact:true}).uncheck();
     await page.unroute("**/api/live-traffic**");
     // Map interaction uses synthetic regional aggregates; database enrichment is
     // independently verified with a real MMDB fixture in Go integration tests.

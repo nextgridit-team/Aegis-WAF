@@ -155,6 +155,27 @@ func TestGeoSyncIntegration(t *testing.T) {
 	if found != 2 {
 		t.Fatalf("local live events: %+v", live)
 	}
+
+	var filtered struct{ Events []struct{ Peer string } }
+	if e = json.Unmarshal(c.call("GET", "/api/live-traffic?exclude_local=true", nil, 200), &filtered); e != nil || len(filtered.Events) != 1 || filtered.Events[0].Peer != "216.160.83.56" {
+		t.Fatalf("local live filter failed: %s %v", c.call("GET", "/api/live-traffic?exclude_local=true", nil, 200), e)
+	}
+	var filteredRegion struct{ Recent []any }
+	json.Unmarshal(c.call("GET", "/api/dashboard/regions?country=US&exclude_local=true", nil, 200), &filteredRegion)
+	if len(filteredRegion.Recent) != 1 {
+		t.Fatalf("regional local filter: %+v", filteredRegion)
+	}
+	var filteredMap struct {
+		Countries []struct{ Requests int }
+		Totals    struct{ Requests int }
+	}
+	json.Unmarshal(c.call("GET", "/api/dashboard?map_exclude_local=true", nil, 200), &filteredMap)
+	if len(filteredMap.Countries) != 1 || filteredMap.Countries[0].Requests != 1 || filteredMap.Totals.Requests != 3 {
+		t.Fatalf("map filter changed overview totals or failed to filter: %+v", filteredMap)
+	}
+	c.call("GET", "/api/live-traffic?exclude_local=invalid", nil, 400)
+	c.call("GET", "/api/dashboard?map_exclude_local=invalid", nil, 400)
+	c.call("GET", "/api/dashboard/regions?country=US&exclude_local=invalid", nil, 400)
 	// Failed replacement keeps the exact successfully loaded reader and database.
 	if _, e = a.db.Exec(ctx, "UPDATE geo_sources SET status='queued',next_sync=now() WHERE kind='city'"); e != nil {
 		t.Fatal(e)

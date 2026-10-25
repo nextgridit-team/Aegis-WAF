@@ -8,6 +8,10 @@ import (
 )
 
 func (a *App) regionDashboard(w http.ResponseWriter, r *http.Request, _ identity) error {
+	excludeLocal, filterError := localMapFilter(r, "exclude_local")
+	if filterError != nil {
+		return filterError
+	}
 	country := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("country")))
 	if len(country) != 2 || country[0] < 'A' || country[0] > 'Z' || country[1] < 'A' || country[1] > 'Z' {
 		return invalid("provide a two-letter country code")
@@ -38,6 +42,9 @@ func (a *App) regionDashboard(w http.ResponseWriter, r *http.Request, _ identity
 	}
 	var regions, recent []byte
 	filter := ` FROM access_logs WHERE country=$1 AND at>=now()-($2::double precision*interval '1 minute') AND ($3::bigint=0 OR site_id=$3)`
+	if excludeLocal {
+		filter += localLogExclusion
+	}
 	e = a.db.QueryRow(r.Context(), `SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT region_code,region_name,count(*) requests,count(*) FILTER(WHERE blocked) blocked`+filter+` GROUP BY region_code,region_name LIMIT 500) x`, country, minutes, site).Scan(&regions)
 	if e != nil {
 		return e

@@ -1,3 +1,4 @@
+import { hideLocalTraffic, saveHideLocalTraffic } from "./map-preferences";
 import { localLocationNote } from "./location";
 import {
   clientAddress,
@@ -138,12 +139,14 @@ export function makeDashboardUI(d: Deps) {
   const { api, esc, heading, table } = d;
   let selectedCountry = "",
     selectedRegion = "";
+  let hideLocal = hideLocalTraffic();
   const geoSyncForm = makeGeoSyncForm(d);
   let site = "",
     minutes = "15",
     serial = 0,
     sites: Site[] = [];
   async function mount(view: HTMLElement, apps: Site[]) {
+    hideLocal = hideLocalTraffic();
     sites = apps;
     if (site && !sites.some((s) => String(s.id) === site)) site = "";
     view.innerHTML =
@@ -152,7 +155,7 @@ export function makeDashboardUI(d: Deps) {
         "A live view of your applications and the traffic reaching them.",
         '<button class="primary" data-action="live-map">Live traffic map</button><button class="secondary" data-action="protection">Protection settings</button>',
       ) +
-      `<div class="dashboard-controls"><label>Application<select id="dashboard-site" aria-label="Application"><option value="">All applications</option>${sites.map((s) => `<option value="${s.id}" ${site === String(s.id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label><label>Time range<select id="dashboard-range" aria-label="Time range">${[5, 15, 60].map((n) => `<option value="${n}" ${minutes === String(n) ? "selected" : ""}>Last ${n} minutes</option>`).join("")}</select></label><span id="dashboard-freshness" class="muted" role="status">Loading traffic…</span></div><div id="dashboard-data" aria-busy="true"></div>`;
+      `<div class="dashboard-controls"><label>Application<select id="dashboard-site" aria-label="Application"><option value="">All applications</option>${sites.map((s) => `<option value="${s.id}" ${site === String(s.id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label><label>Time range<select id="dashboard-range" aria-label="Time range">${[5, 15, 60].map((n) => `<option value="${n}" ${minutes === String(n) ? "selected" : ""}>Last ${n} minutes</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="dashboard-hide-local" ${hideLocal ? "checked" : ""}><span>Hide local traffic on maps</span></label><span id="dashboard-freshness" class="muted" role="status">Loading traffic…</span></div><div id="dashboard-data" aria-busy="true"></div>`;
     view
       .querySelector<HTMLSelectElement>("#dashboard-site")!
       .addEventListener("change", (e) => {
@@ -165,6 +168,13 @@ export function makeDashboardUI(d: Deps) {
         minutes = (e.target as HTMLSelectElement).value;
         void update().catch(d.handleError);
       });
+    view.querySelector<HTMLInputElement>("#dashboard-hide-local")!.onchange = (
+      event,
+    ) => {
+      hideLocal = (event.target as HTMLInputElement).checked;
+      saveHideLocalTraffic(hideLocal);
+      void update().catch(d.handleError);
+    };
     await update();
   }
   async function update() {
@@ -177,10 +187,12 @@ export function makeDashboardUI(d: Deps) {
         region = selectedRegion;
       const query = `minutes=${minutes}${scope ? `&site_id=${scope}` : ""}`;
       const [r, regional] = await Promise.all([
-        api<Report>(`/dashboard?${query}`),
+        api<Report>(
+          `/dashboard?${query}${hideLocal ? "&map_exclude_local=true" : ""}`,
+        ),
         country
           ? api<RegionReport>(
-              `/dashboard/regions?${query}&country=${country}${region ? `&region=${encodeURIComponent(region)}` : ""}`,
+              `/dashboard/regions?${query}&country=${country}${hideLocal ? "&exclude_local=true" : ""}${region ? `&region=${encodeURIComponent(region)}` : ""}`,
             )
           : Promise.resolve(null),
       ]);
@@ -296,7 +308,7 @@ export function makeDashboardUI(d: Deps) {
         target.querySelector(".response-status-table")?.scrollTop || 0;
       target.innerHTML = `${r.dropped_logs ? `<div class="notice error">Reporting replicas have dropped ${format(r.dropped_logs)} access logs since starting. Request statistics may be incomplete.</div>` : ""}<div class="metric-grid">${metric("Requests / second", format(t.rps), "Completed requests · trailing 10s")}${metric("Open connections", format(r.connections), `${r.reporting_replicas} reporting replica${r.reporting_replicas === 1 ? "" : "s"} · includes keep-alive`)}${metric("In-flight requests", format(r.inflight), "Currently being processed")}${metric("Total requests", format(t.requests), `Last ${r.minutes} minutes · ${format(t.clients)} clients`)}${metric("Blocked requests", format(t.blocked), `${t.requests ? format((t.blocked / t.requests) * 100) : "0"}% of traffic`)}${metric("Flagged requests", format(t.flagged), `Bot or flood signals · ${format(t.exempt || 0)} requests exempt`)}</div>
    ${resources}<section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><a class="text-button" href="#live-map">Open live traffic map</a><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
-   <div class="dashboard-columns"><section class="dashboard-panel world-panel">${regions ? regions.mapPanel : `<div class="section-heading"><h2>Incoming traffic</h2><small>Select a country for regional detail</small></div><svg class="world-map" viewBox="0 5 360 160" role="group" aria-label="World map of incoming requests by country">${map}</svg>`}<div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div>${geoSyncStatus(r.geo_sources || [], esc)}<button class="text-button" data-action="geo-sync">Database sync & regions</button><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
+   <div class="dashboard-columns"><section class="dashboard-panel world-panel">${regions ? regions.mapPanel : `<div class="section-heading"><h2>Incoming traffic</h2><small>Select a country for regional detail</small></div><svg class="world-map" viewBox="0 5 360 160" role="group" aria-label="World map of incoming requests by country">${map}</svg>`}<div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>${hideLocal ? "Local traffic hidden · " : ""}Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div>${geoSyncStatus(r.geo_sources || [], esc)}<button class="text-button" data-action="geo-sync">Database sync & regions</button><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
    <section class="dashboard-panel"><h2>${regions ? "Regional traffic" : "Traffic origins"}</h2>${
      regions
        ? regions.counts

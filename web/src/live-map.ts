@@ -1,3 +1,4 @@
+import { hideLocalTraffic, saveHideLocalTraffic } from "./map-preferences";
 import { mountLocalFlow } from "./local-flow";
 import type { Site } from "./types";
 import { localLocationNote } from "./location";
@@ -60,6 +61,7 @@ export function makeLiveMap(c: C) {
   async function mount(view: HTMLElement) {
     stop();
     active = true;
+    let hideLocal = hideLocalTraffic();
     let selected = "",
       paused = false,
       first = true;
@@ -76,7 +78,7 @@ export function makeLiveMap(c: C) {
         .map((s) => `<option value="${s.id}">${esc(s.name)}</option>`)
         .join(
           "",
-        )}</select></label><button type="button" class="secondary" data-live-pause>Pause feed</button><label class="check"><input type="checkbox" data-live-follow ${reduced ? "" : "checked"}><span>Follow new requests</span></label><span data-live-state role="status">Connecting…</span></div><section class="dashboard-panel live-map-panel"><div class="live-map-legend"><span class="live-allowed">● Allowed</span><span class="live-blocked">● Blocked</span><span data-live-counts></span></div><svg class="live-world" viewBox="0 5 360 170" role="img" aria-label="Observed requests by country; gateway uses the configured country when available"><g>${world.map((country) => `<path d="${country.path}" data-live-country="${esc(country.code)}" class="live-country"><title>${esc(country.name)}</title></path>`).join("")}</g><g data-live-effects aria-hidden="true"></g><g class="live-gateway"><g data-unknown-marker><circle cx="25" cy="155" r="2"/><text x="30" y="156" data-unknown-label>Unknown / private</text></g><g data-gateway-marker transform="translate(185 155)"><circle r="2.5"/><text x="5" y="1" data-gateway-label>Aegis · location unavailable</text></g></g></svg><p class="muted">Locations use approximate regional coordinates from the local City/region database when available, with a country-area fallback. They are not precise client locations. Aegis uses the configured Gateway public IP location; the fallback marker below the map means its location is unavailable. Unknown/private locations use a separate logical marker and remain in the log. Enable local Geo data from Dashboard to locate public clients.</p><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section><section class="dashboard-panel" data-local-flow></section><section class="dashboard-panel"><div class="section-heading"><h2>Live request log</h2><span>Green = allowed · red = blocked</span></div><div class="table-wrap live-log" role="region" aria-label="Live request log" tabindex="0"><table><thead><tr><th scope="col">Time</th><th scope="col">Proxy host</th><th scope="col">Client</th><th scope="col">Location</th><th scope="col">Result</th><th scope="col">HTTP / source</th><th scope="col">Details</th></tr></thead><tbody data-live-rows></tbody></table><p data-live-empty class="muted">Waiting for completed requests…</p></div><p class="muted">Completed requests arrive after asynchronous logging, usually with a 1–2 second delay; long streams appear when they finish. Each refresh reads up to 200 recorded requests from the last minute; this is a best-effort live view. The log retains 200 rows and animations are capped at 30 simultaneous effects. Activity provides the persisted request records.</p></section>`;
+        )}</select></label><button type="button" class="secondary" data-live-pause>Pause feed</button><label class="check"><input type="checkbox" data-live-follow ${reduced ? "" : "checked"}><span>Follow new requests</span></label><label class="check"><input type="checkbox" data-live-hide-local ${hideLocal ? "checked" : ""}><span>Hide local traffic</span></label><span data-live-state role="status">Connecting…</span></div><section class="dashboard-panel live-map-panel"><div class="live-map-legend"><span class="live-allowed">● Allowed</span><span class="live-blocked">● Blocked</span><span data-live-counts></span></div><svg class="live-world" viewBox="0 5 360 170" role="img" aria-label="Observed requests by country; gateway uses the configured country when available"><g>${world.map((country) => `<path d="${country.path}" data-live-country="${esc(country.code)}" class="live-country"><title>${esc(country.name)}</title></path>`).join("")}</g><g data-live-effects aria-hidden="true"></g><g class="live-gateway"><g data-unknown-marker><circle cx="25" cy="155" r="2"/><text x="30" y="156" data-unknown-label>Unknown / private</text></g><g data-gateway-marker transform="translate(185 155)"><circle r="2.5"/><text x="5" y="1" data-gateway-label>Aegis · location unavailable</text></g></g></svg><p class="muted">Locations use approximate regional coordinates from the local City/region database when available, with a country-area fallback. They are not precise client locations. Aegis uses the configured Gateway public IP location; the fallback marker below the map means its location is unavailable. Unknown/private locations use a separate logical marker and remain in the log. Enable local Geo data from Dashboard to locate public clients.</p><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section><section class="dashboard-panel" data-local-flow></section><section class="dashboard-panel"><div class="section-heading"><h2>Live request log</h2><span>Green = allowed · red = blocked</span></div><div class="table-wrap live-log" role="region" aria-label="Live request log" tabindex="0"><table><thead><tr><th scope="col">Time</th><th scope="col">Proxy host</th><th scope="col">Client</th><th scope="col">Location</th><th scope="col">Result</th><th scope="col">HTTP / source</th><th scope="col">Details</th></tr></thead><tbody data-live-rows></tbody></table><p data-live-empty class="muted">Waiting for completed requests…</p></div><p class="muted">Completed requests arrive after asynchronous logging, usually with a 1–2 second delay; long streams appear when they finish. Each refresh reads up to 200 recorded requests from the last minute; this is a best-effort live view. The log retains 200 rows and animations are capped at 30 simultaneous effects. Activity provides the persisted request records.</p></section>`;
     const select = view.querySelector<HTMLSelectElement>("select")!,
       pause = view.querySelector<HTMLButtonElement>("[data-live-pause]")!,
       follow = view.querySelector<HTMLInputElement>("[data-live-follow]")!,
@@ -195,14 +197,14 @@ export function makeLiveMap(c: C) {
         return;
       }
       const stamp = ++generation;
+      const query = new URLSearchParams();
+      if (selected) query.set("site_id", selected);
+      if (hideLocal) query.set("exclude_local", "true");
       try {
         const report = await c.api<{
           events: Event[];
           gateway_location?: GatewayLocation;
-        }>(
-          "/live-traffic" +
-            (selected ? "?site_id=" + encodeURIComponent(selected) : ""),
-        );
+        }>("/live-traffic" + (query.size ? "?" + query.toString() : ""));
         if (!active || stamp !== generation || !view.isConnected) return;
         positionGateway(report.gateway_location);
         const unknown = report.events.filter(
@@ -259,6 +261,14 @@ export function makeLiveMap(c: C) {
       effects.clear();
       layer.replaceChildren();
       if (!paused) void poll();
+    };
+    const hide = view.querySelector<HTMLInputElement>(
+      "[data-live-hide-local]",
+    )!;
+    hide.onchange = () => {
+      hideLocal = hide.checked;
+      saveHideLocalTraffic(hideLocal);
+      select.dispatchEvent(new Event("change"));
     };
     follow.onchange = () => {
       if (follow.checked) log.scrollTop = log.scrollHeight;
