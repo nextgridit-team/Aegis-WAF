@@ -51,3 +51,8 @@ INSERT INTO schema_version VALUES(4) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS rule_feeds(id serial PRIMARY KEY,name text NOT NULL,url text NOT NULL,site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,etag text NOT NULL DEFAULT '',last_attempt timestamptz,last_success timestamptz,next_sync timestamptz NOT NULL DEFAULT now(),error text NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS rule_feed_items(feed_id int NOT NULL REFERENCES rule_feeds ON DELETE CASCADE,entry_id text NOT NULL,spec jsonb NOT NULL,available boolean NOT NULL DEFAULT true,imported_spec jsonb,rule_id bigint REFERENCES rules ON DELETE SET NULL,PRIMARY KEY(feed_id,entry_id));
 INSERT INTO schema_version VALUES(5) ON CONFLICT DO NOTHING;
+
+-- Version 6: per-application headers and scoped protection exceptions.
+CREATE TABLE IF NOT EXISTS proxy_headers(site_id bigint PRIMARY KEY REFERENCES sites ON DELETE CASCADE,settings jsonb NOT NULL);
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS protection_exemptions jsonb NOT NULL DEFAULT '[]';
+INSERT INTO schema_version VALUES(6) ON CONFLICT DO NOTHING;

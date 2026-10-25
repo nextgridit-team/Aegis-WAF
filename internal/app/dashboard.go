@@ -193,12 +193,12 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request, _ identity) erro
 		sql    string
 		target *[]byte
 	}{
-		{`SELECT jsonb_build_object('requests',count(*),'blocked',count(*) FILTER(WHERE blocked),'flagged',count(*) FILTER(WHERE signals<>'[]'::jsonb),'errors',count(*) FILTER(WHERE status>=500),'rps',count(*) FILTER(WHERE at >= $3::timestamptz-interval '10 seconds')/10.0,'clients',count(DISTINCT peer),'mean_duration_ms',coalesce(avg(duration_ms),0))` + filter, &totals},
+		{`SELECT jsonb_build_object('requests',count(*),'blocked',count(*) FILTER(WHERE blocked),'flagged',count(*) FILTER(WHERE signals<>'[]'::jsonb),'exempt',count(*) FILTER(WHERE protection_exemptions<>'[]'::jsonb),'errors',count(*) FILTER(WHERE status>=500),'rps',count(*) FILTER(WHERE at >= $3::timestamptz-interval '10 seconds')/10.0,'clients',count(DISTINCT peer),'mean_duration_ms',coalesce(avg(duration_ms),0))` + filter, &totals},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.at),'[]') FROM (SELECT date_bin(interval '10 seconds',at,timestamptz '2000-01-01') at,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY 1) x`, &series},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT country,count(*) requests,count(*) FILTER(WHERE blocked) blocked` + filter + ` GROUP BY country) x`, &countries},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.status),'[]') FROM (SELECT status,count(*) requests` + filter + ` GROUP BY status) x`, &statuses},
 		{`SELECT coalesce(jsonb_agg(x ORDER BY x.requests DESC),'[]') FROM (SELECT signal,count(*) requests FROM (SELECT jsonb_array_elements_text(signals) signal` + filter + `) s GROUP BY signal) x`, &signals},
-		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
+		{`SELECT coalesce(jsonb_agg(x ORDER BY x.id DESC),'[]') FROM (SELECT id,at,site_id,method,status,duration_ms,peer,country,blocked,signals,protection_exemptions` + filter + ` ORDER BY at DESC LIMIT 20) x`, &recent},
 	}
 	for index, q := range queries {
 		if e = tx.QueryRow(ctx, q.sql, since, site, now).Scan(q.target); e != nil {

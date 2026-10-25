@@ -796,6 +796,168 @@ const { execFileSync } = require("node:child_process");
     });
     await page.waitForTimeout(4500);
     await screenshot("dashboard-desktop");
+    // App-scoped client-IP sources, component exemptions and custom headers.
+    await page
+      .getByRole("button", { name: "Protection settings", exact: true })
+      .click();
+    await dialog()
+      .getByLabel("Application", { exact: true })
+      .selectOption({ label: "Manual TLS" });
+    await dialog()
+      .getByLabel("Flood mode", { exact: true })
+      .selectOption("block");
+    await dialog()
+      .getByLabel("Requests / second per client", { exact: true })
+      .fill("1");
+    await dialog()
+      .getByLabel("Client burst allowance", { exact: true })
+      .fill("1");
+    await dialog()
+      .getByLabel("Client IP header", { exact: true })
+      .selectOption("x-real-ip");
+    await dialog()
+      .getByLabel("HTTP flood exempt IPs / CIDRs", { exact: true })
+      .fill("8.8.8.8/32");
+    await dialog()
+      .getByLabel("Anti-bot exempt IPs / CIDRs", { exact: true })
+      .fill("8.8.8.8/32");
+    await dialog()
+      .getByRole("button", { name: "Save protection", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await nav("Proxy hosts").click();
+    const headerSite = () =>
+      page.locator("#site-list tbody tr").filter({ hasText: "Manual TLS" });
+    await headerSite()
+      .getByRole("button", { name: "Edit", exact: true })
+      .click();
+    await dialog().getByText("Protection options", { exact: true }).click();
+    assert.equal(
+      await dialog()
+        .getByLabel("Client IP header", { exact: true })
+        .inputValue(),
+      "x-real-ip",
+    );
+    assert.equal(
+      await dialog()
+        .getByLabel("HTTP flood exempt IPs / CIDRs", { exact: true })
+        .inputValue(),
+      "8.8.8.8/32",
+    );
+    await dialog().getByText("Proxy headers", { exact: true }).click();
+    const addHeader = async (side, name, value, op = "set") => {
+      await dialog()
+        .getByRole("button", { name: `Add ${side} header`, exact: true })
+        .click();
+      const row = dialog()
+        .locator(`[data-header-side="${side}"] [data-header-row]`)
+        .last();
+      await row
+        .getByLabel(
+          `${side === "request" ? "Request" : "Response"} header name`,
+          { exact: true },
+        )
+        .fill(name);
+      await row.getByRole("combobox").selectOption(op);
+      if (op === "set") await row.getByRole("textbox").last().fill(value);
+    };
+    await addHeader("request", "X-Aegis-Test", "configured");
+    await addHeader("request", "X-Strip-Me", "", "remove");
+    await addHeader("response", "X-Aegis-Response", "protected");
+    await addHeader("response", "Server", "", "remove");
+    await addHeader("request", "x-aegis-test", "duplicate");
+    await dialog()
+      .getByRole("button", { name: "Save proxy host", exact: true })
+      .click();
+    await dialog()
+      .getByRole("alert")
+      .filter({ hasText: "unique name" })
+      .waitFor();
+    await dialog()
+      .locator('[data-header-side="request"] [data-header-row]')
+      .last()
+      .getByRole("button")
+      .click();
+    await screenshot("proxy-header-settings");
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      assert.equal(
+        await dialog().evaluate((el) => el.scrollWidth > el.clientWidth),
+        false,
+        `header editor overflow ${width}`,
+      );
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await dialog()
+      .getByRole("button", { name: "Save proxy host", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page.waitForTimeout(2500);
+    const headerProbe = (ip = "8.8.8.8", ua = "sqlmap/test") =>
+      new Promise((resolve, reject) => {
+        const req = https.get(
+          {
+            hostname: "127.0.0.1",
+            port: ports[0],
+            servername: "manual.example.test",
+            rejectUnauthorized: false,
+            headers: {
+              Host: "manual.example.test",
+              "X-Real-IP": ip,
+              "X-Forwarded-For": "192.168.1.9",
+              "X-Strip-Me": "remove-me",
+              "User-Agent": ua,
+            },
+          },
+          (res) => {
+            res.resume();
+            res.on("end", () =>
+              resolve({ status: res.statusCode, headers: res.headers }),
+            );
+          },
+        );
+        req.on("error", reject);
+      });
+    for (let i = 0; i < 5; i++) {
+      const result = await headerProbe();
+      assert.equal(result.status, 200);
+      assert.equal(result.headers["x-seen-client-ip"], "8.8.8.8");
+      assert.equal(result.headers["x-seen-test-header"], "configured");
+      assert.equal(result.headers["x-seen-stripped-header"], "");
+      assert.equal(result.headers["x-aegis-response"], "protected");
+      assert.equal(result.headers.server, undefined);
+    }
+    assert.equal(
+      (await headerProbe("1.1.1.1", "ordinary-browser")).status,
+      200,
+    );
+    const limited = await headerProbe("1.1.1.1", "ordinary-browser");
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers["x-aegis-response"], "protected");
+    await headerSite()
+      .getByRole("button", { name: "Edit", exact: true })
+      .click();
+    await dialog().getByText("Proxy headers", { exact: true }).click();
+    await dialog()
+      .getByLabel("Forward validated client headers to the upstream", {
+        exact: true,
+      })
+      .uncheck();
+    await dialog()
+      .getByRole("button", { name: "Save proxy host", exact: true })
+      .click();
+    await dialog().waitFor({ state: "detached" });
+    await page.waitForTimeout(2500);
+    const noForward = await headerProbe();
+    assert.equal(noForward.status, 200);
+    assert.equal(noForward.headers["x-seen-client-ip"], "");
+    assert.equal(noForward.headers["x-seen-test-header"], "configured");
+    await nav("Dashboard").click();
+    await page.waitForTimeout(4500);
+    await page
+      .getByText(/HTTP flood exempt/)
+      .first()
+      .waitFor();
     // First-party public feed: real download, candidate review and draft import.
     await nav("Rule feeds").click();
     await page

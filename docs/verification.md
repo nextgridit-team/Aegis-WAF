@@ -177,3 +177,17 @@ login and cross-replica session/logout over verified TLS. Remote session
 cookies remain Secure; plain-HTTP private-IP sign-in is not enabled. The
 container readiness probe supports local HTTPS without requiring the DNS
 certificate to cover the loopback IP.
+
+## Header controls and component CIDR exceptions
+
+Added regression coverage for resolved identity forwarding, forwarding disabled,
+request Set/Remove, response Set/Remove on normal and blocked responses,
+invalid/reserved/credential header rejection, duplicate operations and CRLF
+rejection. CIDR tests cover per-component isolation, individual addresses,
+IPv6/mapped IPv4, external throttling, budgets unconsumed by exempt traffic,
+malformed/untrusted proxy identity and retained declarative WAF enforcement.
+PostgreSQL coverage includes application settings persistence, two replicas,
+exemption logs/totals, invalid edits retaining working settings and cached
+behavior without database access. Browser coverage adds header editor retries,
+CIDR/source persistence, real upstream echo of forwarding/custom headers,
+external 429 responses, forwarding disabled and four header-form viewports.

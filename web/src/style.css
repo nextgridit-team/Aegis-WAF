@@ -1879,3 +1879,11 @@ input[type="checkbox"] {
 .feed-candidate {padding:16px 0; border-bottom:1px solid var(--line);}
 .feed-candidate > small {display:block;color:var(--muted);margin-top:7px;}
 .feed-candidate pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:350px;overflow:auto;font-size:11px;}
+.header-editor { border:1px solid var(--line); border-radius:8px; margin:18px 0; padding:14px; min-width:0; }
+.header-editor legend { font-size:12px; font-weight:600; padding:0 6px; }
+.header-row { display:grid; grid-template-columns:100px minmax(0,1fr) auto; gap:8px; margin:8px 0 16px; align-items:center; }
+.header-row input,.header-row select { margin:0; }
+.header-row .header-value { grid-column:1 / 3; }
+.header-row button { grid-column:3;grid-row:1 / 3; }
+.header-row [hidden] { display:none; }
+@media(max-width:500px){.header-row{grid-template-columns:80px minmax(0,1fr);}.header-row button{grid-column:1 / 3;grid-row:auto;justify-self:end;}.header-editor{padding:10px;}}

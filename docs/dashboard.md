@@ -26,9 +26,13 @@ User agents are spoofable and legitimate tests/monitoring can match. This is bas
 
 ## Client identity behind proxies
 
-By default the transport peer is the client. List explicit trusted proxy CIDRs per application only for proxies you control that sanitize `X-Forwarded-For`. Aegis walks that header from the transport peer towards the client and stops at the first untrusted hop. Direct untrusted requests cannot spoof their identity using forwarding headers. Malformed/oversized chains fall back to the transport peer. Trust-all CIDRs are rejected. IPv4 and IPv6 are supported.
+By default the transport peer is the client. List explicit trusted proxy CIDRs per application only for proxies you control that sanitize `X-Forwarded-For`. Aegis walks that header from the transport peer towards the client and stops at the first untrusted hop. Direct untrusted requests cannot spoof their identity using forwarding headers. Choose X-Forwarded-For, X-Real-IP or CF-Connecting-IP as the incoming client-IP source. Single-address headers are accepted only from trusted proxies and must contain one valid address. Missing/malformed/oversized trusted-proxy identities fall back to the transport peer for logging/limits and cannot claim CIDR exemptions. Trust-all CIDRs are rejected. IPv4 and IPv6 are supported.
 
 The resolved IP is used consistently for rate limits, rule `client_ip`, metadata logs, captured client identity and country lookup. Using Cloudflare for DNS certificate verification does not by itself mean application traffic is proxied through Cloudflare. Keep trusted proxies empty for direct connections.
+
+## Component exemptions
+
+The application create/edit form and dashboard protection editor provide separate HTTP flood and Anti-bot exemption IP/CIDR lists. A flood exemption bypasses both client and application budgets and does not consume them; bot detection and declarative rules remain active. Bot exemptions leave flood protection and rules active. Every request remains counted/logged, with explicit exemption metadata and dashboard/Activity labels. Lists start empty and must be configured explicitly. See [header and CIDR controls](headers-and-cidrs.md).
 
 ## API
 

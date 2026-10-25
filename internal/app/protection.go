@@ -24,14 +24,18 @@ type ProtectionSettings struct {
 	BotMode               string   `json:"bot_mode"`
 	BlockEmptyUA          bool     `json:"block_empty_user_agent"`
 	TrustedProxies        []string `json:"trusted_proxies"`
+	ClientIPHeader        string   `json:"client_ip_header"`
+	FloodExemptCIDRs      []string `json:"flood_exempt_cidrs"`
+	BotExemptCIDRs        []string `json:"bot_exempt_cidrs"`
 }
 type protectionPolicy struct {
 	ProtectionSettings
-	trusted []netip.Prefix
+	trusted                []netip.Prefix
+	floodExempt, botExempt []netip.Prefix
 }
 
 func defaultProtection() ProtectionSettings {
-	return ProtectionSettings{Mode: "off", RequestsPerSecond: 20, Burst: 60, SiteRequestsPerSecond: 1000, SiteBurst: 2000, BotMode: "off", TrustedProxies: []string{}}
+	return ProtectionSettings{Mode: "off", RequestsPerSecond: 20, Burst: 60, SiteRequestsPerSecond: 1000, SiteBurst: 2000, BotMode: "off", TrustedProxies: []string{}, ClientIPHeader: "x-forwarded-for", FloodExemptCIDRs: []string{}, BotExemptCIDRs: []string{}}
 }
 func compileProtection(s ProtectionSettings) (*protectionPolicy, error) {
 	validMode := func(m string) bool { return m == "off" || m == "observe" || m == "block" }
@@ -41,51 +45,139 @@ func compileProtection(s ProtectionSettings) (*protectionPolicy, error) {
 	if s.RequestsPerSecond < 1 || s.RequestsPerSecond > 100000 || s.Burst < s.RequestsPerSecond || s.Burst > 1000000 || s.SiteRequestsPerSecond < 1 || s.SiteRequestsPerSecond > 1000000 || s.SiteBurst < s.SiteRequestsPerSecond || s.SiteBurst > 2000000 {
 		return nil, invalid("provide positive limits and bursts at least as large as the requests per second limit")
 	}
-	if len(s.TrustedProxies) > 32 {
-		return nil, invalid("at most 32 trusted proxy CIDRs")
+	s.ClientIPHeader = strings.ToLower(strings.TrimSpace(s.ClientIPHeader))
+	if s.ClientIPHeader == "" {
+		s.ClientIPHeader = "x-forwarded-for"
+	}
+	switch s.ClientIPHeader {
+	case "x-forwarded-for", "x-real-ip", "cf-connecting-ip":
+	default:
+		return nil, invalid("client_ip_header must be x-forwarded-for, x-real-ip or cf-connecting-ip")
 	}
 	p := &protectionPolicy{ProtectionSettings: s}
-	for _, v := range s.TrustedProxies {
-		prefix, e := netip.ParsePrefix(v)
-		if e != nil || prefix.Bits() == 0 {
-			return nil, invalid("trusted proxies require explicit CIDRs; trusting all addresses is forbidden")
+	for _, list := range []struct {
+		raw        []string
+		target     *[]netip.Prefix
+		normalized *[]string
+		limit      int
+		label      string
+	}{
+		{s.TrustedProxies, &p.trusted, &p.TrustedProxies, 32, "trusted proxies"},
+		{s.FloodExemptCIDRs, &p.floodExempt, &p.FloodExemptCIDRs, 128, "HTTP flood exemptions"},
+		{s.BotExemptCIDRs, &p.botExempt, &p.BotExemptCIDRs, 128, "bot exemptions"},
+	} {
+		if len(list.raw) > list.limit {
+			return nil, invalid(list.label + " exceeds its entry limit")
 		}
-		p.trusted = append(p.trusted, prefix.Masked())
+		*list.normalized = []string{}
+		seen := map[netip.Prefix]bool{}
+		for _, raw := range list.raw {
+			prefix, e := netip.ParsePrefix(strings.TrimSpace(raw))
+			if e != nil {
+				ip, err := netip.ParseAddr(strings.TrimSpace(raw))
+				if err != nil || ip.Zone() != "" {
+					return nil, invalid(list.label + " requires valid IP addresses or CIDRs")
+				}
+				ip = ip.Unmap()
+				prefix = netip.PrefixFrom(ip, ip.BitLen())
+			}
+			if prefix.Addr().Is4In6() {
+				if prefix.Bits() < 96 {
+					return nil, invalid("mapped IPv4 CIDRs require at least a /96 prefix")
+				}
+				prefix = netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96)
+			}
+			if prefix.Bits() == 0 {
+				return nil, invalid(list.label + " cannot include all addresses; use Off to disable a component")
+			}
+			prefix = prefix.Masked()
+			if seen[prefix] {
+				continue
+			}
+			seen[prefix] = true
+			*list.target = append(*list.target, prefix)
+			*list.normalized = append(*list.normalized, prefix.String())
+		}
 	}
+
 	return p, nil
 }
-func (p *protectionPolicy) trusts(ip netip.Addr) bool {
-	if p == nil {
-		return false
-	}
-	for _, prefix := range p.trusted {
+func matchesCIDRs(prefixes []netip.Prefix, ip netip.Addr) bool {
+	ip = ip.Unmap()
+	for _, prefix := range prefixes {
 		if prefix.Contains(ip) {
 			return true
 		}
 	}
 	return false
 }
+func (p *protectionPolicy) trusts(ip netip.Addr) bool { return p != nil && matchesCIDRs(p.trusted, ip) }
+func (p *protectionPolicy) exemptions(ip netip.Addr) []string {
+	out := []string{}
+	if p != nil {
+		if matchesCIDRs(p.floodExempt, ip) {
+			out = append(out, "http_flood")
+		}
+		if matchesCIDRs(p.botExempt, ip) {
+			out = append(out, "anti_bot")
+		}
+	}
+	return out
+}
+func (p *protectionPolicy) forwardedProto(r *http.Request) string {
+	proto := "http"
+	if r.TLS != nil {
+		proto = "https"
+	}
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	peer, _ := netip.ParseAddr(host)
+	if p.trusts(peer.Unmap()) && len(r.Header.Values("X-Forwarded-Proto")) == 1 {
+		v := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")))
+		if v == "http" || v == "https" {
+			proto = v
+		}
+	}
+	return proto
+}
 func (p *protectionPolicy) clientIP(r *http.Request) netip.Addr {
+	ip, _ := p.resolveClientIP(r)
+	return ip
+}
+func (p *protectionPolicy) resolveClientIP(r *http.Request) (netip.Addr, bool) {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	peer, _ := netip.ParseAddr(host)
 	peer = peer.Unmap()
 	if !p.trusts(peer) {
-		return peer
+		return peer, peer.IsValid()
+	}
+	header := "x-forwarded-for"
+	if p.ClientIPHeader != "" {
+		header = p.ClientIPHeader
+	}
+	if header != "x-forwarded-for" {
+		if len(r.Header.Values(header)) != 1 {
+			return peer, false
+		}
+		ip, e := netip.ParseAddr(strings.TrimSpace(r.Header.Get(header)))
+		if e != nil || ip.Zone() != "" {
+			return peer, false
+		}
+		return ip.Unmap(), true
 	}
 	// Walk from the transport peer towards the client. Never accept arbitrary leftmost input.
-	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	if len(parts) > 32 {
-		return peer
+		return peer, false
 	}
 	ip := peer
 	for n := len(parts) - 1; n >= 0 && p.trusts(ip); n-- {
 		next, e := netip.ParseAddr(strings.TrimSpace(parts[n]))
-		if e != nil {
-			return peer
+		if e != nil || next.Zone() != "" {
+			return peer, false
 		}
 		ip = next.Unmap()
 	}
-	return ip
+	return ip, true
 }
 
 type rateKey struct {
@@ -141,13 +233,16 @@ func (l *floodLimiter) allow(key rateKey, rate, burst int, now time.Time) bool {
 	return allowed
 }
 func (a *App) protect(p *protectionPolicy, site int64, r *http.Request, ip netip.Addr, now time.Time) ([]string, bool, int) {
+	return a.protectResolved(p, site, r, ip, now, true)
+}
+func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, ip netip.Addr, now time.Time, reliable bool) ([]string, bool, int) {
 	signals := []string{}
 	blocked := false
 	status := http.StatusForbidden
 	if p == nil {
 		return signals, false, status
 	}
-	if p.Mode != "off" {
+	if p.Mode != "off" && (!reliable || !matchesCIDRs(p.floodExempt, ip)) {
 		client := a.flood.allow(rateKey{site, ip.String()}, p.RequestsPerSecond, p.Burst, now)
 		total := a.flood.allow(rateKey{site, "*"}, p.SiteRequestsPerSecond, p.SiteBurst, now)
 		if !client {
@@ -161,7 +256,7 @@ func (a *App) protect(p *protectionPolicy, site int64, r *http.Request, ip netip
 			status = http.StatusTooManyRequests
 		}
 	}
-	if p.BotMode != "off" {
+	if p.BotMode != "off" && (!reliable || !matchesCIDRs(p.botExempt, ip)) {
 		ua := strings.ToLower(r.UserAgent())
 		bot := ""
 		for _, v := range []string{"sqlmap", "nikto", "nuclei", "masscan", "zgrab", "headlesschrome", "phantomjs"} {
@@ -216,9 +311,11 @@ func (a *App) saveProtection(w http.ResponseWriter, r *http.Request, i identity)
 	if e = decode(w, r, &p); e != nil {
 		return e
 	}
-	if _, e = compileProtection(p); e != nil {
+	compiled, e := compileProtection(p)
+	if e != nil {
 		return e
 	}
+	p = compiled.ProtectionSettings
 	raw, _ := json.Marshal(p)
 	e = a.change(r.Context(), func(tx pgx.Tx) error {
 		var exists bool

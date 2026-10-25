@@ -340,7 +340,7 @@ func (a *App) list(w http.ResponseWriter, r *http.Request, sql string) error {
 	return nil
 }
 func (a *App) listSites(w http.ResponseWriter, r *http.Request, _ identity) error {
-	return a.list(w, r, "SELECT s.*,p.settings AS protection FROM sites s LEFT JOIN protection_settings p ON p.site_id=s.id ORDER BY s.id")
+	return a.list(w, r, "SELECT s.*,p.settings AS protection,h.settings AS headers FROM sites s LEFT JOIN protection_settings p ON p.site_id=s.id LEFT JOIN proxy_headers h ON h.site_id=s.id ORDER BY s.id")
 }
 func (a *App) listCertificates(w http.ResponseWriter, r *http.Request, _ identity) error {
 	return a.list(w, r, `SELECT c.id,c.name,c.origin,c.domains,c.issuer,c.not_before,c.not_after,c.account_id,c.challenge_type,c.dns_credential_id,c.updated_at,EXISTS(SELECT 1 FROM dns_challenges d JOIN jobs j ON j.id=d.job_id WHERE j.certificate_id=c.id) AS pending_dns_cleanup,CASE WHEN c.not_before IS NULL THEN 'pending' WHEN now()<c.not_before THEN 'not yet valid' WHEN now()>=c.not_after THEN 'expired' ELSE 'valid' END AS validity,coalesce((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.name)) FROM sites s WHERE s.certificate_id=c.id),'[]'::jsonb) AS assigned_sites FROM certificates c ORDER BY c.id`)
@@ -386,10 +386,19 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 	if e := decode(w, r, &s); e != nil {
 		return e
 	}
-	if s.Protection != nil {
-		if _, e := compileProtection(*s.Protection); e != nil {
+	if s.Headers != nil {
+		normalized, e := normalizeHeaders(*s.Headers)
+		if e != nil {
 			return e
 		}
+		s.Headers = &normalized
+	}
+	if s.Protection != nil {
+		compiled, e := compileProtection(*s.Protection)
+		if e != nil {
+			return e
+		}
+		s.Protection = &compiled.ProtectionSettings
 	}
 	if len(strings.TrimSpace(s.Name)) == 0 || len(s.Name) > 120 {
 		return invalid("site name must be 1–120 characters")
@@ -467,6 +476,15 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 				return e
 			}
 			if e := audit(r.Context(), tx, i.Username, "protection.saved", strconv.FormatInt(s.ID, 10)); e != nil {
+				return e
+			}
+		}
+		if s.Headers != nil {
+			raw, _ := json.Marshal(s.Headers)
+			if e := storeHeaderSettings(r.Context(), tx, s.ID, raw); e != nil {
+				return e
+			}
+			if e := audit(r.Context(), tx, i.Username, "proxy.headers.saved", strconv.FormatInt(s.ID, 10)); e != nil {
 				return e
 			}
 		}

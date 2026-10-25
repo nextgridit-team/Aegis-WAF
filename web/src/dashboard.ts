@@ -1,3 +1,4 @@
+import { protectionOptions, readProtectionOptions } from "./protection-options";
 import { world } from "./world";
 type Site = { id: number; name: string };
 export type Protection = {
@@ -9,6 +10,9 @@ export type Protection = {
   bot_mode: string;
   block_empty_user_agent: boolean;
   trusted_proxies: string[];
+  client_ip_header?: string;
+  flood_exempt_cidrs?: string[];
+  bot_exempt_cidrs?: string[];
 };
 type Report = {
   dropped_logs: number;
@@ -23,6 +27,7 @@ type Report = {
     requests: number;
     blocked: number;
     flagged: number;
+    exempt: number;
     errors: number;
     rps: number;
     clients: number;
@@ -42,6 +47,7 @@ type Report = {
     country: string;
     blocked: boolean;
     signals: string[];
+    protection_exemptions?: string[];
   }[];
 };
 type Deps = {
@@ -64,6 +70,9 @@ export const defaultProtection: Protection = {
   bot_mode: "off",
   block_empty_user_agent: false,
   trusted_proxies: [],
+  client_ip_header: "x-forwarded-for",
+  flood_exempt_cidrs: [],
+  bot_exempt_cidrs: [],
 };
 const signalNames: Record<string, string> = {
   client_rate: "Client request rate",
@@ -176,7 +185,7 @@ export function makeDashboardUI(d: Deps) {
       const scoped = scope
         ? sites.filter((s) => String(s.id) === scope)
         : sites;
-      target.innerHTML = `${r.dropped_logs ? `<div class="notice error">Reporting replicas have dropped ${format(r.dropped_logs)} access logs since starting. Request statistics may be incomplete.</div>` : ""}<div class="metric-grid">${metric("Requests / second", format(t.rps), "Completed requests · trailing 10s")}${metric("Open connections", format(r.connections), `${r.reporting_replicas} reporting replica${r.reporting_replicas === 1 ? "" : "s"} · includes keep-alive`)}${metric("In-flight requests", format(r.inflight), "Currently being processed")}${metric("Total requests", format(t.requests), `Last ${r.minutes} minutes · ${format(t.clients)} clients`)}${metric("Blocked requests", format(t.blocked), `${t.requests ? format((t.blocked / t.requests) * 100) : "0"}% of traffic`)}${metric("Flagged requests", format(t.flagged), "Bot or flood signals · includes observe")}</div>
+      target.innerHTML = `${r.dropped_logs ? `<div class="notice error">Reporting replicas have dropped ${format(r.dropped_logs)} access logs since starting. Request statistics may be incomplete.</div>` : ""}<div class="metric-grid">${metric("Requests / second", format(t.rps), "Completed requests · trailing 10s")}${metric("Open connections", format(r.connections), `${r.reporting_replicas} reporting replica${r.reporting_replicas === 1 ? "" : "s"} · includes keep-alive`)}${metric("In-flight requests", format(r.inflight), "Currently being processed")}${metric("Total requests", format(t.requests), `Last ${r.minutes} minutes · ${format(t.clients)} clients`)}${metric("Blocked requests", format(t.blocked), `${t.requests ? format((t.blocked / t.requests) * 100) : "0"}% of traffic`)}${metric("Flagged requests", format(t.flagged), `Bot or flood signals · ${format(t.exempt || 0)} requests exempt`)}</div>
    <section class="dashboard-panel"><div class="section-heading"><h2>Traffic over time</h2><div class="chart-legend"><span>● Requests</span><span>● Blocked</span></div></div>${rateChart}${!t.requests ? '<p class="dashboard-empty">No traffic in this time range. Connect a proxy host to start seeing requests.</p>' : ""}</section>
    <div class="dashboard-columns"><section class="dashboard-panel world-panel"><div class="section-heading"><h2>Incoming traffic</h2><small>Requests by country</small></div><svg class="world-map" viewBox="0 5 360 160" role="img" aria-label="World map of incoming requests by country">${map}</svg><div class="map-caption"><span>Lower <span class="map-scale" aria-hidden="true">▁▃▅▇</span> Higher</span><small>Country estimates, not precise visitor locations</small></div><div class="geo-status">${r.geo_updated_at ? `Country database updated ${esc(new Date(r.geo_updated_at).toLocaleDateString())}.` : "Enable the country database to locate public client IPs."} <button class="text-button" data-action="geo-update">${r.geo_updated_at ? "Update database" : "Enable map locations"}</button></div><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section>
    <section class="dashboard-panel"><h2>Traffic origins</h2>${rowList(
@@ -221,11 +230,14 @@ export function makeDashboardUI(d: Deps) {
              ),
              esc(event.peer),
              String(event.status),
-             event.blocked
+             (event.blocked
                ? '<span class="badge danger">Blocked</span>'
                : event.signals.length
                  ? '<span class="badge warning">Flagged · allowed</span>'
-                 : '<span class="badge success">Allowed</span>',
+                 : '<span class="badge success">Allowed</span>') +
+               (event.protection_exemptions?.length
+                 ? `<small>${event.protection_exemptions.map((v) => esc(v === "http_flood" ? "HTTP flood exempt" : v === "anti_bot" ? "Anti-bot exempt" : v)).join(" · ")}</small>`
+                 : ""),
            ]),
            "Recent requests",
          )
@@ -268,7 +280,7 @@ export function makeDashboardUI(d: Deps) {
         settings.find((s) => String(s.site_id) === select.value)?.settings ||
         defaultProtection;
       document.getElementById("protection-fields")!.innerHTML =
-        `<h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p><h3>Client identity</h3><label class="field">Trusted proxy CIDRs<textarea name="trusted_proxies" rows="3" placeholder="One CIDR per line; leave empty for direct connections">${esc(p.trusted_proxies.join("\n"))}</textarea></label><small>Only list proxies you control that sanitize X-Forwarded-For. Other peers cannot supply client identity. An empty list uses the socket address.</small>`;
+        `<h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p>${protectionOptions(p)}`;
     };
     fill();
     select.addEventListener("change", fill);
@@ -281,9 +293,7 @@ export function makeDashboardUI(d: Deps) {
         site_burst: Number(f.get("site_burst")),
         bot_mode: String(f.get("bot_mode")),
         block_empty_user_agent: f.has("block_empty_user_agent"),
-        trusted_proxies: String(f.get("trusted_proxies") || "")
-          .split(/[\s,]+/)
-          .filter(Boolean),
+        ...readProtectionOptions(f),
       };
       await api(`/protection-settings/${f.get("site_id")}`, "PUT", p);
       d.closeEditor();

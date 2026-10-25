@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,6 +28,7 @@ import (
 var schema string
 
 type Site struct {
+	Headers       *HeaderSettings     `json:"headers,omitempty"`
 	Protection    *ProtectionSettings `json:"protection,omitempty"`
 	ID            int64               `json:"id"`
 	Name          string              `json:"name"`
@@ -52,17 +54,18 @@ type snapshot struct {
 	geo          *maxminddb.Reader
 }
 type accessEvent struct {
-	at       time.Time
-	site     int64
-	method   string
-	status   int
-	duration int64
-	peer     string
-	results  []RuleResult
-	evidence *evidenceEvent
-	country  string
-	blocked  bool
-	signals  []string
+	at         time.Time
+	site       int64
+	method     string
+	status     int
+	duration   int64
+	peer       string
+	results    []RuleResult
+	evidence   *evidenceEvent
+	country    string
+	blocked    bool
+	signals    []string
+	exemptions []string
 }
 type App struct {
 	flood        floodLimiter
@@ -193,14 +196,15 @@ func (a *App) refresh(ctx context.Context) error {
 	if e != nil {
 		return e
 	}
-	rows, e = tx.Query(ctx, "SELECT id,name,hostnames,upstream,certificate_id,redirect_https,preserve_host,enabled FROM sites WHERE enabled")
+	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
 	if e != nil {
 		return e
 	}
 	next := &snapshot{version: version, routes: map[string]*route{}, certificates: certs}
 	for rows.Next() {
 		var s Site
-		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled); e != nil {
+		var rawHeaders []byte
+		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &rawHeaders); e != nil {
 			rows.Close()
 			return e
 		}
@@ -213,7 +217,18 @@ func (a *App) refresh(ctx context.Context) error {
 		if s.CertificateID != nil {
 			r.cert = certs[*s.CertificateID]
 		}
-		r.proxy = newProxy(target, s.PreserveHost)
+		var headers HeaderSettings
+		if e = json.Unmarshal(rawHeaders, &headers); e != nil {
+			rows.Close()
+			return e
+		}
+		headers, e = normalizeHeaders(headers)
+		if e != nil {
+			rows.Close()
+			return e
+		}
+		r.site.Headers = &headers
+		r.proxy = newProxyWithHeaders(target, s.PreserveHost, headers)
 		for _, h := range s.Hostnames {
 			next.routes[h] = r
 		}
@@ -246,13 +261,16 @@ func (a *App) refresh(ctx context.Context) error {
 	return nil
 }
 func newProxy(target *url.URL, preserve bool) *httputil.ReverseProxy {
+	return newProxyWithHeaders(target, preserve, HeaderSettings{})
+}
+func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings) *httputil.ReverseProxy {
 	p := &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
 		pr.SetURL(target)
-		pr.SetXForwarded()
+		rewriteProxyHeaders(pr, settings)
 		if preserve {
 			pr.Out.Host = pr.In.Host
 		}
-	}, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
+	}, ModifyResponse: func(response *http.Response) error { settings.applyResponse(response.Header); return nil }, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
 		http.Error(w, "upstream unavailable", http.StatusBadGateway)
 	}}
 	return p
@@ -301,12 +319,16 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	start := time.Now()
-	rec := &statusWriter{ResponseWriter: w, status: 200, onHijack: func(c net.Conn) net.Conn {
+	rec := &statusWriter{ResponseWriter: w, status: 200, beforeHeader: rt.site.Headers.applyResponse, onHijack: func(c net.Conn) net.Conn {
 		return &trackedConnection{Conn: c, closed: func() { a.ConnectionState(c, http.StateClosed) }}
 	}}
 	policy := s.protection[rt.site.ID]
-	clientIP := policy.clientIP(r)
-	signals, protectionBlocked, protectionStatus := a.protect(policy, rt.site.ID, r, clientIP, start)
+	clientIP, reliableIdentity := policy.resolveClientIP(r)
+	exemptions := []string{}
+	if reliableIdentity {
+		exemptions = policy.exemptions(clientIP)
+	}
+	signals, protectionBlocked, protectionStatus := a.protectResolved(policy, rt.site.ID, r, clientIP, start, reliableIdentity)
 	done := a.metrics.begin(r, rt.site.ID)
 	defer done()
 	facts := newRequestFacts(r)
@@ -318,7 +340,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		peer := clientIP.String()
-		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, evidence: evidence, country: countryFor(s.geo, clientIP), blocked: blocked || protectionBlocked, signals: signals}
+		event := accessEvent{at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, evidence: evidence, country: countryFor(s.geo, clientIP), blocked: blocked || protectionBlocked, signals: signals, exemptions: exemptions}
 		select {
 		case a.access <- event:
 		default:
@@ -342,20 +364,25 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
 		return
 	}
+	r = r.WithContext(context.WithValue(r.Context(), proxyIdentityKey{}, proxyIdentity{clientIP, policy.forwardedProto(r)}))
 	rt.proxy.ServeHTTP(rec, r)
 }
 
 type statusWriter struct {
 	http.ResponseWriter
-	status   int
-	wrote    bool
-	onHijack func(net.Conn) net.Conn
+	status       int
+	wrote        bool
+	onHijack     func(net.Conn) net.Conn
+	beforeHeader func(http.Header)
 }
 
 func (w *statusWriter) WriteHeader(n int) {
 	if !w.wrote && n >= 200 {
 		w.status = n
 		w.wrote = true
+		if w.beforeHeader != nil {
+			w.beforeHeader(w.Header())
+		}
 	}
 	w.ResponseWriter.WriteHeader(n)
 }

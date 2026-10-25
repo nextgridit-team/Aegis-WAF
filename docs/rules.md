@@ -42,7 +42,7 @@ Use an actual existing site ID. `path_prefix` and `evidence_ids` are optional; e
 
 String values compare case-sensitively. `in` takes an array of 1–32 strings; other operators take one string. Repeated query/header values use any-value matching. Conditions combine with AND; there is no arbitrary code, scripting, shell, SQL, recursive expression language, or external call. Regex uses Go's linear-time RE2 engine without lookaround/backreferences. The optional path prefix is a literal string prefix, not a path-segment boundary. Paths are not case-folded, dot-segment cleaned, or repeatedly decoded by the engine. Upstream frameworks can interpret paths, headers and query strings differently; these rules are deliberately not a complete injection detector.
 
-`client_ip` never trusts forwarded headers. Behind a load balancer it identifies the balancer. Do not deploy sender rules assuming it is the original client. HTTP-01 challenge requests bypass site rules; management uses its separate listener. Rules do not inspect WebSocket frames or response content.
+`client_ip` uses the resolved client identity: transport peer by default, or the selected client-IP header from an explicitly trusted proxy. See [identity and CIDR controls](headers-and-cidrs.md). Bot/flood CIDR exemptions do not bypass declarative rules.
 
 ## Limits and incomplete inspection
 

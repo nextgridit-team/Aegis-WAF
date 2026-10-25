@@ -1,3 +1,10 @@
+import {
+  headerMarkup,
+  bindHeaderEditor,
+  readHeaders,
+  type HeaderSettings,
+} from "./headers";
+import { protectionOptions, readProtectionOptions } from "./protection-options";
 import { makeFeedsUI } from "./feeds";
 import {
   makeDashboardUI,
@@ -8,6 +15,7 @@ import { themeControl, toggleTheme } from "./theme";
 import { makePolicyUI } from "./policies";
 export {};
 type Site = {
+  headers?: HeaderSettings | null;
   protection?: Protection | null;
   id: number;
   name: string;
@@ -70,6 +78,7 @@ type Access = {
   status: number;
   duration_ms: number;
   peer: string;
+  protection_exemptions?: string[];
   rule_results: { rule_id: number; action: string; result: string }[];
 };
 type State = {
@@ -477,12 +486,21 @@ async function render() {
                 esc(dateTime(a.at)),
                 `${a.site_id}<small>${esc(a.peer)}</small>`,
                 `${esc(a.method)} · ${a.status}`,
-                a.rule_results
-                  ?.map(
+                [
+                  ...(a.rule_results || []).map(
                     (r) =>
                       `#${r.rule_id} · ${esc(r.action)} · ${esc(r.result)}`,
-                  )
-                  .join("<br>") || "—",
+                  ),
+                  ...(a.protection_exemptions || []).map((v) =>
+                    esc(
+                      v === "http_flood"
+                        ? "HTTP flood exempt"
+                        : v === "anti_bot"
+                          ? "Anti-bot exempt"
+                          : v,
+                    ),
+                  ),
+                ].join("<br>") || "—",
                 `${a.duration_ms} ms`,
               ]),
               "Application requests",
@@ -596,7 +614,7 @@ function closeEditor() {
 function siteProtectionMarkup(p: Protection) {
   const mode = (name: string, label: string, value: string) =>
     `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
-  return `<div class="form-divider"></div><h3>Application protection</h3><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small><details class="advanced"><summary>Protection options</summary>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}<label class="field">Trusted proxy CIDRs<textarea name="trusted_proxies" rows="2" placeholder="Leave empty for direct connections">${esc(p.trusted_proxies.join("\n"))}</textarea></label><small>Only trust proxies you control that sanitize X-Forwarded-For.</small></details>`;
+  return `<div class="form-divider"></div><h3>Application protection</h3><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small><details class="advanced"><summary>Protection options</summary>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}${protectionOptions(p)}</details>`;
 }
 function siteForm(site?: Site, certificate?: Certificate) {
   const c = site
@@ -612,7 +630,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
       )
       .join(
         "",
-      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${siteProtectionMarkup(site?.protection || defaultProtection)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${siteProtectionMarkup(site?.protection || defaultProtection)}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
   );
   const select = document.getElementById(
     "site-certificate",
@@ -630,6 +648,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
       document.getElementById("site-flood-rates")!.hidden =
         (e.target as HTMLSelectElement).value === "off";
     });
+  bindHeaderEditor(document.getElementById("site-form") as HTMLFormElement);
   formHandler("site-form", async (f) => {
     await api("/sites" + (site ? "/" + site.id : ""), site ? "PUT" : "POST", {
       name: f.get("name"),
@@ -641,6 +660,9 @@ function siteForm(site?: Site, certificate?: Certificate) {
       redirect_https: f.has("redirect_https"),
       preserve_host: f.has("preserve_host"),
       enabled: f.has("enabled"),
+      headers: readHeaders(
+        document.getElementById("site-form") as HTMLFormElement,
+      ),
       protection: {
         mode: String(f.get("flood_mode")),
         bot_mode: String(f.get("bot_mode")),
@@ -649,9 +671,7 @@ function siteForm(site?: Site, certificate?: Certificate) {
         site_requests_per_second: Number(f.get("application_rate")),
         site_burst: Number(f.get("application_burst")),
         block_empty_user_agent: f.has("empty_user_agent"),
-        trusted_proxies: String(f.get("trusted_proxies") || "")
-          .split(/[\s,]+/)
-          .filter(Boolean),
+        ...readProtectionOptions(f),
       },
     });
     closeEditor();
