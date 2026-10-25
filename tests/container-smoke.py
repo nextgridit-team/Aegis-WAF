@@ -52,15 +52,20 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
     shutil.copyfile(ROOT / "scripts/bootstrap-secrets.py", temp / "scripts/bootstrap-secrets.py")
     run(sys.executable, str(temp / "scripts/bootstrap-secrets.py"))
     secret_dir = temp / "secrets"
+    cache_dir = temp / "snapshot-cache"
+    cache_dir.mkdir()
+    cache_dir.chmod(0o777)
     override = {
         "services": {
             "app": {"image": IMAGE, "pull_policy": "never"},
             "app_alt": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23456:23456"},
             "app_tls": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23458:23458", "profiles": ["tls"], "environment": {"MANAGEMENT_TLS": "true"}},
+            "app_cached": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23459:23459", "profiles": ["cache"], "environment": {"SNAPSHOT_CACHE_FILE": "/var/cache/aegis/snapshot.bin"}, "volumes": [f"{cache_dir}:/var/cache/aegis"]},
             "app_fresh": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23457:23457", "profiles": ["fresh"]},
             "upstream": {
                 "image": "node:22-alpine", "pull_policy": "if_not_present", "user": "10001:10001", "entrypoint": ["node"],
                 "command": ["-e", "require('http').createServer((req,res)=>res.end('container verified upstream')).listen(8000,'0.0.0.0')"],
+                "ports": ["127.0.0.1:0:8000"],
                 "read_only": True, "tmpfs": ["/tmp:rw,noexec,nosuid,size=1m,mode=1777"],
                 "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
                 "healthcheck": {"test": ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], "interval": "2s", "timeout": "3s", "retries": 30},
@@ -69,6 +74,18 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         "secrets": {name: {"file": str(secret_dir / name)} for name in
                     ("database_url", "postgres_password", "encryption_key", "bootstrap_secret")},
     }
+    if os.environ.get("AEGIS_COMPARE_PROXIES") == "1":
+        haproxy_config = temp / "haproxy.cfg"
+        haproxy_config.write_text("global\n  maxconn 4096\ndefaults\n  mode http\n  timeout connect 5s\n  timeout client 30s\n  timeout server 30s\nfrontend ingress\n  bind :8080\n  default_backend origin\nbackend origin\n  server upstream upstream:8000\n")
+        nginx_config = temp / "nginx.conf"
+        nginx_config.write_text("worker_processes auto;\npid /tmp/nginx.pid;\nerror_log /dev/stderr warn;\nevents { worker_connections 4096; }\nhttp {\n access_log off;\n client_body_temp_path /tmp/client_temp; proxy_temp_path /tmp/proxy_temp;\n fastcgi_temp_path /tmp/fastcgi_temp; uwsgi_temp_path /tmp/uwsgi_temp; scgi_temp_path /tmp/scgi_temp;\n upstream origin { server upstream:8000; keepalive 32; }\n server { listen 8080; location / { proxy_pass http://origin; proxy_http_version 1.1; proxy_set_header Connection \"\"; proxy_set_header Host $http_host; proxy_buffering off; proxy_request_buffering off; } }\n}\n")
+        for file in (haproxy_config, nginx_config):
+            file.chmod(0o644)
+        for service, image, entrypoint, command, config, target in (
+            ("reference_haproxy", "haproxy:3.2-alpine", ["haproxy"], ["-W", "-db", "-f", "/etc/haproxy/haproxy.cfg"], haproxy_config, "/etc/haproxy/haproxy.cfg"),
+            ("reference_nginx", "nginx:stable-alpine", ["nginx"], ["-g", "daemon off;"], nginx_config, "/etc/nginx/nginx.conf"),
+        ):
+            override["services"][service] = {"image": image, "profiles": ["reference"], "entrypoint": entrypoint, "command": command, "user": "10001:10001", "read_only": True, "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"], "tmpfs": ["/tmp:rw,noexec,nosuid,size=16m,mode=1777"], "ports": ["127.0.0.1:0:8080"], "volumes": [f"{config}:{target}:ro"], "depends_on": {"upstream": {"condition": "service_healthy"}}}
     overlay = temp / "override.json"
     overlay.write_text(json.dumps(override))
     env_old = {key: os.environ.get(key) for key in ("HTTP_PUBLISH", "HTTPS_PUBLISH", "MANAGEMENT_PUBLISH")}
@@ -147,9 +164,9 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
             "-addext", "subjectAltName=DNS:container.example.com", "-addext", "basicConstraints=critical,CA:FALSE")
         cert_id = api("app", "/api/certificates", "POST", {"name": "Container verification",
             "chain_pem": chain.read_text(), "private_key_pem": key.read_text()})["id"]
-        api("app", "/api/sites", "POST", {"name": "Container verification", "hostnames": ["container.example.com"],
+        site_id = api("app", "/api/sites", "POST", {"name": "Container verification", "hostnames": ["container.example.com"],
             "upstream": "http://upstream:8000", "certificate_id": cert_id, "redirect_https": False,
-            "preserve_host": True, "enabled": True})
+            "preserve_host": True, "enabled": True})["id"]
         for service in ("app", "app_alt"):
             eventually(lambda: public(service, True))
             public(service)
@@ -158,6 +175,36 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         terms = api("app", "/api/acme/directory?url=staging")
         assert terms["terms_url"].startswith("https://")
         print("PASS: setup, cross-replica sessions, encrypted certificate upload, cached HTTP/TLS routing on both replicas, private-key readback exclusion, ACME staging directory connectivity with packaged CAs", flush=True)
+        if os.environ.get("AEGIS_BENCHMARK_REPORT"):
+            import importlib.util
+            module_spec = importlib.util.spec_from_file_location("latency_benchmark", ROOT / "tests/latency-benchmark.py")
+            benchmark = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(benchmark)
+            report = {"image": IMAGE, "workload": "HTTP/1.1 keep-alive GET, small fixed body; local closed-loop client and Docker ports", "phases": []}
+            if os.environ.get("AEGIS_COMPARE_PROXIES") == "1":
+                dc("up", "--no-build", "-d", "reference_haproxy", "reference_nginx")
+                for service in ("reference_haproxy", "reference_nginx"):
+                    eventually(lambda service=service: benchmark.measure(port(service, 8080), requests=16, concurrency=1))
+                    report["phases"].append({"name": service, **benchmark.measure(port(service, 8080))})
+                    info = json.loads(run("docker", "inspect", container(service)).stdout)[0]
+                    report.setdefault("reference_images", {})[service] = {"tag": info["Config"]["Image"], "image_id": info["Image"]}
+            for name, service, listener in (("direct_upstream", "upstream", 8000), ("gateway_0_rules", "app", 8080)):
+                report["phases"].append({"name": name, **benchmark.measure(port(service, listener))})
+            installed = 0
+            for count in (10, 100):
+                for n in range(installed, count):
+                    rule = api("app", "/api/rules", "POST", {"schema_version": 1, "name": f"Benchmark {n}", "scope": {"site_id": site_id}, "all": [{"field": "path", "op": "equals", "value": f"/never-match-{n}"}], "action": "observe", "ttl_seconds": 3600})["id"]
+                    api("app", f"/api/rules/{rule}/activate", "POST", {"action": "observe", "ttl_seconds": 3600})
+                installed = count
+                time.sleep(2.5)
+                report["phases"].append({"name": f"gateway_{count}_rules", **benchmark.measure(port("app", 8080))})
+            report["status_after_load"] = api("app", "/api/status")
+            Path(os.environ["AEGIS_BENCHMARK_REPORT"]).write_text(json.dumps(report, indent=2) + "\n")
+            print("PASS: latency benchmark written to " + os.environ["AEGIS_BENCHMARK_REPORT"], flush=True)
+        dc("up", "--no-build", "--no-deps", "--wait", "--wait-timeout", "120", "app_cached")
+        eventually(lambda: api("app_cached", "/readyz"))
+        assert (cache_dir / "snapshot.bin").exists(), "Recovery snapshot was not written"
+        dc("stop", "app_cached")
         dc("stop", "db")
         time.sleep(3)
         for service in ("app", "app_alt"):
@@ -168,6 +215,12 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         dc("up", "--no-build", "--no-deps", "-d", "app_fresh")
         eventually(lambda: api("app_fresh", "/livez"))
         api("app_fresh", "/readyz", expected=503)
+        dc("up", "--no-build", "--no-deps", "-d", "app_cached")
+        eventually(lambda: api("app_cached", "/readyz"))
+        public("app_cached")
+        public("app_cached", True)
+        api("app_cached", "/api/me", expected=503)
+        print("PASS: optional sealed cache restores HTTP/TLS on restart during database outage; sessions still require PostgreSQL", flush=True)
         dc("start", "db")
         eventually(lambda: api("app_fresh", "/readyz"))
         eventually(lambda: public("app_fresh", True))
@@ -177,8 +230,8 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         eventually(lambda: api("app", "/readyz"))
         public("app", True)
         api("app", "/api/me")
-        dc("stop", "app", "app_alt", "app_fresh")
-        for service in ("app", "app_alt", "app_fresh"):
+        dc("stop", "app", "app_alt", "app_fresh", "app_cached")
+        for service in ("app", "app_alt", "app_fresh", "app_cached"):
             data = json.loads(run("docker", "inspect", container(service)).stdout)[0]
             assert data["State"]["ExitCode"] == 0 and not data["State"]["OOMKilled"]
         print("PASS: restart reloads certificate/configuration/sessions from PostgreSQL; all replicas shut down gracefully", flush=True)
@@ -210,7 +263,7 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         print(dc("logs", "--no-color", "--tail", "30", "app", "app_alt", "app_fresh", check=False).stdout, file=sys.stderr)
         raise
     finally:
-        dc("--profile", "fresh", "--profile", "tls", "down", "--volumes", "--remove-orphans", check=False)
+        dc("--profile", "fresh", "--profile", "tls", "--profile", "cache", "--profile", "reference", "down", "--volumes", "--remove-orphans", check=False)
         for name, value in env_old.items():
             if value is None:
                 os.environ.pop(name, None)

@@ -450,7 +450,7 @@ func (a *App) loadPolicies(ctx context.Context, tx pgx.Tx, next *snapshot) error
 		if old != nil && old.capture[site] != nil {
 			budget = old.capture[site].budget
 		}
-		next.capture[site] = &capturePolicy{Settings: settings, budget: budget}
+		next.capture[site] = &capturePolicy{Settings: settings, budget: budget, redactors: evidenceRedactors(settings)}
 	}
 	e = rows.Err()
 	rows.Close()

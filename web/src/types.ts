@@ -1,0 +1,81 @@
+import type { PolicySummary } from "./policy-page";
+import type { HeaderSettings } from "./headers";
+import type { Protection } from "./dashboard";
+export type Site = {
+  policies?: PolicySummary[];
+  headers?: HeaderSettings | null;
+  protection?: Protection | null;
+  id: number;
+  name: string;
+  hostnames: string[];
+  upstream: string;
+  certificate_id: number | null;
+  redirect_https: boolean;
+  preserve_host: boolean;
+  enabled: boolean;
+};
+export type Certificate = {
+  challenge_type?: string;
+  dns_credential_id?: number;
+  pending_dns_cleanup?: boolean;
+  id: number;
+  name: string;
+  origin: string;
+  domains: string[];
+  issuer: string;
+  not_before: string | null;
+  not_after: string | null;
+  validity: string;
+  assigned_sites: { id: number; name: string }[];
+};
+export type DNSCredential = { id: number; name: string; provider: string };
+export type Account = {
+  id: number;
+  directory: string;
+  email: string;
+  tos_accepted_at: string;
+};
+export type Job = {
+  id: number;
+  certificate_id: number;
+  name: string;
+  status: string;
+  attempts: number;
+  error: string;
+  next_attempt: string;
+  orders: { url: string; status: string; error: string }[];
+};
+export type Gateway = {
+  configuration_version: number;
+  database_available: boolean;
+  propagation_seconds: number;
+  dropped_access_logs: number;
+};
+export type Audit = {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  resource: string;
+};
+export type Access = {
+  id: number;
+  at: string;
+  site_id: number;
+  method: string;
+  status: number;
+  duration_ms: number;
+  peer: string;
+  policy_name?: string;
+  policy_revision?: number;
+  protection_exemptions?: string[];
+  rule_results: { rule_id: number; action: string; result: string }[];
+};
+export type State = {
+  sites: Site[];
+  certs: Certificate[];
+  accounts: Account[];
+  jobs: Job[];
+  gateway: Gateway;
+  dns: DNSCredential[];
+};

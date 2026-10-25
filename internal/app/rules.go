@@ -234,10 +234,12 @@ func newRequestFacts(r *http.Request) *requestFacts {
 	return &requestFacts{request: r, facts: map[string]Fact{}}
 }
 func (f *requestFacts) get(field, key string) Fact {
-	id := factKey(field, key)
-	if v, ok := f.facts[id]; ok {
+	// Keep the hit lookup separate from the stored key: repeated conditions can
+	// reuse a fact without allocating a new escaping selector string.
+	if v, ok := f.facts[factKey(field, key)]; ok {
 		return v
 	}
+	id := factKey(field, key)
 	r := f.request
 	v := Fact{State: "missing"}
 	switch field {

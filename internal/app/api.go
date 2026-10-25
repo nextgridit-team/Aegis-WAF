@@ -148,7 +148,7 @@ func (a *App) Management() http.Handler {
 		if s := a.active.Load(); s != nil {
 			v = s.version
 		}
-		respond(w, 200, map[string]any{"configuration_version": v, "database_available": a.dbOK.Load(), "propagation_seconds": a.cfg.Refresh.Seconds(), "dropped_evidence_samples": a.evidenceDropped.Load(), "dropped_access_logs": a.dropped.Load()})
+		respond(w, 200, map[string]any{"configuration_version": v, "database_available": a.dbOK.Load(), "propagation_seconds": a.cfg.Refresh.Seconds(), "dropped_evidence_samples": a.evidenceDropped.Load(), "background_worker_panics": a.workerPanics.Load(), "snapshot_cache_enabled": a.cfg.SnapshotCacheFile != "", "snapshot_cache_available": a.cacheAvailable.Load(), "snapshot_cache_restored": a.cacheRestored.Load(), "dropped_access_logs": a.dropped.Load()})
 		return nil
 	}))
 	m.HandleFunc("GET /api/sites", a.wrap(true, a.listSites))

@@ -1,0 +1,13 @@
+# Coraza / CRS evaluation
+
+This separate Go module is an executable compatibility experiment. It is not imported into Aegis or copied into its application image. Versions/checksums are pinned in this module: Coraza v3.8.1, embedded CRS v4.30.0 and recommended configuration v3.8.1. Current upstream bundles use separate `crs/v4` and `coraza/v3` modules combined with mergefs; the old monolithic module is frozen.
+
+Run `go test -v ./...` and `go test -run '^$' -bench . -benchmem -count=3` here. The fixture loads the recommended configuration and embedded CRS, explicitly disables audit output and response-body inspection, caps request inspection at 64 KiB and rejects over-limit bodies. Benign GET/JSON forwarding, unchanged upstream body bytes, SQL injection and XSS blocking, and DetectionOnly allowing the same attack fixtures passed. These four cases are a smoke test, not a CRS coverage or false-positive certification.
+
+On the same Linux/amd64 Ryzen 7950X3D lab host, three one-second benign full-handler benchmarks measured 370–373 µs/op, approximately 151 KiB/op and 3058–3059 allocations/op. This includes request/response fixture allocation and full CRS processing, so it is not a direct ratio against Aegis's matcher-only benchmark. Measure real proxy latency and representative application traffic before adoption.
+
+Recommended next integration: add a managed CRS preset as an explicit policy option, default Observe during tuning, with fixed bundled versions, validated rule-ID exclusions and anomaly thresholds. Keep the small custom DSL for application-specific and model-proposed rules. Do not allow model output or URL feeds to supply arbitrary SecLang directives. Compile WAF instances with policy snapshots, create/close a transaction per request, and log rule IDs/scores rather than matched secret values. Persist policy choices in PostgreSQL.
+
+Request-body inspection buffers bytes and needs explicit upload limits/error behavior. Response inspection introduces additional buffering and must be tested against streaming, WebSockets, cancellation, headers and read-only temporary storage. The current redacted fact samples cannot faithfully reconstruct full HTTP transactions or every CRS transformation/context: retain existing DSL replay and mark unsupported CRS replay incomplete rather than quietly retaining full raw requests. A production adoption also needs representative benign replay/tuning, broader attack fixtures, dependency review and on-target performance testing.
+
+Sources: [Coraza repository](https://github.com/corazawaf/coraza), [current embedded bundle layout](https://github.com/corazawaf/coraza-coreruleset), [body processing](https://www.coraza.io/docs/reference/body-processing/).

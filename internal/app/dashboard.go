@@ -105,6 +105,7 @@ func (a *App) loadGeo(ctx context.Context, tx pgx.Tx, s *snapshot) error {
 	if e != nil {
 		return e
 	}
+	s.geoData = data
 	s.geo, e = maxminddb.OpenBytes(data)
 	return e
 }

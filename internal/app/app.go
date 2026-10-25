@@ -55,6 +55,7 @@ type sitePolicySummary struct {
 	Priority    int      `json:"priority"`
 }
 type snapshot struct {
+	geoData        []byte
 	policyBindings map[int64][]compiledPolicyBinding
 	certificates   map[int64]*tls.Certificate
 	version        int64
@@ -66,6 +67,7 @@ type snapshot struct {
 }
 type accessEvent struct {
 	prepareEvidence          func() *evidenceEvent
+	releaseEvidence          func()
 	geo                      *maxminddb.Reader
 	clientIP                 netip.Addr
 	policyID, policyRevision int64
@@ -84,23 +86,28 @@ type accessEvent struct {
 	exemptions               []string
 }
 type App struct {
-	system          systemSampler
-	captureSlots    chan struct{}
-	evidenceDropped atomic.Uint64
-	flood           floodLimiter
-	metrics         liveMetrics
-	replicaID       string
-	feedHTTP        http.RoundTripper
-	dnsFactory      func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
-	dnsWait         func(context.Context, string, string) error
-	dnsTransport    http.RoundTripper
-	cfg             Config
-	db              *pgxpool.Pool
-	active          atomic.Pointer[snapshot]
-	dbOK            atomic.Bool
-	initialized     atomic.Bool
-	access          chan accessEvent
-	dropped         atomic.Uint64
+	cacheMu                       sync.Mutex
+	cacheAt                       time.Time
+	cacheVersion                  int64
+	cacheAvailable, cacheRestored atomic.Bool
+	workerPanics                  atomic.Uint64
+	system                        systemSampler
+	captureSlots                  chan struct{}
+	evidenceDropped               atomic.Uint64
+	flood                         floodLimiter
+	metrics                       liveMetrics
+	replicaID                     string
+	feedHTTP                      http.RoundTripper
+	dnsFactory                    func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
+	dnsWait                       func(context.Context, string, string) error
+	dnsTransport                  http.RoundTripper
+	cfg                           Config
+	db                            *pgxpool.Pool
+	active                        atomic.Pointer[snapshot]
+	dbOK                          atomic.Bool
+	initialized                   atomic.Bool
+	access                        chan accessEvent
+	dropped                       atomic.Uint64
 }
 
 func New(ctx context.Context, cfg Config) (*App, error) {
@@ -115,7 +122,13 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	return &App{captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}, nil
+	a := &App{captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	if cfg.SnapshotCacheFile != "" {
+		if e := a.restoreSnapshotCache(); e != nil {
+			slog.Warn("snapshot cache unavailable; database startup required")
+		}
+	}
+	return a, nil
 }
 func (a *App) Close() { a.db.Close() }
 func (a *App) initialize(ctx context.Context) error {
@@ -138,8 +151,9 @@ func (a *App) initialize(ctx context.Context) error {
 }
 func (a *App) Background(ctx context.Context) {
 	logDone := make(chan struct{})
-	go func() { defer close(logDone); a.logWorker(ctx) }()
-	defer func() { <-logDone }()
+	logCtx, cancelLogs := context.WithCancel(ctx)
+	go func() { defer close(logDone); a.RunWorker(logCtx, "access-log", a.logWorker) }()
+	defer func() { cancelLogs(); <-logDone }()
 	ticker := time.NewTicker(a.cfg.Refresh)
 	defer ticker.Stop()
 	for {
@@ -174,7 +188,12 @@ func (a *App) refresh(ctx context.Context) error {
 		return e
 	}
 	if old := a.active.Load(); old != nil && old.version == version {
-		return tx.Commit(ctx)
+		if e = tx.Commit(ctx); e != nil {
+			return e
+		}
+		a.cacheRestored.Store(false)
+		a.persistSnapshot(old)
+		return nil
 	}
 	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>''")
 	if e != nil {
@@ -273,6 +292,8 @@ func (a *App) refresh(ctx context.Context) error {
 		return e
 	}
 	old := a.active.Swap(next)
+	a.cacheRestored.Store(false)
+	a.persistSnapshot(next)
 	if old != nil {
 		for _, r := range old.routes {
 			if tr, ok := r.proxy.Transport.(*http.Transport); ok {
@@ -286,7 +307,7 @@ func newProxy(target *url.URL, preserve bool) *httputil.ReverseProxy {
 	return newProxyWithHeaders(target, preserve, HeaderSettings{})
 }
 func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings) *httputil.ReverseProxy {
-	p := &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
+	p := &httputil.ReverseProxy{BufferPool: &forwardingBuffers, Rewrite: func(pr *httputil.ProxyRequest) {
 		pr.SetURL(target)
 		rewriteProxyHeaders(pr, settings)
 		if preserve {
@@ -377,6 +398,9 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		event.prepareEvidence = evidence.finish()
+		if evidence != nil {
+			event.releaseEvidence = evidence.release
+		}
 		select {
 		case a.access <- event:
 		default:
@@ -479,6 +503,14 @@ func (a *App) logWorker(ctx context.Context) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	batch := make([]accessEvent, 0, 1000)
+	defer func() {
+		a.dropped.Add(uint64(len(batch)))
+		for n := range batch {
+			if batch[n].releaseEvidence != nil {
+				batch[n].releaseEvidence()
+			}
+		}
+	}()
 	flush := func() {
 		if len(batch) == 0 {
 			return

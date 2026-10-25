@@ -141,7 +141,7 @@ func TestEvidencePrivacyAndBudgets(t *testing.T) {
 	s.CapturePath = true
 	s.QueryKeys = []string{"q"}
 	s.MaxPerMinute = 1
-	p := &capturePolicy{s, &captureBudget{}}
+	p := &capturePolicy{Settings: s, budget: &captureBudget{}}
 	ev := p.capture(f, nil, now)
 	if ev == nil {
 		t.Fatal("missing evidence")

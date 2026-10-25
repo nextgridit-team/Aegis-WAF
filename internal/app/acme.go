@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/mail"
 	"net/url"
@@ -346,6 +347,14 @@ func (a *App) runJob(parent context.Context, job, cert int64) {
 	heartbeatDone := make(chan struct{})
 	go func() {
 		defer close(heartbeatDone)
+		defer func() {
+			if recover() != nil {
+				a.workerPanics.Add(1)
+				slog.Error("ACME heartbeat panicked; cancelling issuance")
+				lost.Store(true)
+				cancel()
+			}
+		}()
 		t := time.NewTicker(time.Second)
 		defer t.Stop()
 		for {

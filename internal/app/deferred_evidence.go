@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -47,14 +48,15 @@ func (t *evidenceTap) finish(length int64) ([]byte, bool) {
 }
 
 type deferredEvidence struct {
-	settings TrafficSettings
-	facts    *requestFacts
-	tap      *evidenceTap
-	results  []RuleResult
-	at       time.Time
-	site     int64
-	slots    chan struct{}
-	once     sync.Once
+	redactors []*regexp.Regexp
+	settings  TrafficSettings
+	facts     *requestFacts
+	tap       *evidenceTap
+	results   []RuleResult
+	at        time.Time
+	site      int64
+	slots     chan struct{}
+	once      sync.Once
 }
 
 func (a *App) deferEvidence(p *capturePolicy, f *requestFacts, results []RuleResult, now time.Time, site int64) *deferredEvidence {
@@ -71,7 +73,7 @@ func (a *App) deferEvidence(p *capturePolicy, f *requestFacts, results []RuleRes
 		a.evidenceDropped.Add(1)
 		return nil
 	}
-	work := &deferredEvidence{settings: p.Settings, facts: f, results: results, at: now, site: site, slots: a.captureSlots}
+	work := &deferredEvidence{redactors: p.redactors, settings: p.Settings, facts: f, results: results, at: now, site: site, slots: a.captureSlots}
 	if len(p.Settings.JSONBodyKeys) > 0 && !f.bodyDone && f.request.Body != nil {
 		work.tap = &evidenceTap{ReadCloser: f.request.Body}
 		f.request.Body = work.tap
@@ -149,7 +151,7 @@ func (w *deferredEvidence) finish() func() *evidenceEvent {
 	w.facts = nil
 	return func() *evidenceEvent {
 		defer w.release()
-		p := capturePolicy{Settings: w.settings}
+		p := capturePolicy{Settings: w.settings, redactors: w.redactors}
 		evidence := p.captureAllowed(facts, w.results, w.at)
 		if evidence != nil {
 			evidence.site = w.site
@@ -158,6 +160,9 @@ func (w *deferredEvidence) finish() func() *evidenceEvent {
 	}
 }
 func (e *accessEvent) enrich() {
+	if e.releaseEvidence != nil {
+		defer e.releaseEvidence()
+	}
 	if e.prepareEvidence != nil {
 		e.evidence = e.prepareEvidence()
 		e.prepareEvidence = nil

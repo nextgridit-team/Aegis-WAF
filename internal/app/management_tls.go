@@ -8,7 +8,7 @@ import (
 
 // Management TLS selects from cached certificates independently of public-site
 // routing. This allows recovery/setup with an uploaded or ACME-issued wildcard
-// before any upstream application exists. Private keys never leave the process.
+// before any upstream application exists. Private keys never leave the process in plaintext.
 func (a *App) ManagementTLSConfig() *tls.Config {
 	return &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		snapshot := a.active.Load()

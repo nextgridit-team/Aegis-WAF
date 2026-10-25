@@ -1,0 +1,10 @@
+# Optional single-replica recovery cache; PostgreSQL remains authoritative.
+services:
+  app:
+    environment:
+      SNAPSHOT_CACHE_FILE: /var/cache/aegis/snapshot.bin
+      SNAPSHOT_CACHE_MAX_AGE: 24h
+    volumes:
+      - snapshot-cache:/var/cache/aegis
+volumes:
+  snapshot-cache:

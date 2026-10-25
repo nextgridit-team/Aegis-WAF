@@ -109,12 +109,17 @@ func run() error {
 		servers = append(servers, s)
 	}
 	wg.Add(3)
-	go func() { defer wg.Done(); a.Background(ctx) }()
-	go func() { defer wg.Done(); a.ACMEWorker(ctx) }()
-	go func() { defer wg.Done(); a.FeedWorker(ctx) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "configuration", a.Background) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "acme", a.ACMEWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "rule-feeds", a.FeedWorker) }()
 	errs := make(chan error, 3)
 	for i, s := range servers {
 		go func(i int, s *http.Server) {
+			defer func() {
+				if recover() != nil {
+					errs <- errors.New("listener stopped unexpectedly")
+				}
+			}()
 			var e error
 			if i == 1 || (i == 2 && cfg.ManagementTLS) {
 				e = s.ServeTLS(listeners[i], "", "")

@@ -8,12 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type Config struct {
+	SnapshotCacheFile                                                        string
+	SnapshotCacheMaxAge                                                      time.Duration
 	ManagementTLS                                                            bool
 	DatabaseURL, BootstrapSecret, KeyID, HTTPAddr, HTTPSAddr, ManagementAddr string
 	Key                                                                      []byte
@@ -70,6 +73,24 @@ func LoadConfig() (Config, error) {
 	c.ManagementTLS, e = strconv.ParseBool(env("MANAGEMENT_TLS", "false"))
 	if e != nil {
 		return c, errors.New("MANAGEMENT_TLS must be true or false")
+	}
+	c.SnapshotCacheFile = env("SNAPSHOT_CACHE_FILE", "")
+	c.SnapshotCacheMaxAge, e = time.ParseDuration(env("SNAPSHOT_CACHE_MAX_AGE", "24h"))
+	if e != nil || c.SnapshotCacheMaxAge <= 0 || c.SnapshotCacheMaxAge > 7*24*time.Hour {
+		return c, errors.New("SNAPSHOT_CACHE_MAX_AGE must be positive and at most 168h")
+	}
+	if c.SnapshotCacheFile != "" && !filepath.IsAbs(c.SnapshotCacheFile) {
+		return c, errors.New("SNAPSHOT_CACHE_FILE must be an absolute path")
+	}
+	if c.SnapshotCacheFile != "" {
+		for _, name := range []string{"DATABASE_URL_FILE", "ENCRYPTION_KEY_FILE", "BOOTSTRAP_SECRET_FILE"} {
+			if source := os.Getenv(name); source != "" {
+				absolute, _ := filepath.Abs(source)
+				if filepath.Clean(absolute) == filepath.Clean(c.SnapshotCacheFile) {
+					return c, errors.New("snapshot cache must not overwrite bootstrap secret files")
+				}
+			}
+		}
 	}
 	c.Refresh = 2 * time.Second
 	return c, nil

@@ -15,7 +15,7 @@ COPY --from=dashboard /build/internal/app/assets/ internal/app/assets/
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/aegis-waf ./cmd/aegis-waf
 
 FROM alpine:3.23
-RUN apk add --no-cache ca-certificates && addgroup -g 10001 aegis-waf && adduser -D -u 10001 -G aegis-waf aegis-waf
+RUN mkdir -p /var/cache/aegis && chmod 0777 /var/cache/aegis && apk add --no-cache ca-certificates && addgroup -g 10001 aegis-waf && adduser -D -u 10001 -G aegis-waf aegis-waf
 COPY --from=backend /out/aegis-waf /usr/local/bin/aegis-waf
 USER 10001:10001
 ENV TMPDIR=/tmp

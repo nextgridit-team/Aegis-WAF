@@ -18,6 +18,7 @@ type Rule = {
   status: string;
 };
 type Settings = {
+ redact_patterns?: string[];
   enabled: boolean;
   capture_path: boolean;
   query_keys: string[];
@@ -145,7 +146,7 @@ export function makePolicyUI(c: Context) {
             "No rules yet",
             "Create a rule or import a JSON proposal. Nothing blocks traffic until you explicitly activate it.",
           )) +
-      `<div class="page-note">Rules run in Go against an in-memory snapshot. No model is connected. Missing or incomplete inspection data is reported as unknown.</div>`
+      `<div class="page-note">Rules run in Go against an in-memory snapshot. No model runs on the request path. Missing or incomplete inspection data is reported as unknown.</div>`
     );
   }
   async function renderTraffic() {
@@ -160,7 +161,7 @@ export function makePolicyUI(c: Context) {
         btn("refresh", "Refresh", "secondary"),
       ) +
       ruleTabs() +
-      `<div class="info-panel rule-intro"><h3>Capture is off by default</h3><p>Choose which fields a site may capture. Credentials, authorization, cookies and sensitive field names cannot be selected. Redaction cannot identify every secret; review your allowlists before enabling capture.</p></div>` +
+      `<div class="info-panel rule-intro"><h3>Capture is off by default</h3><p>Choose which fields a site may capture. Credentials, authorization, cookies and sensitive field names cannot be selected. Redaction cannot identify every secret; review your allowlists before enabling capture. Samples remain in your PostgreSQL deployment and its backups; provider connection checks do not submit them.</p></div>` +
       (c.sites().length
         ? table(
             ["Proxy host", "Capture", "Limits", ""],
@@ -352,7 +353,7 @@ export function makePolicyUI(c: Context) {
     const s = settings.find((v) => v.site_id === id)?.settings || defaults();
     c.openEditor(
       `Traffic capture · ${siteName(id)}`,
-      `<p class="form-intro">Capture only what this application needs. Fields not selected here are not persisted in evidence. Treat samples as untrusted data.</p><form id="capture-form">${checkbox("enabled", "Enable bounded traffic sampling", s.enabled)}${checkbox("capture_path", "Capture paths with common token/identifier redaction", s.capture_path)}<small>Paths can still contain personal data. Leave this off when the application uses sensitive URL segments.</small>${field("query_keys", "Query keys (up to four)", s.query_keys.join(", "), "text", 'placeholder="q, file"')}${field("header_keys", "Header keys (up to four)", s.header_keys.join(", "), "text", 'placeholder="user-agent, content-type"')}${field("json_body_keys", "JSON pointers (up to four)", s.json_body_keys.join(", "), "text", 'placeholder="/query, /file"')}<small>Comma-separated allowlists. Passwords, tokens, cookies, authorization and forwarding headers are rejected.</small><div class="form-row">${field("sample_every", "Sample one in N requests", String(s.sample_every), "number", 'required min="1" max="10000"')}${field("max_per_minute", "Maximum samples/minute per replica", String(s.max_per_minute), "number", 'required min="1" max="600"')}</div>${field("retention_hours", "Retention for new samples (hours)", String(s.retention_hours), "number", 'required min="1" max="168"')}<small>Existing samples keep their original expiry. Sampling limits are local to each replica.</small>${actions("Save capture settings")}</form>`,
+      `<p class="form-intro">Capture only what this application needs. Fields not selected here are not persisted in evidence. Treat samples as untrusted data.</p><form id="capture-form">${checkbox("enabled", "Enable bounded traffic sampling", s.enabled)}${checkbox("capture_path", "Capture paths with common token/identifier redaction", s.capture_path)}<small>Paths can still contain personal data. Leave this off when the application uses sensitive URL segments.</small>${field("query_keys", "Query keys (up to four)", s.query_keys.join(", "), "text", 'placeholder="q, file"')}${field("header_keys", "Header keys (up to four)", s.header_keys.join(", "), "text", 'placeholder="user-agent, content-type"')}${field("json_body_keys", "JSON pointers (up to four)", s.json_body_keys.join(", "), "text", 'placeholder="/query, /file"')}<small>Comma-separated allowlists. Passwords, tokens, cookies, authorization and forwarding headers are rejected.</small><label class="field" for="capture-redactions">Additional redaction patterns (one regex per line)</label><textarea id="capture-redactions" name="redact_patterns" rows="3" maxlength="2056">${esc((s.redact_patterns || []).join("\n"))}</textarea><small>Up to eight RE2 patterns, 256 bytes each. A matching evidence value is fully redacted before storage. This does not anonymize access-log IP addresses or existing samples.</small><div class="form-row">${field("sample_every", "Sample one in N requests", String(s.sample_every), "number", 'required min="1" max="10000"')}${field("max_per_minute", "Maximum samples/minute per replica", String(s.max_per_minute), "number", 'required min="1" max="600"')}</div>${field("retention_hours", "Retention for new samples (hours)", String(s.retention_hours), "number", 'required min="1" max="168"')}<small>Existing samples keep their original expiry. Sampling limits are local to each replica.</small>${actions("Save capture settings")}</form>`,
     );
     c.formHandler("capture-form", async (f) => {
       await c.api(`/traffic-settings/${id}`, "PUT", {
@@ -361,6 +362,7 @@ export function makePolicyUI(c: Context) {
         query_keys: csv(f.get("query_keys")),
         header_keys: csv(f.get("header_keys")),
         json_body_keys: csv(f.get("json_body_keys")),
+ redact_patterns: String(f.get("redact_patterns") || "").split("\n").map(v=>v.trim()).filter(Boolean),
         sample_every: Number(f.get("sample_every")),
         max_per_minute: Number(f.get("max_per_minute")),
         retention_hours: Number(f.get("retention_hours")),

@@ -453,6 +453,7 @@ const { execFileSync } = require("node:child_process");
     await dialog()
       .getByLabel("Query keys (up to four)", { exact: true })
       .fill("q");
+    await dialog().getByLabel("Additional redaction patterns (one regex per line)",{exact:true}).fill("private-sample");
     await dialog()
       .getByRole("button", { name: "Save capture settings", exact: true })
       .click();

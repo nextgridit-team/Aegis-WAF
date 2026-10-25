@@ -15,6 +15,7 @@ import (
 
 // Capture is disabled by default. Field values require a per-site allowlist.
 type TrafficSettings struct {
+	RedactPatterns []string `json:"redact_patterns,omitempty"`
 	Enabled        bool     `json:"enabled"`
 	CapturePath    bool     `json:"capture_path"`
 	QueryKeys      []string `json:"query_keys"`
@@ -30,8 +31,9 @@ type captureBudget struct {
 	seen, count int
 }
 type capturePolicy struct {
-	Settings TrafficSettings
-	budget   *captureBudget
+	redactors []*regexp.Regexp
+	Settings  TrafficSettings
+	budget    *captureBudget
 }
 type TrafficEvidence struct {
 	SchemaVersion int             `json:"schema_version"`
@@ -51,6 +53,17 @@ func defaultTrafficSettings() TrafficSettings {
 	return TrafficSettings{QueryKeys: []string{}, HeaderKeys: []string{}, JSONBodyKeys: []string{}, SampleEvery: 1, MaxPerMinute: 60, RetentionHours: 24}
 }
 func validateTrafficSettings(s TrafficSettings) error {
+	if len(s.RedactPatterns) > 8 {
+		return errors.New("at most eight evidence redaction patterns")
+	}
+	for _, pattern := range s.RedactPatterns {
+		if len(pattern) == 0 || len(pattern) > 256 {
+			return errors.New("redaction patterns must be 1–256 bytes")
+		}
+		if _, e := regexp.Compile(pattern); e != nil {
+			return errors.New("invalid evidence redaction pattern")
+		}
+	}
 	if s.QueryKeys == nil || s.HeaderKeys == nil || s.JSONBodyKeys == nil {
 		return errors.New("capture allowlists must be arrays; use [] for empty lists")
 	}
@@ -176,6 +189,37 @@ func (p *capturePolicy) capture(f *requestFacts, results []RuleResult, now time.
 	}
 	return p.captureAllowed(f, results, now)
 }
+func (p *capturePolicy) captureFact(field string, f Fact) Fact {
+	if f.State != "present" || len(p.redactors) == 0 {
+		return capturedFact(field, f)
+	}
+	clean := Fact{State: f.State, Values: append([]string{}, f.Values...)}
+	redacted := false
+	for n, value := range clean.Values {
+		for _, pattern := range p.redactors {
+			if pattern.MatchString(value) {
+				clean.Values[n] = "[redacted]"
+				redacted = true
+				break
+			}
+		}
+	}
+	clean = capturedFact(field, clean)
+	if redacted {
+		clean.State = "redacted"
+	}
+	return clean
+}
+func evidenceRedactors(s TrafficSettings) []*regexp.Regexp {
+	out := []*regexp.Regexp{}
+	for _, pattern := range s.RedactPatterns {
+		compiled, e := regexp.Compile(pattern)
+		if e == nil {
+			out = append(out, compiled)
+		}
+	}
+	return out
+}
 func (p *capturePolicy) captureAllowed(f *requestFacts, results []RuleResult, now time.Time) *evidenceEvent {
 	s := p.Settings
 	e := TrafficEvidence{SchemaVersion: 1, Facts: map[string]Fact{}, Results: results, BodyLength: f.request.ContentLength}
@@ -184,17 +228,17 @@ func (p *capturePolicy) captureAllowed(f *requestFacts, results []RuleResult, no
 		e.ContentType = "[truncated]"
 	}
 	for _, field := range []string{"method", "client_ip"} {
-		e.Facts[factKey(field, "")] = capturedFact(field, f.get(field, ""))
+		e.Facts[factKey(field, "")] = p.captureFact(field, f.get(field, ""))
 	}
 	if s.CapturePath {
-		e.Facts[factKey("path", "")] = capturedFact("path", f.get("path", ""))
+		e.Facts[factKey("path", "")] = p.captureFact("path", f.get("path", ""))
 	}
 	for _, set := range []struct {
 		field string
 		keys  []string
 	}{{"query", s.QueryKeys}, {"header", s.HeaderKeys}, {"json_body", s.JSONBodyKeys}} {
 		for _, key := range set.keys {
-			e.Facts[factKey(set.field, key)] = capturedFact(set.field, f.get(set.field, key))
+			e.Facts[factKey(set.field, key)] = p.captureFact(set.field, f.get(set.field, key))
 		}
 	}
 	data, err := json.Marshal(e)
