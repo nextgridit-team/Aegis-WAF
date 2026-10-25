@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type Config struct {
+	ManagementTLS                                                            bool
 	DatabaseURL, BootstrapSecret, KeyID, HTTPAddr, HTTPSAddr, ManagementAddr string
 	Key                                                                      []byte
 	Refresh                                                                  time.Duration
@@ -65,6 +67,10 @@ func LoadConfig() (Config, error) {
 	c.HTTPAddr = env("HTTP_ADDR", ":8080")
 	c.HTTPSAddr = env("HTTPS_ADDR", ":8443")
 	c.ManagementAddr = env("MANAGEMENT_ADDR", ":9090")
+	c.ManagementTLS, e = strconv.ParseBool(env("MANAGEMENT_TLS", "false"))
+	if e != nil {
+		return c, errors.New("MANAGEMENT_TLS must be true or false")
+	}
 	c.Refresh = 2 * time.Second
 	return c, nil
 }

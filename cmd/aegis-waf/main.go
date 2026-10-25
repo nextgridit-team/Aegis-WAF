@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -34,7 +36,20 @@ func main() {
 			host = "::1"
 		}
 		client := http.Client{Timeout: 2 * time.Second}
-		r, e := client.Get("http://" + net.JoinHostPort(host, port) + "/readyz")
+		scheme := "http"
+		if flag := os.Getenv("MANAGEMENT_TLS"); flag != "" {
+			enabled, err := strconv.ParseBool(flag)
+			if err != nil {
+				os.Exit(1)
+			}
+			if enabled {
+				scheme = "https"
+				// Local readiness only: no credentials or application data are sent. The
+				// certificate normally covers the management DNS name, not this local IP.
+				client.Transport = &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}}
+			}
+		}
+		r, e := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/readyz")
 		if e != nil {
 			os.Exit(1)
 		}
@@ -88,6 +103,9 @@ func run() error {
 			s.TLSConfig = a.TLSConfig()
 			s.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		}
+		if i == 2 && cfg.ManagementTLS {
+			s.TLSConfig = a.ManagementTLSConfig()
+		}
 		servers = append(servers, s)
 	}
 	wg.Add(3)
@@ -98,7 +116,7 @@ func run() error {
 	for i, s := range servers {
 		go func(i int, s *http.Server) {
 			var e error
-			if i == 1 {
+			if i == 1 || (i == 2 && cfg.ManagementTLS) {
 				e = s.ServeTLS(listeners[i], "", "")
 			} else {
 				e = s.Serve(listeners[i])
@@ -108,7 +126,7 @@ func run() error {
 			}
 		}(i, s)
 	}
-	slog.Info("listeners started", "http", cfg.HTTPAddr, "https", cfg.HTTPSAddr, "management", cfg.ManagementAddr)
+	slog.Info("listeners started", "http", cfg.HTTPAddr, "https", cfg.HTTPSAddr, "management", cfg.ManagementAddr, "management_tls", cfg.ManagementTLS)
 	select {
 	case <-ctx.Done():
 	case e = <-errs:

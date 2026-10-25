@@ -164,3 +164,16 @@ cloudflare-rule-design.md using Cloudflare's primary documentation.
 Reusable versioned rule groups and attachments are a proposed next schema
 increment, not part of this implementation; current rule/feed imports remain
 site-scoped and require explicit activation.
+
+
+## Standalone HTTPS management regression
+
+Added native management-listener TLS for deployments that remove their HTTPS
+management proxy. Stored certificates are cached independently of application
+routes; a wildcard can cover management without any protected site configured.
+Tests cover absent/uncovered/expired certificates, separation from public SNI
+routing, retained cached TLS during database failure, real PostgreSQL password
+login and cross-replica session/logout over verified TLS. Remote session
+cookies remain Secure; plain-HTTP private-IP sign-in is not enabled. The
+container readiness probe supports local HTTPS without requiring the DNS
+certificate to cover the loopback IP.

@@ -43,12 +43,13 @@ type route struct {
 	cert  *tls.Certificate
 }
 type snapshot struct {
-	version    int64
-	routes     map[string]*route
-	rules      map[int64][]compiledRule
-	capture    map[int64]*capturePolicy
-	protection map[int64]*protectionPolicy
-	geo        *maxminddb.Reader
+	certificates map[int64]*tls.Certificate
+	version      int64
+	routes       map[string]*route
+	rules        map[int64][]compiledRule
+	capture      map[int64]*capturePolicy
+	protection   map[int64]*protectionPolicy
+	geo          *maxminddb.Reader
 }
 type accessEvent struct {
 	at       time.Time
@@ -196,7 +197,7 @@ func (a *App) refresh(ctx context.Context) error {
 	if e != nil {
 		return e
 	}
-	next := &snapshot{version: version, routes: map[string]*route{}}
+	next := &snapshot{version: version, routes: map[string]*route{}, certificates: certs}
 	for rows.Next() {
 		var s Site
 		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled); e != nil {

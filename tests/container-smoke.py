@@ -56,6 +56,7 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         "services": {
             "app": {"image": IMAGE, "pull_policy": "never"},
             "app_alt": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23456:23456"},
+            "app_tls": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23458:23458", "profiles": ["tls"], "environment": {"MANAGEMENT_TLS": "true"}},
             "app_fresh": {"extends": {"file": str(ROOT / "compose.yaml"), "service": "app"}, "image": IMAGE, "pull_policy": "never", "user": "23457:23457", "profiles": ["fresh"]},
             "upstream": {
                 "image": "node:22-alpine", "pull_policy": "if_not_present", "user": "10001:10001", "entrypoint": ["node"],
@@ -181,11 +182,35 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
             data = json.loads(run("docker", "inspect", container(service)).stdout)[0]
             assert data["State"]["ExitCode"] == 0 and not data["State"]["OOMKilled"]
         print("PASS: restart reloads certificate/configuration/sessions from PostgreSQL; all replicas shut down gracefully", flush=True)
+        # Enable direct HTTPS on a new replica, reusing the stored certificate.
+        dc("up", "--no-build", "--wait", "--wait-timeout", "120", "app_tls")
+        run("docker", "exec", container("app_tls"), "aegis-waf", "healthcheck")
+        tls_port = port("app_tls", 9090)
+        trust = ssl.create_default_context(cadata=chain.read_text())
+        def tls_request(path, method="GET", body=None, cookie="", token=""):
+            conn = http.client.HTTPSConnection("container.example.com", tls_port, context=trust, timeout=10)
+            conn._create_connection = lambda *args, **kw: socket.create_connection(("127.0.0.1", tls_port), timeout=10)
+            with contextlib.closing(conn):
+                headers = {"Content-Type":"application/json", "X-Requested-With":"aegis-waf", "Cookie":cookie, "X-CSRF-Token":token}
+                conn.request(method,path,body=None if body is None else json.dumps(body).encode(),headers=headers)
+                response = conn.getresponse()
+                return response.status, dict(response.getheaders()), json.loads(response.read())
+        status, headers, data = tls_request("/api/login","POST",{"username":"container-admin","password":password})
+        assert status == 200
+        cookie_header = headers["Set-Cookie"]
+        assert "Secure" in cookie_header and "HttpOnly" in cookie_header and "SameSite=Strict" in cookie_header
+        cookie = cookie_header.split(";",1)[0]
+        assert tls_request("/api/me",cookie=cookie)[0] == 200
+        assert tls_request("/api/logout","POST",{},cookie,data["csrf"])[0] == 200
+        assert tls_request("/api/me",cookie=cookie)[0] == 401
+        dc("stop", "app_tls")
+        print("PASS: direct management HTTPS, stored certificate trust/hostname validation, arbitrary UID, native HTTPS healthcheck, Secure cookie login/session/logout",flush=True)
+
     except BaseException:
         print(dc("logs", "--no-color", "--tail", "30", "app", "app_alt", "app_fresh", check=False).stdout, file=sys.stderr)
         raise
     finally:
-        dc("--profile", "fresh", "down", "--volumes", "--remove-orphans", check=False)
+        dc("--profile", "fresh", "--profile", "tls", "down", "--volumes", "--remove-orphans", check=False)
         for name, value in env_old.items():
             if value is None:
                 os.environ.pop(name, None)
