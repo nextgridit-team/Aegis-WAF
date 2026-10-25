@@ -123,23 +123,11 @@ func localLocationAPI(a *App, m *http.ServeMux) {
 		return nil
 	}))
 	m.HandleFunc("GET /api/geolocation/local", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		var public string
-		if e := a.db.QueryRow(r.Context(), "SELECT public_ip FROM local_location WHERE id").Scan(&public); e != nil {
+		location, e := a.localGatewayLocation(r.Context())
+		if e != nil {
 			return e
 		}
-		country, region := "", ""
-		if ip, e := netip.ParseAddr(public); e == nil {
-			if s := a.active.Load(); s != nil {
-				country = countryFor(s.geo, ip)
-			}
-			if city := a.regions.Load(); city != nil {
-				location := regionFor(city.db, ip)
-				if location.Country == country {
-					region = location.Name
-				}
-			}
-		}
-		respond(w, 200, map[string]string{"public_ip": public, "country": country, "region": region})
+		respond(w, 200, location)
 		return nil
 	}))
 	m.HandleFunc("PUT /api/geolocation/local", a.wrap(true, func(w http.ResponseWriter, r *http.Request, i identity) error {
@@ -164,4 +152,24 @@ func localLocationAPI(a *App, m *http.ServeMux) {
 		respond(w, 200, map[string]string{"public_ip": ip})
 		return nil
 	}))
+}
+
+func (a *App) localGatewayLocation(ctx context.Context) (map[string]string, error) {
+	var public string
+	if e := a.db.QueryRow(ctx, "SELECT public_ip FROM local_location WHERE id").Scan(&public); e != nil {
+		return nil, e
+	}
+	country, region := "", ""
+	if ip, e := netip.ParseAddr(public); e == nil {
+		if s := a.active.Load(); s != nil {
+			country = countryFor(s.geo, ip)
+		}
+		if city := a.regions.Load(); city != nil {
+			location := regionFor(city.db, ip)
+			if location.Country == country {
+				region = location.Name
+			}
+		}
+	}
+	return map[string]string{"public_ip": public, "country": country, "region": region}, nil
 }

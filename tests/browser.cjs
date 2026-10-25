@@ -1164,8 +1164,26 @@ const { execFileSync } = require("node:child_process");
     await responseBreakdown.getByText("Upstream application",{exact:true}).first().waitFor();
     assert.ok(await responseBreakdown.evaluate(el=>el.scrollWidth<=el.clientWidth+1),"desktop response status columns should all fit");
     await responseBreakdown.locator("..").screenshot({path:path.join(out,"response-status-breakdown.png")});
+    await page.route("**/api/live-traffic**",async route=>{
+      const response=await route.fetch();const data=await response.json();
+      if(data.gateway_location?.country==='US')data.gateway_location.map_point={latitude:47,longitude:-122};
+      for(const event of data.events||[])if(event.country==='US'&&event.location_source==='local_reference')event.map_point={latitude:47,longitude:-122};
+      await route.fulfill({response,json:data});
+    });
     await page.getByRole("button",{name:"Live traffic map",exact:true}).click();
     await page.getByRole("heading",{name:"Live traffic map",exact:true}).waitFor();
+    await page.waitForFunction(()=>document.querySelector('[data-gateway-marker]')?.getAttribute('data-country')==='US');
+    assert.notEqual(await page.locator('[data-gateway-marker]').getAttribute('transform'),'translate(185 155)');
+    await page.waitForFunction(()=>document.querySelector('[data-gateway-marker]')?.getAttribute('data-precision')==='regional');
+    assert.equal(await page.locator('[data-gateway-marker]').getAttribute('transform'),'translate(58 43)');
+    const flow=page.locator('[data-local-flow]');
+    await flow.getByText('Aegis WAF',{exact:true}).waitFor();
+    await flow.getByRole('button',{name:'Manual TLS',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('[aria-label="Live map application"]').selectedOptions[0].textContent==='Manual TLS');
+    assert.ok((await flow.getByRole('link',{name:'Open Manual TLS',exact:true}).getAttribute('href')).startsWith('https://'));
+    await flow.getByRole('button',{name:'All applications',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('[aria-label="Live map application"]').value==='');
+    await screenshot('gateway-country-and-local-flow');
     assert.equal(await nav("Live traffic map").count(),0,"live page should not add a sidebar item");
     await page.emulateMedia({reducedMotion:"no-preference"});
     assert.equal((await httpsRequest(ports[0],"manual.example.test",null,"/safe",{"User-Agent":"curl/8"})).status,200);
@@ -1192,6 +1210,7 @@ const { execFileSync } = require("node:child_process");
     assert.equal(await page.locator('.live-flow').count(),0,"reduced motion should clear animations");
     for(const width of [320,390,768,1440]){await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'live map overflows at '+width);await screenshot('live-map-'+width);}
     await page.getByRole("link",{name:"Back to dashboard",exact:true}).click();
+    await page.unroute("**/api/live-traffic**");
     // Map interaction uses synthetic regional aggregates; database enrichment is
     // independently verified with a real MMDB fixture in Go integration tests.
     await page.route("**/api/dashboard/regions?**",async route=>{

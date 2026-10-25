@@ -1,8 +1,27 @@
+import { mountLocalFlow } from "./local-flow";
+import type { Site } from "./types";
 import { localLocationNote } from "./location";
 import { world } from "./world";
 import { esc, heading } from "./ui";
 import { clientAddress, responseSource } from "./response-status";
+type MapPoint = { latitude: number; longitude: number };
+function project(point?: MapPoint) {
+  return point &&
+    Number.isFinite(point.latitude) &&
+    Number.isFinite(point.longitude) &&
+    Math.abs(point.latitude) <= 90 &&
+    Math.abs(point.longitude) <= 180
+    ? { x: point.longitude + 180, y: 90 - point.latitude }
+    : undefined;
+}
+type GatewayLocation = {
+  country: string;
+  public_ip: string;
+  region?: string;
+  map_point?: MapPoint;
+};
 type Event = {
+  map_point?: MapPoint;
   id: number;
   at: string;
   site_id: number;
@@ -20,7 +39,7 @@ type Event = {
 };
 type C = {
   api: <T>(p: string) => Promise<T>;
-  sites: () => { id: number; name: string }[];
+  sites: () => Site[];
   handleError: (e: unknown) => Promise<void>;
 };
 export function makeLiveMap(c: C) {
@@ -57,7 +76,7 @@ export function makeLiveMap(c: C) {
         .map((s) => `<option value="${s.id}">${esc(s.name)}</option>`)
         .join(
           "",
-        )}</select></label><button type="button" class="secondary" data-live-pause>Pause feed</button><label class="check"><input type="checkbox" data-live-follow ${reduced ? "" : "checked"}><span>Follow new requests</span></label><span data-live-state role="status">Connecting…</span></div><section class="dashboard-panel live-map-panel"><div class="live-map-legend"><span class="live-allowed">● Allowed</span><span class="live-blocked">● Blocked</span><span data-live-counts></span></div><svg class="live-world" viewBox="0 5 360 170" role="img" aria-label="Observed requests by country; destination is a logical gateway marker"><g>${world.map((country) => `<path d="${country.path}" data-live-country="${esc(country.code)}" class="live-country"><title>${esc(country.name)}</title></path>`).join("")}</g><g data-live-effects aria-hidden="true"></g><g class="live-gateway"><circle cx="25" cy="155" r="2"/><text x="30" y="156">Unknown / private</text><circle cx="185" cy="155" r="2.5"/><text x="190" y="156">Aegis · logical target</text></g></svg><p class="muted">Locations are approximate country areas, not individual IP coordinates. The destination marker is a logical gateway, not a geographic location. Unknown/private locations use a separate logical marker and remain in the log. Enable local Geo data from Dashboard to locate public clients.</p><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section><section class="dashboard-panel"><div class="section-heading"><h2>Live request log</h2><span>Green = allowed · red = blocked</span></div><div class="table-wrap live-log" role="region" aria-label="Live request log" tabindex="0"><table><thead><tr><th scope="col">Time</th><th scope="col">Proxy host</th><th scope="col">Client</th><th scope="col">Location</th><th scope="col">Result</th><th scope="col">HTTP / source</th><th scope="col">Details</th></tr></thead><tbody data-live-rows></tbody></table><p data-live-empty class="muted">Waiting for completed requests…</p></div><p class="muted">Completed requests arrive after asynchronous logging, usually with a 1–2 second delay; long streams appear when they finish. Each refresh reads up to 200 recorded requests from the last minute; this is a best-effort live view. The log retains 200 rows and animations are capped at 30 simultaneous effects. Activity provides the persisted request records.</p></section>`;
+        )}</select></label><button type="button" class="secondary" data-live-pause>Pause feed</button><label class="check"><input type="checkbox" data-live-follow ${reduced ? "" : "checked"}><span>Follow new requests</span></label><span data-live-state role="status">Connecting…</span></div><section class="dashboard-panel live-map-panel"><div class="live-map-legend"><span class="live-allowed">● Allowed</span><span class="live-blocked">● Blocked</span><span data-live-counts></span></div><svg class="live-world" viewBox="0 5 360 170" role="img" aria-label="Observed requests by country; gateway uses the configured country when available"><g>${world.map((country) => `<path d="${country.path}" data-live-country="${esc(country.code)}" class="live-country"><title>${esc(country.name)}</title></path>`).join("")}</g><g data-live-effects aria-hidden="true"></g><g class="live-gateway"><g data-unknown-marker><circle cx="25" cy="155" r="2"/><text x="30" y="156" data-unknown-label>Unknown / private</text></g><g data-gateway-marker transform="translate(185 155)"><circle r="2.5"/><text x="5" y="1" data-gateway-label>Aegis · location unavailable</text></g></g></svg><p class="muted">Locations use approximate regional coordinates from the local City/region database when available, with a country-area fallback. They are not precise client locations. Aegis uses the configured Gateway public IP location; the fallback marker below the map means its location is unavailable. Unknown/private locations use a separate logical marker and remain in the log. Enable local Geo data from Dashboard to locate public clients.</p><small>IP geolocation by <a href="https://db-ip.com" target="_blank" rel="noreferrer">DB-IP</a> · Map boundaries: Natural Earth</small></section><section class="dashboard-panel" data-local-flow></section><section class="dashboard-panel"><div class="section-heading"><h2>Live request log</h2><span>Green = allowed · red = blocked</span></div><div class="table-wrap live-log" role="region" aria-label="Live request log" tabindex="0"><table><thead><tr><th scope="col">Time</th><th scope="col">Proxy host</th><th scope="col">Client</th><th scope="col">Location</th><th scope="col">Result</th><th scope="col">HTTP / source</th><th scope="col">Details</th></tr></thead><tbody data-live-rows></tbody></table><p data-live-empty class="muted">Waiting for completed requests…</p></div><p class="muted">Completed requests arrive after asynchronous logging, usually with a 1–2 second delay; long streams appear when they finish. Each refresh reads up to 200 recorded requests from the last minute; this is a best-effort live view. The log retains 200 rows and animations are capped at 30 simultaneous effects. Activity provides the persisted request records.</p></section>`;
     const select = view.querySelector<HTMLSelectElement>("select")!,
       pause = view.querySelector<HTMLButtonElement>("[data-live-pause]")!,
       follow = view.querySelector<HTMLInputElement>("[data-live-follow]")!,
@@ -72,12 +91,56 @@ export function makeLiveMap(c: C) {
     const countryNames = new Map(
       world.map((country) => [country.code, country.name]),
     );
+    let destination = { x: 185, y: 155 };
+    const updateFlow = mountLocalFlow(
+      view.querySelector<HTMLElement>("[data-local-flow]")!,
+      c.sites(),
+      (id) => {
+        select.value = id;
+        select.dispatchEvent(new Event("change"));
+      },
+    );
+    function positionGateway(location?: GatewayLocation) {
+      const bounds = countryPaths.get(location?.country || "")?.getBBox();
+      const regional = project(location?.map_point);
+      destination =
+        regional ||
+        (bounds && bounds.width
+          ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+          : { x: 185, y: 155 });
+      const marker = view.querySelector<SVGGElement>("[data-gateway-marker]")!;
+      marker.setAttribute(
+        "transform",
+        `translate(${destination.x} ${destination.y})`,
+      );
+      marker.dataset.country = bounds ? location!.country : "";
+      marker.dataset.precision = regional
+        ? "regional"
+        : bounds
+          ? "country"
+          : "unknown";
+      const label = view.querySelector<SVGTextElement>("[data-gateway-label]")!;
+      label.textContent = bounds
+        ? "Aegis · " +
+          (location!.region ? location!.region + ", " : "") +
+          countryNames.get(location!.country)
+        : "Aegis · location unavailable";
+      label.setAttribute("x", destination.x > 290 ? "-5" : "5");
+      label.setAttribute("text-anchor", destination.x > 290 ? "end" : "start");
+    }
     function animate(event: Event) {
       if (reduced || effects.size >= 30) return;
       const path = countryPaths.get(event.country);
       const bounds = path?.getBBox();
-      const x = bounds && bounds.width ? bounds.x + bounds.width / 2 : 25,
-        y = bounds && bounds.height ? bounds.y + bounds.height / 2 : 155;
+      const regional = project(event.map_point);
+      let x =
+          regional?.x ??
+          (bounds && bounds.width ? bounds.x + bounds.width / 2 : 25),
+        y =
+          regional?.y ??
+          (bounds && bounds.height ? bounds.y + bounds.height / 2 : 155);
+      if (Math.abs(x - destination.x) < 1 && Math.abs(y - destination.y) < 1)
+        x -= 4;
       const node = document.createElementNS("http://www.w3.org/2000/svg", "g");
       node.setAttribute(
         "class",
@@ -86,7 +149,7 @@ export function makeLiveMap(c: C) {
       const arc = document.createElementNS(node.namespaceURI, "path");
       arc.setAttribute(
         "d",
-        `M${x},${y} Q${(x + 185) / 2},${Math.max(8, Math.min(y, 155) - 28)} 185,155`,
+        `M${x},${y} Q${(x + destination.x) / 2},${Math.max(8, Math.min(y, destination.y) - 28)} ${destination.x},${destination.y}`,
       );
       arc.setAttribute("pathLength", "1");
       arc.setAttribute("class", "live-flow");
@@ -133,11 +196,25 @@ export function makeLiveMap(c: C) {
       }
       const stamp = ++generation;
       try {
-        const report = await c.api<{ events: Event[] }>(
+        const report = await c.api<{
+          events: Event[];
+          gateway_location?: GatewayLocation;
+        }>(
           "/live-traffic" +
             (selected ? "?site_id=" + encodeURIComponent(selected) : ""),
         );
         if (!active || stamp !== generation || !view.isConnected) return;
+        positionGateway(report.gateway_location);
+        const unknown = report.events.filter(
+          (event) => !countryPaths.has(event.country) && !event.map_point,
+        ).length;
+        view
+          .querySelector<SVGGElement>("[data-unknown-marker]")!
+          .setAttribute("visibility", unknown ? "visible" : "hidden");
+        view.querySelector<SVGTextElement>(
+          "[data-unknown-label]",
+        )!.textContent = "Unknown / private · " + unknown;
+        updateFlow(report.events, selected);
         const fresh = report.events.filter((event) => !seen.has(event.id));
         report.events.forEach((event) => seen.add(event.id));
         while (seen.size > 2000) seen.delete(seen.values().next().value!);
@@ -171,6 +248,7 @@ export function makeLiveMap(c: C) {
     };
     select.onchange = () => {
       selected = select.value;
+      updateFlow([], selected);
       generation++;
       clearTimeout(timer);
       seen.clear();

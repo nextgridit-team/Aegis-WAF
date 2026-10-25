@@ -127,10 +127,17 @@ func TestGeoSyncIntegration(t *testing.T) {
 		t.Fatalf("local stored provenance: %d %v", localCount, e)
 	}
 	var live struct {
+		Gateway struct {
+			Country  string
+			PublicIP string `json:"public_ip"`
+			Region   string
+			Point    *liveMapPoint `json:"map_point"`
+		} `json:"gateway_location"`
 		Events []struct {
 			Peer    string
 			Country string
-			Source  string `json:"location_source"`
+			Source  string        `json:"location_source"`
+			Point   *liveMapPoint `json:"map_point"`
 		}
 	}
 	if e = json.Unmarshal(c.call("GET", "/api/live-traffic", nil, 200), &live); e != nil {
@@ -138,9 +145,12 @@ func TestGeoSyncIntegration(t *testing.T) {
 	}
 	found := 0
 	for _, event := range live.Events {
-		if event.Peer == "10.2.3.4" && event.Country == "US" && event.Source == "local_reference" {
+		if event.Peer == "10.2.3.4" && event.Country == "US" && event.Source == "local_reference" && event.Point != nil {
 			found++
 		}
+	}
+	if live.Gateway.Country != "US" || live.Gateway.PublicIP != "216.160.83.56" || live.Gateway.Region != "Washington" || live.Gateway.Point == nil {
+		t.Fatalf("gateway location missing: %+v", live.Gateway)
 	}
 	if found != 2 {
 		t.Fatalf("local live events: %+v", live)

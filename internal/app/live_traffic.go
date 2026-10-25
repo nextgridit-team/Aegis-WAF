@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"github.com/oschwald/maxminddb-golang/v2"
 	"net/http"
 	"strconv"
 	"time"
@@ -32,6 +33,22 @@ func (a *App) liveTraffic(w http.ResponseWriter, r *http.Request, _ identity) er
 	if e != nil {
 		return e
 	}
-	respond(w, 200, map[string]any{"events": json.RawMessage(raw), "at": time.Now().UTC(), "site_id": site, "limit": 200, "window_seconds": 60, "refresh_seconds": 1})
+	gateway, e := a.localGatewayLocation(ctx)
+	if e != nil {
+		return e
+	}
+	var city *maxminddb.Reader
+	if cached := a.regions.Load(); cached != nil {
+		city = cached.db
+	}
+	raw, e = liveEventPoints(raw, city)
+	if e != nil {
+		return e
+	}
+	location := map[string]any{"public_ip": gateway["public_ip"], "country": gateway["country"], "region": gateway["region"]}
+	if point := livePointFor(city, gateway["country"], gateway["public_ip"]); point != nil {
+		location["map_point"] = point
+	}
+	respond(w, 200, map[string]any{"gateway_location": location, "events": json.RawMessage(raw), "at": time.Now().UTC(), "site_id": site, "limit": 200, "window_seconds": 60, "refresh_seconds": 1})
 	return nil
 }
