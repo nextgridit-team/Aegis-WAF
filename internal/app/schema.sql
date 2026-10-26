@@ -131,3 +131,8 @@ INSERT INTO schema_version VALUES(16) ON CONFLICT DO NOTHING;
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS traffic_profile text NOT NULL DEFAULT 'web';
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS stream_window_bytes integer NOT NULL DEFAULT 8192;
 INSERT INTO schema_version(version) VALUES (17) ON CONFLICT DO NOTHING;
+
+-- Optional shared rate counters; PostgreSQL remains authoritative for settings.
+CREATE TABLE IF NOT EXISTS rate_state(id boolean PRIMARY KEY DEFAULT true CHECK(id),settings jsonb NOT NULL DEFAULT '{}'::jsonb,password_cipher bytea,key_id text NOT NULL DEFAULT '',namespace text NOT NULL DEFAULT gen_random_uuid()::text,revision bigint NOT NULL DEFAULT 1);
+INSERT INTO rate_state(id) VALUES(true) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version VALUES(18) ON CONFLICT DO NOTHING;

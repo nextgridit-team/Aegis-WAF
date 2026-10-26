@@ -58,7 +58,7 @@ Treat paths, headers, query/body values, signature messages and external feed co
 
 Each address object stores one IP, CIDR or subnet. Groups collect objects and have no action by themselves. Select references for their intended purpose. Proxy trust belongs to the proxy host and authorizes sanitized identity headers; it is not a visitor allowlist. Component exemptions bypass only that component.
 
-Policy order is verified identity → policy selection → CIDR block → CIDR allow → Geo → remaining WAF checks. Block wins overlaps. CIDR allow behavior is explicitly Geo-only or all-WAF bypass per policy. Do not broaden it implicitly. Geo uses local cached databases; region/state telemetry is approximate and old records remain unknown. Flood budgets are per replica, not cluster-wide.
+Policy order is verified identity → policy selection → CIDR block → CIDR allow → Geo → remaining WAF checks. Block wins overlaps. CIDR allow behavior is explicitly Geo-only or all-WAF bypass per policy. Do not broaden it implicitly. Geo uses local cached databases; region/state telemetry is approximate and old records remain unknown. Flood and bot-frequency budgets use the selected System rate-state backend: Local memory is per replica; optional Redis/Dragonfly coordinates shared counters. Do not switch backends implicitly; enforcing shared-state failures return 503. Backend settings remain in PostgreSQL and credentials are write-only.
 
 ## Report the result
 

@@ -6,19 +6,21 @@ require (
 	github.com/corazawaf/coraza-coreruleset/coraza/v3 v3.8.1
 	github.com/corazawaf/coraza-coreruleset/crs/v4 v4.30.0
 	github.com/corazawaf/coraza/v3 v3.8.1
+	github.com/dchest/captcha v1.1.0
 	github.com/go-acme/lego/v4 v4.35.2
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jcchavezs/mergefs v0.1.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/oschwald/maxminddb-golang/v2 v2.6.0
+	github.com/redis/go-redis/v9 v9.23.0
 	golang.org/x/crypto v0.55.0
 	golang.org/x/net v0.58.0
 )
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/corazawaf/libinjection-go v0.3.3 // indirect
-	github.com/dchest/captcha v1.1.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
@@ -40,10 +42,11 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/valllabh/ocsf-schema-golang v1.0.3 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect

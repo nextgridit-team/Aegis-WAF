@@ -123,6 +123,7 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 }
 func (a *App) Management() http.Handler {
 	m := http.NewServeMux()
+	rateStateAPI(a, m)
 	dashboardAPI(a, m)
 	signatureAPI(a, m)
 	aiAPI(a, m)

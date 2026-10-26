@@ -51,6 +51,9 @@ func agentScopeFor(pattern string) string {
 }
 func agentOperations() []agentOperation {
 	patterns := []string{
+		"GET /api/rate-state",
+		"PUT /api/rate-state",
+		"POST /api/rate-state/test",
 		"DELETE /api/address-groups/{id}",
 		"DELETE /api/address-objects/{id}",
 		"DELETE /api/agent-keys/{id}",

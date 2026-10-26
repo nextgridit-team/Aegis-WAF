@@ -16,6 +16,7 @@
 
 | Goal                                                   | Guide                                                                                  |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Coordinate flood/bot budgets across replicas | [Optional shared counters](shared-rate-state.md) |
 | Assign policies and source-specific protection         | [Policies](policies.md)                                                                |
 | Load OWASP CRS and select signatures or exclusions     | [Managed signatures](managed-signatures.md)                                            |
 | Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Rule feeds](rule-feeds.md)                                 |

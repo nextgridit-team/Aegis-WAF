@@ -45,6 +45,7 @@ type cachedBinding struct {
 	Rules          []cachedRule
 }
 type cachedSnapshot struct {
+	RateState    *storedRateState
 	LocalGeo     *localGeoPolicy
 	ManagedSets  map[string]signatureSet
 	Format       int
@@ -93,6 +94,10 @@ func (a *App) cacheAAD() string {
 }
 func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
 	cache := cachedSnapshot{LocalGeo: s.localGeo, ManagedSets: s.managedSets, Format: 1, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
+	if s.rateState != nil {
+		stored := s.rateState.stored
+		cache.RateState = &stored
+	}
 	for id, cert := range s.certificates {
 		key, e := x509.MarshalPKCS8PrivateKey(cert.PrivateKey)
 		if e != nil {
@@ -155,6 +160,12 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 		return nil, errors.New("snapshot cache format or freshness rejected")
 	}
 	s := &snapshot{managedSets: map[string]signatureSet{}, managedWAFs: map[string]*managedSignatureRuntime{}, version: cached.Version, certificates: map[int64]*tls.Certificate{}, routes: map[string]*route{}, rules: map[int64][]compiledRule{}, capture: map[int64]*capturePolicy{}, protection: map[int64]*protectionPolicy{}, policyBindings: map[int64][]compiledPolicyBinding{}}
+	if cached.RateState != nil {
+		s.rateState, e = a.compileRateState(*cached.RateState)
+		if e != nil {
+			return nil, e
+		}
+	}
 	for id, set := range cached.ManagedSets {
 		digest, count, e := validateSignatureFiles(set.Files)
 		if e != nil {

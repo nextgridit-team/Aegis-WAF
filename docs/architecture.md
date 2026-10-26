@@ -26,7 +26,7 @@ A runtime database failure leaves existing replicas with their last loaded route
 
 Replicas share ACME accounts, challenges and job state. Database locks coordinate issuance and renewal; sessions work across replicas without sticky routing. Every replica uses the same database and external encryption key. No Redis, separate worker image or Kubernetes component is required.
 
-An external load balancer can distribute public traffic. Fixed Compose host-port mappings must be adjusted before scaling multiple replicas on one host. HTTP flood budgets remain per replica; increasing replica count increases the effective allowance. See [deployment and pooling constraints](deployment.md#multiple-replicas).
+An external load balancer can distribute public traffic. Fixed Compose host-port mappings must be adjusted before scaling multiple replicas on one host. Default local HTTP flood budgets are per replica; optional Redis/Dragonfly counters coordinate flood and bot-frequency budgets across replicas. PostgreSQL remains authoritative for all configuration/rule state. See [deployment and pooling constraints](deployment.md#multiple-replicas).
 
 ## Security and operations
 

@@ -217,7 +217,7 @@ func (l *floodLimiter) allow(key rateKey, rate, burst int, now time.Time) bool {
 	}
 	if now.Sub(l.cleaned) > time.Minute {
 		for k, b := range l.buckets {
-			if now.Sub(b.at) > 5*time.Minute {
+			if now.Sub(b.at) > max(5*time.Minute, time.Duration(float64(b.burst)/float64(b.rate)*float64(time.Second))) {
 				delete(l.buckets, k)
 			}
 		}
@@ -261,8 +261,16 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		if p.budgetScope != 0 {
 			budgetPrefix = "policy:" + strconv.FormatInt(p.budgetScope, 10) + ":"
 		}
-		client := a.flood.allow(rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst, now)
-		total := a.flood.allow(rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst, now)
+		decisions, err := takeRateState(r.Context(), &a.flood, []rateLimit{{rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst}, {rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst}}, now)
+		client, total := true, true
+		if err != nil {
+			signals = append(signals, "rate_state_unavailable")
+			if p.Mode == "block" {
+				return signals, true, http.StatusServiceUnavailable
+			}
+		} else {
+			client, total = decisions[0], decisions[1]
+		}
 		if !client {
 			signals = append(signals, "client_rate")
 		}

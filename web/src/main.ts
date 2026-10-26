@@ -41,6 +41,7 @@ import {
   policySummary,
   type PolicySummary,
 } from "./policy-page";
+import { makeSystemPage } from "./system";
 import { makeAgentAccess } from "./agent-access";
 import {
   headerMarkup,
@@ -182,6 +183,7 @@ function currentPage() {
   return (
     aliases[raw] ||
     ([
+      "system",
       "address-objects",
       "policies",
       "ai",
@@ -211,8 +213,9 @@ function shell() {
     ["ai", "activity", "Agent access"],
     ["traffic", "activity", "Traffic"],
     ["activity", "activity", "Activity"],
+    ["system", "activity", "System"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools">${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -294,7 +297,7 @@ function sitesList() {
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "dashboard") await dashboardUI.mount(view, state.sites);
   if (page === "policies") {
     const stamp = epoch;
@@ -304,6 +307,7 @@ async function render() {
   if (page !== "live-map") liveMapUI.stop();
   if (page === "live-map") await liveMapUI.mount(view);
   if (page === "ai") await aiPage.render(view);
+  if (page === "system") await systemPage.render(view);
   if (page === "address-objects") {
     const stamp = epoch;
     const html = await addressUI.render();
@@ -540,7 +544,7 @@ function closeEditor() {
 function siteProtectionMarkup(p: Protection, policies: PolicySummary[] = []) {
   const mode = (name: string, label: string, value: string) =>
     `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
-  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Observe first and tune for your application; legitimate tools can look automated.</small>${botChallengeMarkup(p.bot_challenge)}</div><details class="advanced"><summary>Client identity, trusted proxies and exemptions</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p, addressInventory)}</details>`;
+  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate budgets follow System rate-state settings: Local is per replica; Redis/Dragonfly is shared. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Observe first and tune for your application; legitimate tools can look automated.</small>${botChallengeMarkup(p.bot_challenge)}</div><details class="advanced"><summary>Client identity, trusted proxies and exemptions</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p, addressInventory)}</details>`;
 }
 async function siteForm(site?: Site, certificate?: Certificate) {
   const initialPolicies = site
@@ -796,6 +800,7 @@ const policyPage = makePoliciesPage({
   notice,
 });
 const requestDetails = makeRequestDetails({ api, esc, table, openEditor });
+const systemPage = makeSystemPage({ api, formHandler, notice, handleError });
 const aiPage = makeAgentAccess({
   api,
   notice,

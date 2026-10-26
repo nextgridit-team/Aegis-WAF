@@ -37,10 +37,11 @@ func normalizeBotChallenge(s botChallengeSettings) (botChallengeSettings, error)
 }
 
 type botResult struct {
-	Score     int      `json:"score"`
-	Threshold int      `json:"threshold"`
-	Reasons   []string `json:"reasons,omitempty"`
-	Decision  string   `json:"decision,omitempty"`
+	StateUnavailable bool     `json:"state_unavailable,omitempty"`
+	Score            int      `json:"score"`
+	Threshold        int      `json:"threshold"`
+	Reasons          []string `json:"reasons,omitempty"`
+	Decision         string   `json:"decision,omitempty"`
 }
 type botRequest struct {
 	site                   int64
@@ -82,7 +83,11 @@ func (a *App) botScore(p *protectionPolicy, site int64, r *http.Request, ip neti
 		}
 	}
 	key := rateKey{site, "bot:" + strconv.FormatInt(p.budgetScope, 10) + ":" + ip.String()}
-	if !a.botRates.allow(key, p.BotChallenge.RequestsPerSecond, p.BotChallenge.Burst, now) {
+	decisions, err := takeRateState(r.Context(), &a.botRates, []rateLimit{{key, p.BotChallenge.RequestsPerSecond, p.BotChallenge.Burst}}, now)
+	if err != nil {
+		result.StateUnavailable = true
+		result.Reasons = append(result.Reasons, "rate_state_unavailable")
+	} else if !decisions[0] {
 		add(40, "request_frequency")
 	}
 	result.Score = min(result.Score, 100)

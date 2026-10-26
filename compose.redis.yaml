@@ -1,0 +1,18 @@
+# Optional counters only: docker compose -f compose.yaml -f compose.redis.yaml up -d
+# In System, select Redis / Dragonfly and enter redis:6379. No public Redis port.
+services:
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    user: "999:999"
+    command: [redis-server, --save, "", --appendonly, "no", --maxmemory, 128mb, --maxmemory-policy, noeviction, --dir, /tmp]
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20

@@ -66,7 +66,7 @@ func requiresRuleSimulation(pattern string) bool {
 	if method == "GET" {
 		return false
 	}
-	if strings.HasPrefix(path, "/api/policies") || strings.HasPrefix(path, "/api/sites") || strings.HasPrefix(path, "/api/protection-settings") {
+	if strings.HasPrefix(path, "/api/policies") || strings.HasPrefix(path, "/api/sites") || strings.HasPrefix(path, "/api/protection-settings") || pattern == "PUT /api/rate-state" {
 		return true
 	}
 	if strings.HasPrefix(path, "/api/rules/") && path != "/api/rules/replay" {

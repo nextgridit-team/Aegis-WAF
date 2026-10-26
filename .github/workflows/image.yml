@@ -23,8 +23,15 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/nextgridit-team/aegis-waf
+      TEST_REDIS_ADDRESS: 127.0.0.1:6379
       TEST_DATABASE_URL: postgres://aegis_ci:ci-test-only@127.0.0.1:5432/aegis_ci?sslmode=disable
     services:
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
       postgres:
         image: postgres:18-alpine
         env:

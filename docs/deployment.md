@@ -179,3 +179,7 @@ For updates, pull/recreate only the app while retaining the database and secrets
 | Fresh deployment never becomes ready                               | Check database access, secret-file readability and app logs. The default startup needs PostgreSQL.                                           |
 
 Use `docker compose ps` and `docker compose logs --tail 100 app` to inspect operational status. Sanitize any logs before sharing them in an issue.
+
+## Optional shared counters
+
+The default Compose deployment remains two containers. For cluster-wide flood and bot-frequency budgets, use an existing private Redis/Dragonfly endpoint or add `-f compose.redis.yaml`, then configure **System → Rate-limit state**. PostgreSQL remains authoritative for configuration and protection definitions. See [shared counters, failure behavior and latency](shared-rate-state.md).

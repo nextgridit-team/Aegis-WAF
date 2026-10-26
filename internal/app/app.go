@@ -57,6 +57,7 @@ type sitePolicySummary struct {
 	Priority    int      `json:"priority"`
 }
 type snapshot struct {
+	rateState      *sharedRateState
 	localGeo       *localGeoPolicy
 	managedSets    map[string]signatureSet
 	managedWAFs    map[string]*managedSignatureRuntime
@@ -152,7 +153,12 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	}
 	return a, nil
 }
-func (a *App) Close() { a.db.Close() }
+func (a *App) Close() {
+	if s := a.active.Load(); s != nil {
+		s.rateState.retire()
+	}
+	a.db.Close()
+}
 func (a *App) initialize(ctx context.Context) error {
 	tx, e := a.db.Begin(ctx)
 	if e != nil {
@@ -228,6 +234,9 @@ func (a *App) refresh(ctx context.Context) error {
 		return e
 	}
 	old := a.active.Swap(next)
+	if old != nil && old.rateState != next.rateState {
+		old.rateState.retire()
+	}
 	a.cacheRestored.Store(false)
 	a.persistSnapshot(next)
 	if old != nil {
@@ -326,6 +335,9 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	e = rows.Err()
 	rows.Close()
 	if e != nil {
+		return nil, e
+	}
+	if e = a.loadRateState(ctx, tx, next); e != nil {
 		return nil, e
 	}
 	if e = a.loadPolicies(ctx, tx, next); e != nil {
@@ -428,6 +440,9 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "SNI and Host must match", 421)
 		return
 	}
+	if s.rateState != nil && s.rateState.stored.Settings.Backend == "redis" {
+		r = r.WithContext(context.WithValue(r.Context(), rateStateKey{}, s.rateState))
+	}
 	start := time.Now()
 	secureResponse := r.TLS != nil
 	botOwnedResponse := strings.HasPrefix(r.URL.Path, botChallengePrefix)
@@ -481,7 +496,14 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	if policy != nil && policy.BotChallenge.Enabled && policy.BotMode != "off" && !botEndpoint && !network.Blocked && !network.BypassWAF && !protectionBlocked && (!reliableIdentity || !matchesCIDRs(policy.botExempt, clientIP)) {
 		botDecision = a.botScore(policy, rt.site.ID, r, clientIP, start)
-		if botDecision.Score >= botDecision.Threshold {
+		if botDecision.StateUnavailable {
+			signals = append(signals, "bot_rate_state_unavailable")
+		}
+		if botDecision.StateUnavailable && policy.BotMode == "block" {
+			protectionBlocked = true
+			protectionStatus = 503
+			botDecision.Decision = "state_unavailable"
+		} else if botDecision.Score >= botDecision.Threshold {
 			if policy.BotMode == "observe" {
 				botDecision.Decision = "observe"
 				signals = append(signals, "bot_would_challenge")
