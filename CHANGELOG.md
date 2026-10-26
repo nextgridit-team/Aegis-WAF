@@ -8,6 +8,7 @@ This records shipped behavior rather than proposed features. Container builds us
 - Review/search individual rules or packs and apply them to selected policies. Published copies retain provenance and stay pinned until an explicit refresh. Catalogue updates invalidate stale MCP simulations without changing enforcement.
 - One-time community subscription includes opt-in Node.js Brotli and PHP multipart delivery-path guards. These are partial mitigations, with documented upload compatibility costs; patch affected runtimes.
 - Schema 20 preserves legacy application feeds/imports and existing policy assignments. Removing the default subscription persists across restarts.
+- Reviewed documentation now separates completed controls from remaining limitations, including automatic access/audit retention, administrator MFA, resource-scoped authority and online key rotation.
 
 ## 2026-10-26 — Alerts and dashboard improvements
 

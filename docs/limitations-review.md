@@ -1,34 +1,50 @@
 # Limitations review
 
-Reviewed against the implementation and regression tests on 2026-10-25. [Current limits](limitations.md) remain the operator-facing statement; this review separates completed work, practical next improvements and boundaries that should stay explicit.
+Reviewed against release `ccdc48e` on 2026-10-26, including the real-PostgreSQL/Redis race suite, focused catalogue/MCP checks and two-replica browser/Pebble acceptance. This is a documentation and capability review, not a new independent penetration test. [Current limitations](limitations.md) contains the remaining operator-facing boundaries.
 
-## Addressed in the current work
+Most of the earlier feature gaps have been addressed. They should no longer be described as absent. Optional controls still need to be enabled, and their implementation does not remove their documented bounds.
 
-| Gap | Implemented outcome | Remaining boundary |
+## Completed improvements
+
+| Earlier gap | Current implementation | Evidence / guide |
 | --- | --- | --- |
-| Every suspicious client is simply blocked, with no verification | Selective self-hosted image/audio CAPTCHA and scoped, expiring clearance | Heuristic scoring is spoofable; solving a challenge is not permanent bot identity. |
-| Agents can change production protection without an enforced test | Exact-candidate MCP impact simulation and single-use key/config/version-bound receipts | Missing facts stay unknown; a test harness cannot prove traffic legitimacy or policy safety. Unconfigured hostnames cannot satisfy test assertions. |
-| Response inspection can delay streaming endpoints | Per-host Web/SSE profile and bounded overlapping response windows with immediate delivery | Detection can terminate future output; already-delivered bytes cannot be recalled. |
-| Flood budgets multiply across replicas | Optional Redis/Dragonfly shared counters with explicit failure behavior | Local remains per replica; store resets can reset counters. Shared mode adds network latency. |
-| Rule/TLS changes might interrupt long-lived connections | Existing atomic snapshot swap verified with live HTTP/1.1, HTTP/2 and upgraded connections | Existing requests keep their admitted configuration; edits are not immediate revocation of open sessions. |
-| Container monitoring lacks standard metrics | Management-only authenticated Prometheus counters/histograms and structured MCP completion events | Scrape each replica. Authentication depends on PostgreSQL; counters reset on restart. |
+| Only bespoke signatures | Coraza with bundled OWASP CRS, browsable signatures, policy assignment and exclusions | [Managed signatures](managed-signatures.md); `TestManagedSignaturesIntegration` |
+| Request-only CRS and fixed oversized-body rejection | Optional response inspection and explicit reject/prefix actions for request/response bounds | [Body inspection](body-inspection.md); `TestManagedResponseSignatures`, `TestManagedRequestPartialAndBoundary` |
+| Streaming endpoints could be buffered | Website/API/SSE profiles and immediate streaming with bounded overlapping response windows | [Streaming behavior](body-inspection.md#sse-and-streaming-api-profiles); `TestStreamingWindowDetectionAndPreservation`, `TestStreamingProfileIntegration` |
+| Bot detection could only observe or block | Selective self-hosted image/audio CAPTCHA with expiring, scoped clearance across replicas | [Bot protection](bot-protection.md); `TestCaptchaSelectiveCrossReplicaAndBoundaries` |
+| No coordinated rate budgets | Optional Redis/Dragonfly counters with bounded failure and recovery behavior | [Shared state](shared-rate-state.md); `TestSharedRateStateIntegration`, `TestSharedBotFrequencyAcrossReplicas` |
+| AI could change live protection without a mandatory test | Exact-candidate MCP simulation with single-use, key/version-bound receipts; feed changes invalidate stale receipts | [Agent safety gate](agent-access.md#required-simulation-before-live-protection-changes); `TestSimulationIntegration`, `TestWorkspaceCatalogueIntegration` |
+| No cold-start recovery during a database outage | Optional authenticated-encrypted snapshot cache with a maximum age | [Recovery snapshots](snapshot-cache.md); `TestSealedSnapshotCache`, `TestSnapshotCacheStartupBeforeDatabaseInitialization` |
+| Configuration updates could disrupt open traffic | Compiled snapshots published with an atomic pointer swap; active requests retain admitted state | [Reload behavior](architecture.md#atomic-reload-and-active-connections); HTTP/2, WebSocket and streaming regression coverage |
+| Request evidence lacked redaction controls | Capture allowlists, built-in sensitive-value controls and custom capture-time redaction patterns | [Evidence privacy](evidence-privacy.md); `TestCustomEvidenceRedactionBeforePersistence` |
+| Background panic could terminate the proxy | Supervised loops contain/log panics and restart with backoff | [Worker behavior](logging.md); `TestWorkerPanicIsContainedAndRestarted` |
+| No measured forwarding performance | Hot-path benchmarks and published end-to-end mean/p99 reports | [Benchmarks](benchmarks.md), [comparison limits](proxy-comparison.md); `benchmark_test.go` |
+| No standard security telemetry | Structured JSON events, authenticated Prometheus counters/histograms, dashboard CPU/RAM metrics | [Logging](logging.md), [observability](observability.md); telemetry/privacy and metric regressions |
+| No alerting or agent wake-up integration | Alert inbox, configurable triggers and notification destinations, signed automation webhook | [Alerts](alerts.md); `TestAlertingIntegration`, provider/signature fixtures |
+| Shared rules required manual application-specific imports | Per-rule manifests/files, CVE search, pack selection, reusable policy groups and explicitly pinned updates | [Rule catalogues](rule-feeds.md); `TestWorkspaceCatalogueIntegration`, passing catalogue browser flow |
+| No investigation of ordinary requests | Request-detail views for all recorded outcomes with retained evidence and matched policy/rule definitions | [Request investigation](request-investigation.md); `TestRequestDetailsAllOutcomesAndRetention` |
 
-The dependency review also applied the available `golang.org/x/net` HTTP/2 advisory fixes. The audit had classified those functions outside this application's imported/called graph, but the dependency could still be patched safely. Vulnerability and runtime verification evidence is recorded separately in [verification](verification.md).
+Detailed execution evidence and its scope are in [verification](verification.md). The current catalogue browser flow verified that applying a selected rule preserves an existing policy's assignments/groups and enforces on both replicas. Header-match tests demonstrate that behavior; they do not prove complete PHP/Node.js vulnerability mitigation. The default community subscription downloads candidates without activating them.
 
-## Practical next work
+## Remaining feature gaps
 
-1. **Automatic access/audit retention.** This is the most direct operational improvement: sustained traffic otherwise grows PostgreSQL indefinitely. Add separate dashboard-controlled retention windows, batched database-backed cleanup, progress/error reporting and clear evidence/export semantics. Preserve existing data unless an operator enables a retention policy; test cleanup load so forwarding remains independent of it. Sampled evidence already expires automatically.
-2. **Administrator MFA and recovery.** Add TOTP or WebAuthn with a complete enrollment/recovery flow, encrypted authenticator material, rate-limited verification, one-use recovery codes and security audits. Do not call an extra login checkbox MFA or ship a recovery bypass.
-3. **Narrower agent/administrator authority.** Existing MCP permissions cover management domains across the workspace. Per-application/resource restrictions would reduce the impact of an agent mistake or stolen credential, but every direct and generic route must enforce the same boundary.
-4. **Verified-bot identity.** Optional provider-specific verification can reduce challenges for legitimate crawlers. It requires authenticated provider evidence or forward-confirmed reverse DNS with bounded caching/failure behavior; a User-Agent string is insufficient.
-5. **Online encryption-key rotation.** Key identifiers already exist. Rotation still needs a keyring/deployment overlap, transactional resealing of all secret types, replica compatibility and rollback/recovery testing. Replacing one environment key while old ciphertext remains is not rotation.
+1. **Automatic access/audit retention.** These tables still grow unless an operator manages them. Evidence expiry and alert-inbox cleanup already exist but are separate. Add independent retention windows, bounded database-coordinated cleanup and progress/error reporting, with an explicit default that preserves existing data.
+2. **Administrator MFA and recovery.** Add TOTP or WebAuthn with enrollment, recovery, one-use backup codes, rate limits and security audits. Neither MCP bearer keys nor CAPTCHA provides administrator MFA.
+3. **Per-application/resource authority.** Current MCP scopes restrict management domains across the workspace; administrators do not have granular roles. Enforce any future resource scope consistently through direct APIs and generic MCP operations.
+4. **Verified-bot identity.** Challenge clearance is available; authenticated crawler identity is not. Provider verification or bounded forward-confirmed reverse DNS would need an explicit trust/failure design.
+5. **Online encryption-key rotation.** Ciphertexts have key identifiers, but there is no overlapping keyring and transactional resealing/recovery workflow. Changing one external key while old ciphertext remains is not rotation.
 
-I would take retention next, then MFA. Both improve a deployed system without expanding the request-detection engine or adding mandatory infrastructure.
+Automatic retention remains the strongest next operational improvement, followed by administrator MFA. Protocol-specific protections for AI/MCP traffic and upstream API-key brokerage are separate proposed capabilities, not implied by the existing API/SSE endpoint profiles.
 
-## Keep these boundaries honest
+## Boundaries to retain
 
-- Bounded request/response inspection and unsupported protocols are deliberate controls, not unlimited coverage. Larger upload handling or richer gRPC/WebSocket inspection needs a specific protocol/format design and a memory/latency budget.
-- Best-effort asynchronous access logging trades durability for forwarding independence. Automatic retention solves database growth, not loss during queue saturation, crashes or collector failure. Transactional administrative audits have different semantics.
-- Runtime database loss is served from cached configuration; default cold startup still requires PostgreSQL. Explicit sealed recovery is available and can restore stale configuration within its allowed age. New CAPTCHA verification, HTTP-01 lookup and management authentication still require PostgreSQL.
-- Network-layer DDoS protection belongs outside this HTTP application. A challenge cannot protect a saturated uplink.
-- Performance claims must distinguish measured proxy-added overhead from complete request latency. Published small-workload results cannot establish universal sub-millisecond latency, production capacity or security parity with another WAF.
+These remain true even with the completed features above:
+
+- Bounded inspection cannot inspect arbitrary payload sizes/protocols. Stream detection cannot recall delivered bytes, and unknown facts are not proof of safety.
+- CAPTCHA does not establish permanent human identity or stop a saturated network uplink.
+- Shared counters require an optional configured backend; local mode is deliberately per replica. Counter resets and backend failures need an operational plan.
+- Asynchronous **access** logging is best effort. Transactional administrative audits have different semantics. Retention solves storage growth, not access-log loss.
+- Default cold startup, authentication and several challenge operations require PostgreSQL. Optional sealed recovery can serve stale configuration only within its configured age. Database availability, backups and restore drills remain deployment responsibilities.
+- Feed checksums bind rule files to a manifest, not to an independently signed publisher identity. Pinned revisions prevent silent policy changes; the current guards remain partial mitigations.
+- Alerts can wake a configured external agent; the current stateless MCP connection itself is not an unsolicited notification channel.
+- Published small-workload benchmarks quantify that workload. They do not establish universal latency, capacity or security equivalence with another WAF.

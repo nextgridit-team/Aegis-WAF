@@ -41,3 +41,7 @@ MCP live-protection changes additionally require a fresh exact-candidate simulat
 The supplied app container runs as non-root, supports a platform-assigned UID, uses a read-only root and explicit temporary directory, drops capabilities and requires no Docker socket. Upstream HTTPS certificate verification is enabled. The supplied app-to-PostgreSQL Docker connection is not TLS-encrypted; use verified TLS for remote PostgreSQL.
 
 Keep management private, patch the host and database, back up PostgreSQL and the external key, and plan log retention. Existing replicas retain their loaded configuration during database loss; default cold starts need PostgreSQL. See [deployment](deployment.md), [architecture](architecture.md), [optional sealed recovery snapshots](snapshot-cache.md) and [verification evidence](verification.md).
+
+## Reviewed capability boundaries
+
+The [limitations review](limitations-review.md) records completed controls separately from remaining gaps. Selective CAPTCHA, shared counters, response/stream inspection, MCP simulation, alerts and catalogue feeds are implemented; they are not claims of unlimited inspection, verified human identity or autonomous in-process AI. Access logging is best effort; administrative mutations require their transactional audit to commit. Automatic access/audit retention, administrator MFA, per-application administrative authority and online encryption-key rotation remain open. [Current limits](limitations.md).
