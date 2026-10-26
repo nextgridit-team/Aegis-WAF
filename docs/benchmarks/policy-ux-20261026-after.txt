@@ -1,7 +1,7 @@
 goos: linux
 goarch: amd64
 pkg: github.com/nextgridit-team/Aegis-WAF/internal/app
-cpu: AMD Ryzen 9 7950X3D 16-Core Processor          
+cpu: AMD Ryzen 9 7950X3D 16-Core Processor
 BenchmarkRuleEvaluation/rules_100-32         	  206653	      5753 ns/op	     549 B/op	       4 allocs/op
 BenchmarkRuleEvaluation/rules_100-32         	  209198	      5763 ns/op	     549 B/op	       4 allocs/op
 BenchmarkRuleEvaluation/rules_100-32         	  204528	      5770 ns/op	     549 B/op	       4 allocs/op
