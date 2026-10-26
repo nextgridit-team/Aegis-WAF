@@ -2,6 +2,11 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Community capacity safety
+
+- Count enabled community rules consistently with snapshot compilation when checking assignment capacity; oversized writes roll back. Baseline upgrades preserve working protection when policy/global capacity would be exceeded.
+- Corpus tests support JSON-body simulations and future catalogue sizes. No additional CVE rules are published by this fix.
+
 ## 2026-10-26 — Single shipped rule feed
 
 - Remove the separate starter-feed shortcut and retire its official subscription once on upgrade. Imported native rules, active state and custom sources remain intact. Community mitigations are the single shipped feed; the historical starter JSON stays available for compatibility.

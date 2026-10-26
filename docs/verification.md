@@ -331,3 +331,7 @@ Submission-gate tests verify unchanged files pass, same-revision edits fail, sta
 ## Single community source — 2026-10-26
 
 The focused PostgreSQL/race/vet suite passed (49.344 seconds), including one-time official starter retirement, preservation of imported native rules and custom sources, policy selection, baseline upgrade, investigation and MCP simulation. The custom-source Playwright fixture passed error/retry, escaped review, legacy import and four responsive layouts after removal of the starter shortcut. Historical starter JSON remains only for compatibility. No new vulnerability signatures were published as part of this consolidation.
+
+## Community assignment-capacity hardening — 2026-10-26
+
+Policy admission now counts the same effective native/community rule instances as snapshot loading. Oversized assignments fail transactionally, and baseline upgrades preserve working protection when their addition would exceed policy/global capacity. The regression fails with the previous group-only SQL counter (HTTP 200 instead of the required 409) and passes with the fix. The complete PostgreSQL/Redis race/vet suite passed in 192.468 seconds against the separate candidate corpus. This fix publishes no additional CVE rules.

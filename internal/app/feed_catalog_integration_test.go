@@ -99,7 +99,7 @@ func TestWorkspaceCatalogueIntegration(t *testing.T) {
 	proposed := p
 	proposed.RefreshRuleIDs = []int64{ruleID}
 	payload, _ := json.Marshal(proposed)
-	input := simulationInput{Method: "PUT", Path: policyPath, Input: payload, TestPayloads: []simulationPayload{{Host: "bot.test", Method: vector.Method, Path: vector.Path, Headers: vector.Headers, Expected: "block"}}}
+	input := simulationInput{Method: "PUT", Path: policyPath, Input: payload, TestPayloads: []simulationPayload{{Host: "bot.test", Method: vector.Method, Path: vector.Path, Headers: vector.Headers, Body: vector.Body, Expected: "block"}}}
 	receipt, e := a.simulateRuleImpact(ctx, principal, mux, input)
 	if e != nil || !receipt.Eligible || receipt.ID == "" || !receipt.Harness[0].Passed {
 		t.Fatal("catalogue policy simulation failed", receipt, e)

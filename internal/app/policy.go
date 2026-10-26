@@ -298,6 +298,43 @@ func normalizeAssignments(assignments []policyAssignment) ([]policyAssignment, e
 	}
 	return assignments, nil
 }
+
+// Count the same effective rule instances that snapshot loading compiles. An
+// optional replacement lets bootstrap upgrades check their change before saving.
+func checkAssignedRuleCapacity(ctx context.Context, tx pgx.Tx, replacementID int64, replacement *policySpec) error {
+	var total int64
+	assigned, e := tx.Query(ctx, "SELECT p.id,p.spec,count(*) FROM policy_assignments b JOIN policies p ON p.id=b.policy_id GROUP BY p.id")
+	if e != nil {
+		return e
+	}
+	for assigned.Next() {
+		var id, instances int64
+		var raw []byte
+		if e = assigned.Scan(&id, &raw, &instances); e != nil {
+			assigned.Close()
+			return e
+		}
+		var spec policySpec
+		if replacement != nil && id == replacementID {
+			spec = *replacement
+		} else if e = json.Unmarshal(raw, &spec); e != nil {
+			assigned.Close()
+			return e
+		}
+		for _, group := range effectivePolicyGroups(spec) {
+			total += int64(len(group.Rules)) * instances
+		}
+	}
+	e = assigned.Err()
+	assigned.Close()
+	if e != nil {
+		return e
+	}
+	if total > 1000 {
+		return apiError{409, "policy capacity exceeded: at most 1000 assigned rule instances"}
+	}
+	return nil
+}
 func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 	var invalidSite bool
 	if e := tx.QueryRow(ctx, "SELECT EXISTS(SELECT site_id FROM policy_assignments GROUP BY site_id HAVING count(*) FILTER(WHERE cardinality(source_cidrs)=0)<>1 OR count(*)>10)").Scan(&invalidSite); e != nil {
@@ -306,12 +343,8 @@ func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 	if invalidSite {
 		return apiError{409, "each application with scoped policies needs one default policy; at most 10 policies per application"}
 	}
-	var total int
-	if e := tx.QueryRow(ctx, "SELECT coalesce(sum((SELECT coalesce(sum(jsonb_array_length(g->'rules')),0) FROM jsonb_array_elements(p.spec->'groups') g)),0) FROM policy_assignments b JOIN policies p ON p.id=b.policy_id").Scan(&total); e != nil {
+	if e := checkAssignedRuleCapacity(ctx, tx, 0, nil); e != nil {
 		return e
-	}
-	if total > 1000 {
-		return apiError{409, "policy capacity exceeded: at most 1000 assigned rule instances"}
 	}
 	rows, e := tx.Query(ctx, "SELECT DISTINCT p.id,p.spec FROM policy_assignments b JOIN policies p ON p.id=b.policy_id JOIN sites s ON s.id=b.site_id WHERE s.enabled")
 	if e != nil {

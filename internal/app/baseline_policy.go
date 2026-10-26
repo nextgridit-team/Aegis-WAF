@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -96,6 +97,14 @@ func upgradeBaselineCommunity(ctx context.Context, tx pgx.Tx) error {
 	// A heavily customized baseline may already consume its entire rule budget.
 	// Keep its working protection rather than publishing an unloadable snapshot.
 	if policyRuleCount(spec) > 100 {
+		spec.Community = &policyCommunity{Enabled: false, Rules: []policyRule{}}
+		action = "policy.baseline_community_capacity"
+	}
+	if capacityErr := checkAssignedRuleCapacity(ctx, tx, id, &spec); capacityErr != nil {
+		var api apiError
+		if !errors.As(capacityErr, &api) || api.status != 409 {
+			return capacityErr
+		}
 		spec.Community = &policyCommunity{Enabled: false, Rules: []policyRule{}}
 		action = "policy.baseline_community_capacity"
 	}

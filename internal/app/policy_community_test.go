@@ -153,3 +153,79 @@ func TestBaselineCommunityUpgradeAtCapacity(t *testing.T) {
 		t.Fatal("capacity upgrade changed working custom rules")
 	}
 }
+
+func TestCommunityAssignmentCapacity(t *testing.T) {
+	a, _, api, _, _ := captchaFixture(t)
+	ctx := context.Background()
+	feed := mustID(t, api.call("POST", "/api/rule-feeds", map[string]any{"name": "Capacity fixture", "url": "https://example.com/capacity-manifest.json"}, 201))
+	rule := probeRule("path", "", "equals", "/capacity-fixture")
+	raw, _ := json.Marshal(rule)
+	rows, e := a.db.Query(ctx, "INSERT INTO rule_catalog(feed_id,entry_id,revision,digest,spec,metadata) SELECT $1,'capacity-'||n,1,repeat('a',64),$2,'{}'::jsonb FROM generate_series(1,100) n RETURNING id", feed, raw)
+	if e != nil {
+		t.Fatal(e)
+	}
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		rows.Scan(&id)
+		ids = append(ids, id)
+	}
+	rows.Close()
+	input := policyInput{Spec: policySpecInput{Name: "Shared catalogue capacity", Mode: "block", RequestsPerSecond: 20, Burst: 60, SiteRequestsPerSecond: 1000, SiteBurst: 2000, Groups: []policyGroupInput{}, Community: &policyCommunityInput{Enabled: true, RuleIDs: ids}}, Applications: []policyAssignment{}}
+	policy := mustID(t, api.call("POST", "/api/policies", input, 200))
+	for n := 1; n <= 11; n++ {
+		want := 200
+		if n == 11 {
+			want = 409
+		}
+		api.call("POST", "/api/sites", map[string]any{"name": fmt.Sprintf("Capacity %d", n), "hostnames": []string{fmt.Sprintf("capacity-%d.example.test", n)}, "upstream": "http://127.0.0.1:1", "enabled": true, "redirect_https": false, "initial_policy_id": policy}, want)
+	}
+	var count int
+	a.db.QueryRow(ctx, "SELECT count(*) FROM sites WHERE name LIKE 'Capacity %'").Scan(&count)
+	if count != 10 {
+		t.Fatal("capacity rejection failed to roll back site creation", count)
+	}
+	if e := a.refresh(ctx); e != nil {
+		t.Fatal("accepted policy assignments cannot load", e)
+	}
+}
+
+func TestBaselineCommunityUpgradeAtAssignedCapacity(t *testing.T) {
+	a, _, api, site, _ := captchaFixture(t)
+	ctx := context.Background()
+	var baseline int64
+	a.db.QueryRow(ctx, "SELECT policy_id FROM built_in_policies WHERE key='baseline-protection'").Scan(&baseline)
+	if _, e := a.db.Exec(ctx, "UPDATE policies SET spec=spec-'community_mitigations' WHERE id=$1", baseline); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := a.db.Exec(ctx, "INSERT INTO policy_assignments(site_id,policy_id,source_cidrs,priority) VALUES($1,$2,'{}',10000)", site, baseline); e != nil {
+		t.Fatal(e)
+	}
+	native := probeRule("path", "", "equals", "/capacity-fixture")
+	native.Scope.SiteID = site
+	ruleIDs := []int64{}
+	for n := 0; n < 100; n++ {
+		raw, _ := json.Marshal(native)
+		var id int64
+		if e := a.db.QueryRow(ctx, "INSERT INTO rules(site_id,spec) VALUES($1,$2) RETURNING id", site, raw).Scan(&id); e != nil {
+			t.Fatal(e)
+		}
+		ruleIDs = append(ruleIDs, id)
+	}
+	input := policyInput{Spec: policySpecInput{Name: "Assigned capacity", Mode: "block", RequestsPerSecond: 20, Burst: 60, SiteRequestsPerSecond: 1000, SiteBurst: 2000, Groups: []policyGroupInput{{Name: "Native capacity", RuleIDs: ruleIDs}}}, Applications: []policyAssignment{}}
+	id := mustID(t, api.call("POST", "/api/policies", input, 200))
+	for n := 0; n < 10; n++ {
+		api.call("POST", "/api/sites", map[string]any{"name": fmt.Sprintf("Upgrade capacity %d", n), "hostnames": []string{fmt.Sprintf("upgrade-capacity-%d.example.test", n)}, "upstream": "http://127.0.0.1:1", "enabled": true, "redirect_https": false, "initial_policy_id": id}, 200)
+	}
+	if e := a.initialize(ctx); e != nil {
+		t.Fatal(e)
+	}
+	if e := a.refresh(ctx); e != nil {
+		t.Fatal("baseline upgrade exceeded accepted global capacity", e)
+	}
+	var enabled bool
+	a.db.QueryRow(ctx, "SELECT (spec->'community_mitigations'->>'enabled')::boolean FROM policies WHERE id=$1", baseline).Scan(&enabled)
+	if enabled {
+		t.Fatal("baseline enabled guards beyond global assignment capacity")
+	}
+}
