@@ -13,8 +13,9 @@ import (
 )
 
 type policyRule struct {
-	RuleID int64    `json:"rule_id"`
-	Spec   RuleSpec `json:"spec"`
+	Feed   *policyFeedRule `json:"feed,omitempty"`
+	RuleID int64           `json:"rule_id"`
+	Spec   RuleSpec        `json:"spec"`
 }
 type policyGroup struct {
 	Name       string       `json:"name"`
@@ -66,10 +67,11 @@ type policyAssignment struct {
 	Priority    int      `json:"priority"`
 }
 type policyInput struct {
-	Spec         policySpecInput    `json:"spec"`
-	Applications []policyAssignment `json:"applications"`
-	Revision     int64              `json:"revision"`
-	RefreshRules bool               `json:"refresh_rules"`
+	Spec           policySpecInput    `json:"spec"`
+	Applications   []policyAssignment `json:"applications"`
+	Revision       int64              `json:"revision"`
+	RefreshRules   bool               `json:"refresh_rules"`
+	RefreshRuleIDs []int64            `json:"refresh_rule_ids,omitempty"`
 }
 type policyView struct {
 	ID           int64              `json:"id"`
@@ -178,7 +180,7 @@ func validatePolicySpec(s policySpec) error {
 	}
 	return nil
 }
-func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput, frozen map[int64]RuleSpec) (policySpec, error) {
+func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput, frozen map[int64]policyRule) (policySpec, error) {
 	managed, e := normalizeManagedSignatures(in.ManagedSignatures)
 	if e != nil {
 		return policySpec{}, e
@@ -225,15 +227,15 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 		}
 		for _, id := range group.RuleIDs {
 			if prior, ok := frozen[id]; ok {
-				g.Rules = append(g.Rules, policyRule{id, prior})
+				g.Rules = append(g.Rules, prior)
 				continue
 			}
-			record, e := readRule(ctx, tx, id, false)
+			record, e := a.readPolicyLibraryRule(ctx, tx, id)
 			if e != nil {
 				return s, e
 			}
 			record.Spec.EvidenceIDs = nil
-			g.Rules = append(g.Rules, policyRule{id, record.Spec})
+			g.Rules = append(g.Rules, record)
 		}
 		s.Groups = append(s.Groups, g)
 	}
@@ -332,7 +334,7 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 	}
 	e = a.change(r.Context(), func(tx pgx.Tx) error {
 		ctx := r.Context()
-		frozen := map[int64]RuleSpec{}
+		frozen := map[int64]policyRule{}
 		if id != 0 {
 			var version int64
 			var raw []byte
@@ -351,10 +353,19 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 				}
 				for _, g := range prior.Groups {
 					for _, rule := range g.Rules {
-						frozen[rule.RuleID] = rule.Spec
+						frozen[rule.RuleID] = rule
 					}
 				}
 			}
+		}
+		if len(input.RefreshRuleIDs) > 100 {
+			return invalid("at most 100 targeted rule refreshes")
+		}
+		for _, ruleID := range input.RefreshRuleIDs {
+			if ruleID < 1 {
+				return invalid("invalid targeted rule ID")
+			}
+			delete(frozen, ruleID)
 		}
 		spec, e := a.normalizePolicy(ctx, tx, input.Spec, frozen)
 		if e != nil {

@@ -145,3 +145,13 @@ CREATE INDEX IF NOT EXISTS alerts_at ON alerts(at);
 CREATE TABLE IF NOT EXISTS alert_deliveries(id bigserial PRIMARY KEY,alert_id bigint NOT NULL REFERENCES alerts ON DELETE CASCADE,channel_id bigint NOT NULL REFERENCES notification_channels ON DELETE CASCADE,status text NOT NULL DEFAULT 'pending' CHECK(status IN('pending','sent','failed')),attempts int NOT NULL DEFAULT 0,error text NOT NULL DEFAULT '',next_attempt timestamptz NOT NULL DEFAULT now(),lease_until timestamptz,lease_owner text NOT NULL DEFAULT '',UNIQUE(alert_id,channel_id));
 CREATE INDEX IF NOT EXISTS alert_deliveries_due ON alert_deliveries(next_attempt) WHERE status='pending';
 INSERT INTO schema_version VALUES(19) ON CONFLICT DO NOTHING;
+
+-- Version 20: workspace-wide per-rule feeds, shared catalogue IDs and frozen provenance.
+ALTER TABLE rule_feeds ALTER COLUMN site_id DROP NOT NULL;
+ALTER TABLE rule_feeds ADD COLUMN IF NOT EXISTS manifest_revision integer NOT NULL DEFAULT 0;
+ALTER TABLE rule_feeds ADD COLUMN IF NOT EXISTS manifest_digest text NOT NULL DEFAULT '';
+CREATE TABLE IF NOT EXISTS rule_catalog(id bigint PRIMARY KEY DEFAULT nextval('rules_id_seq'),feed_id integer NOT NULL REFERENCES rule_feeds ON DELETE CASCADE,entry_id text NOT NULL,revision integer NOT NULL,digest text NOT NULL,spec jsonb NOT NULL,metadata jsonb NOT NULL,available boolean NOT NULL DEFAULT true,updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(feed_id,entry_id));
+CREATE INDEX IF NOT EXISTS rule_catalog_feed ON rule_catalog(feed_id);
+INSERT INTO schema_version VALUES(20) ON CONFLICT DO NOTHING;
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_rule_feed_url ON rule_feeds(url) WHERE site_id IS NULL;
+CREATE TABLE IF NOT EXISTS built_in_rule_feeds(key text PRIMARY KEY,feed_id integer REFERENCES rule_feeds ON DELETE SET NULL);

@@ -1,48 +1,79 @@
-# Rule source subscriptions
+# Rule catalogues and source subscriptions
 
-Open **Rule feeds**, choose **Add source**, enter a name and a public HTTPS URL, and choose an application. **Use Aegis starter feed** pre-fills this repository's small example feed. The first scheduled check runs within 30 seconds, then every 12 hours. **Sync now** starts a manual check. The page displays last success, next check, errors, available rules and pending imports.
+Workspace catalogues share independently versioned rules across policies. A small manifest lists **one file per rule**, with a revision and SHA-256 checksum. Administrators choose individual rules or packs; downloading updates never changes published protection automatically.
 
-Sync stores candidate signatures separately from live rules. **Review** shows each rule's JSON, whether it is pending/imported/removed, and its last imported local rule ID. **Import pending as drafts** creates application-scoped, disabled rules with a proposed Observe action. Open **Rules** to test, observe and explicitly activate them. Candidate updates never change or disable existing local rules. A changed candidate imports as a new draft; review it and disable any superseded rule yourself. Re-importing an unchanged candidate creates no duplicate. Deleting a source retains its previously imported rules.
+## Use the community catalogue
 
-A failed download or an invalid document preserves the previous successful candidates and imported rules. Updates are applied atomically. HTTP ETags avoid downloading unchanged documents. PostgreSQL advisory locks coordinate sync across replicas; there is no extra worker container or cache service. Failed checks show an error and schedule another check in 12 hours; manual retry is always available.
+1. Open **Rules → Rule feeds**. **Aegis community mitigations** is subscribed once during installation or upgrade. Removing it persists across restarts; **Use Aegis community feed** lets you add it again. No rules are assigned automatically.
+2. Choose **Sync now**, then **Review**. Search by CVE, technology or rule name. Expand a rule to see affected versions, coverage, limitations, compatibility risks, advisories and its actual definition.
+3. Select individual checkboxes or a pack, then **Apply selected to policy**. Choose an existing policy or create a new one. The editor preserves existing groups and application assignments. Nothing changes until **Save policy**.
+4. Start with Observe and check legitimate traffic. Assign the policy to the intended applications and enable Block only when its rules are appropriate.
 
-## Feed format
+The current feed includes two **partial delivery-path mitigations**:
 
-A public feed is a single JSON document, at most 1 MiB and 100 entries:
+| Rule / pack | Advisory | What it matches | Compatibility cost |
+| --- | --- | --- | --- |
+| Node.js Brotli request guard | CVE-2026-111497 | Requests declaring `Content-Encoding: br`, including encoding lists | Blocks legitimate Brotli-compressed uploads; `Accept-Encoding: br` response negotiation is unaffected |
+| PHP multipart request guard | CVE-2026-109618, CVE-2026-109619 | Requests declaring `Content-Type: multipart/form-data` | Blocks legitimate multipart forms and uploads |
+
+These are header guards, **not exploit detectors or substitutes for patched runtimes**. They do not cover direct-origin access, unlabelled payloads or application-specific decoding. The Node guard does not cover outbound downloads, including PHP Windows cURL's Brotli path. The PHP guard does not cover every triggering path or existing corrupted worker state. Review each rule's metadata and linked upstream advisories before applying it.
+
+Public subscription URL:
+
+```text
+https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json
+```
+
+![Community catalogue showing individual rule revisions, CVEs and compatibility risks](screenshots/rule-catalogue.png)
+
+## Sync and policy updates
+
+The first scheduled check runs within 30 seconds, then every 12 hours. **Sync now** checks immediately. PostgreSQL coordinates checks across replicas; no extra worker container is required. The page shows errors, last success and next check. Failed downloads, checksum failures, invalid rules, failed regression vectors and revision conflicts preserve the complete last successful catalogue. Checks use ETags when available.
+
+Policies store frozen rule definitions and feed provenance: source, entry ID, revision, checksum, pack and CVEs. An ordinary policy edit preserves these copies. Review shows **Update available** beside policies using an older definition. Select that rule again and use **Apply selected to policy** to refresh only the selected rules. Alternatively, the policy editor's **Refresh selected rule snapshots from the library** updates all selected snapshots on save. Existing history/rollback retains its frozen definitions. Removed feed entries disappear from the available picker; existing policy copies keep working. Removing a source also retains published policy copies and legacy imported rules, but prevents refreshing them from that source.
+
+A changed catalogue increments the configuration version to invalidate stale MCP simulation receipts; it does not replace live policy copies. Policy changes propagate through the usual two-second snapshot refresh. MCP agents must simulate the exact policy mutation before publishing it.
+
+## Publish your own per-rule feed
+
+Choose **Add source**, a name and public HTTPS URL, and **Workspace catalogue · all policies (manifest v2)**. Host the manifest and rule files in the same directory. See the [community authoring guide](../rules/community/README.md) for a complete rule file and reproducible tooling.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "name": "Example application guards",
+  "revision": 1,
   "rules": [
     {
-      "id": "environment-file-probes",
-      "rule": {
-        "schema_version": 1,
-        "name": "Environment file probes",
-        "scope": { "site_id": 1 },
-        "all": [ { "field": "path", "op": "equals", "value": "/.env" } ],
-        "action": "observe",
-        "ttl_seconds": 3600
-      }
+      "id": "my-rule",
+      "path": "my-rule.json",
+      "sha256": "<64 lowercase hexadecimal characters: SHA-256 of the exact file bytes>"
     }
   ]
 }
 ```
 
-Entry IDs are stable, unique names using 1–64 letters, digits, dots, underscores or hyphens. Rules use the existing [bounded declarative signature format](rules.md). Unknown fields, invalid expressions, malformed JSON, duplicate IDs and over-limit documents are rejected as a whole. The application scope is remapped to the selected local application. Remote evidence references are discarded and proposed action is normalized to Observe. Existing per-application and global rule capacities also apply to imports; an over-capacity import rolls back entirely.
+Every rule file contains `schema_version: 1`, stable `id`, increasing `revision`, `pack`, `technology`, `cves`, `description`, `affected_versions`, `coverage`, `limitations`, `false_positive_risk`, public HTTPS `references`, a native declarative `rule`, and `tests`. Tests include at least one matching and one nonmatching case, with bounded method/path/headers/body and `expected_match`. All cases must pass before a sync commits. The download normalizes action to Observe, clears external evidence IDs and replaces the placeholder application scope when compiling into assigned policies. Policy mode determines enforcement.
 
-This is an Aegis JSON feed, not a ModSecurity/CRS, Suricata, YARA, IP blocklist or arbitrary vendor format. Such sources need an explicit converter. There is no remote script execution or automatic activation. The repository's [starter feed](../rules/starter.json) is a small example, not a comprehensive curated WAF ruleset.
+Increment a rule's revision whenever its bytes change; regenerate the manifest checksums and increase its revision too. Lower revisions and changed bytes reusing an existing revision are rejected. IDs use 1–64 letters, digits, dots, underscores or hyphens. Paths must be relative JSON paths beneath the manifest directory, without traversal or query parameters. Unknown fields and malformed documents are rejected. Limits: 20 sources, 100 rules/manifest, 1 MiB manifest, 64 KiB/rule file, 8 MiB total download, 2000 stored catalogue entries, 2–16 regression cases/rule, 30-second overall download and 20-second individual requests. Removed entries still consume catalogue capacity until their source is removed.
+
+Checksums verify file bytes against the downloaded manifest. **They are not publisher signatures**: trust the publisher and HTTPS source. This format carries bounded declarative signatures, never executable plugins or remote scripts. ModSecurity/CRS, Suricata, YARA and arbitrary vendor feeds need an explicit converter.
+
+## Legacy application feeds
+
+Existing application-bound version 1 subscriptions continue working. Choose an application labelled **legacy v1** to use a single JSON document such as [rules/starter.json](../rules/starter.json). Review and **Import pending as drafts** creates disabled, application-scoped local rules with proposed Observe action. Changed candidates import as new drafts; unchanged imports create no duplicate. Older imported rules are not automatically replaced or disabled. These subscriptions do not populate the workspace catalogue.
 
 ## URL and network constraints
 
-Only public HTTPS on standard port 443 is supported. Credentials, query parameters and fragments are rejected. Redirects are not followed. The downloader validates DNS results for every new connection and connects to the validated IP while retaining hostname TLS verification, preventing private-target requests and DNS rebinding. Proxy environment variables cannot bypass these checks. Response sizes and download duration are bounded. Private-network feeds and authenticated feeds are not supported in this version. GitHub Contents API URLs are supported with GitHub’s raw-content media type; the starter feed uses this first-party endpoint so networks that block raw.githubusercontent.com can still use it without DNS-policy changes. GitHub rate limits still apply.
+Public HTTPS on port 443 only. Credentials, query parameters, fragments and redirects are rejected. The downloader validates DNS results for every new connection and connects to the validated IP while retaining hostname TLS verification. Environment proxies cannot bypass these checks. Private-network and authenticated feeds are unsupported. GitHub Contents API URLs use GitHub's raw-content media type; public API rate limits still apply.
 
-## API
+## API and permissions
 
-- `GET /api/rule-feeds`, `POST /api/rule-feeds` (`name`, `url`, `site_id`)
-- `GET /api/rule-feeds/{id}/items`
-- `POST /api/rule-feeds/{id}/sync`
-- `POST /api/rule-feeds/{id}/import`
-- `DELETE /api/rule-feeds/{id}`
+- `GET /api/rule-feeds`, `POST /api/rule-feeds` (`name`, `url`, optional `site_id`; omit or use `0` for workspace, positive ID for legacy)
+- `GET /api/rule-catalog`: available workspace rules and stable IDs for policy group selection
+- `GET /api/rule-feeds/{id}/items`: definitions, metadata, availability and pinned-policy/update information
+- `POST /api/rule-feeds/{id}/sync`, `DELETE /api/rule-feeds/{id}`
+- `POST /api/rule-feeds/{id}/import`: legacy sources only
+- Policy writes accept `refresh_rule_ids: [catalogue_rule_id]` for targeted snapshot updates, alongside the current policy revision and complete specification/assignments.
 
-Administrator authentication and write CSRF checks apply. Source creation, successful sync, draft import and removal are audited without recording rule contents or remote credentials. At most 20 sources may be configured.
+Administrator authentication and write CSRF checks apply. Source creation, successful sync, import and removal are audited without recording rule contents or credentials. MCP exposes the catalogue through the existing scoped management interface; it cannot bypass the required policy simulation gate. See [management API](management-api.md) and [agent access](agent-access.md).

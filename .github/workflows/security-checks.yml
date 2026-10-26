@@ -18,7 +18,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Check independently versioned community rules
+        run: python3 scripts/build-rule-feed.py --check
       - name: Attack, false-positive, body-bound and telemetry regressions
-        run: go test -race -count=1 ./internal/app -run 'TestAttackRegressionMatrix|TestScopedSignatureExceptions|TestBodyInspectionBoundsAndReplay|TestSecurityTelemetryPrivacy|FuzzRequestBodyReplay'
+        run: go test -race -count=1 ./internal/app -run 'TestAttackRegressionMatrix|TestScopedSignatureExceptions|TestBodyInspectionBoundsAndReplay|TestSecurityTelemetryPrivacy|FuzzRequestBodyReplay|TestCommunityCatalogue|TestCatalogue'
       - name: Bounded request-body fuzzing
         run: go test ./internal/app -run '^$' -fuzz '^FuzzRequestBodyReplay$' -fuzztime=20s -parallel=2

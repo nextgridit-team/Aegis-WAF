@@ -26,12 +26,23 @@ export type PolicySummary = {
   source_cidrs: string[];
   priority: number;
 };
-type Rule = { id: number; spec: { name: string; [key: string]: unknown } };
+type Rule = {
+  id: number;
+  spec: { name: string; [key: string]: unknown };
+  revision?: number;
+  pack?: string;
+  cves?: string[];
+};
+type FeedPreset = { name: string; ids: number[] };
 type Group = {
   name: string;
   path_prefix: string;
   methods: string[];
-  rules: { rule_id: number; spec: Rule["spec"] }[];
+  rules: {
+    rule_id: number;
+    spec: Rule["spec"];
+    feed?: { revision: number; digest: string; pack: string };
+  }[];
 };
 type Spec = {
   bot_challenge?: BotChallenge;
@@ -132,27 +143,60 @@ export function makePoliciesPage(c: C) {
     id?: number,
     assignmentFocus = false,
     signaturePreset?: SignatureSet,
+    feedPreset?: FeedPreset,
   ) {
     const p = policies.find((p) => p.id === id);
-    const [rules, sets, objects, addressGroups] = await Promise.all([
-      api<Rule[]>("/rules"),
-      api<SignatureSet[]>("/signature-sets"),
-      api<AddressObject[]>("/address-objects"),
-      api<AddressGroup[]>("/address-groups"),
-    ]);
-    const spec = p?.spec || {
-      name: "",
-      description: "",
-      mode: "observe",
-      flood_enabled: false,
-      bot_enabled: false,
-      block_empty_user_agent: false,
-      requests_per_second: 20,
-      burst: 60,
-      site_requests_per_second: 1000,
-      site_burst: 2000,
-      groups: [],
-    };
+    const [localRules, sets, objects, addressGroups, catalogue] =
+      await Promise.all([
+        api<Rule[]>("/rules"),
+        api<SignatureSet[]>("/signature-sets"),
+        api<AddressObject[]>("/address-objects"),
+        api<AddressGroup[]>("/address-groups"),
+        api<Rule[]>("/rule-catalog"),
+      ]);
+    const rules = [...localRules, ...catalogue];
+    const spec: Spec = structuredClone(
+      p?.spec || {
+        name: "",
+        description: "",
+        mode: "observe",
+        flood_enabled: false,
+        bot_enabled: false,
+        block_empty_user_agent: false,
+        requests_per_second: 20,
+        burst: 60,
+        site_requests_per_second: 1000,
+        site_burst: 2000,
+        groups: [],
+      },
+    );
+    if (feedPreset) {
+      const group = spec.groups.find((g) => g.name === feedPreset.name);
+      const chosen = feedPreset.ids.map((id) => {
+        const rule = rules.find((r) => r.id === id);
+        if (!rule)
+          throw new Error(
+            "A selected catalogue rule is no longer available. Sync and review it again.",
+          );
+        return { rule_id: id, spec: rule.spec };
+      });
+      if (group) {
+        for (const rule of chosen)
+          if (!group.rules.some((r) => r.rule_id === rule.rule_id))
+            group.rules.push(rule);
+      } else {
+        if (spec.groups.length >= 10)
+          throw new Error(
+            "This policy already has ten groups. Edit an existing group to select catalogue rules.",
+          );
+        spec.groups.push({
+          name: feedPreset.name,
+          path_prefix: "",
+          methods: [],
+          rules: chosen,
+        });
+      }
+    }
     const savedManaged = {
       ...defaultManagedSignatures(),
       ...spec.managed_signatures,
@@ -277,7 +321,7 @@ export function makePoliciesPage(c: C) {
         .querySelector("#policy-groups")!
         .insertAdjacentHTML(
           "beforeend",
-          `<fieldset class="policy-group" data-policy-group><legend>Rule group</legend><label class="field">Group name<input data-group-name required maxlength="120" value="${esc(g?.name || "Baseline")}"></label><label class="field">Path prefix<input data-group-path maxlength="1024" value="${esc(g?.path_prefix || "")}" placeholder="/api/ (empty means all paths)"></label><label class="field">Methods<input data-group-methods value="${esc((g?.methods || []).join(", "))}" placeholder="GET, POST (empty means all methods)"></label><div class="policy-rule-picker" role="group" aria-label="Group signatures">${all.length ? all.map((rule) => `<label class="check"><input type="checkbox" data-group-rule value="${rule.id}" ${selected.has(rule.id) ? "checked" : ""}><span>${esc(rule.spec.name)} <small>#${rule.id}</small></span></label>`).join("") : '<p class="muted">Create or import signatures in Rules first.</p>'}</div><button type="button" class="subtle compact" data-remove-policy-group>Remove group</button></fieldset>`,
+          `<fieldset class="policy-group" data-policy-group><legend>Rule group</legend><label class="field">Group name<input data-group-name required maxlength="120" value="${esc(g?.name || "Baseline")}"></label><label class="field">Path prefix<input data-group-path maxlength="1024" value="${esc(g?.path_prefix || "")}" placeholder="/api/ (empty means all paths)"></label><label class="field">Methods<input data-group-methods value="${esc((g?.methods || []).join(", "))}" placeholder="GET, POST (empty means all methods)"></label><div class="policy-rule-picker" role="group" aria-label="Group signatures">${all.length ? all.map((rule) => `<label class="check"><input type="checkbox" data-group-rule value="${rule.id}" ${selected.has(rule.id) ? "checked" : ""}><span>${esc(rule.spec.name)} <small>#${rule.id}${rule.pack ? ` · ${esc(rule.pack)} · available r${rule.revision}${g?.rules.find((old) => old.rule_id === rule.id)?.feed ? ` · pinned r${g.rules.find((old) => old.rule_id === rule.id)!.feed!.revision}` : ""}` : ""}</small></span></label>`).join("") : '<p class="muted">Create or import signatures in Rules first.</p>'}</div><button type="button" class="subtle compact" data-remove-policy-group>Remove group</button></fieldset>`,
         );
     };
     const addAssignment = (a?: Assignment) => {
@@ -373,6 +417,7 @@ export function makePoliciesPage(c: C) {
       await api(`/policies${p ? `/${p.id}` : ""}`, p ? "PUT" : "POST", {
         revision: p?.revision || 0,
         refresh_rules: f.has("refresh_rules"),
+        refresh_rule_ids: feedPreset?.ids || [],
         spec: {
           name: f.get("name"),
           description: f.get("description"),
@@ -505,5 +550,21 @@ export function makePoliciesPage(c: C) {
       await editor(Number(data.get("policy")) || undefined, false, set);
     });
   }
-  return { render, handle, applySignatureSet };
+  async function applyFeedRules(ids: number[], name: string) {
+    policies = await api<Policy[]>("/policies");
+    const preset = { name, ids };
+    c.openEditor(
+      "Apply catalogue rules to a policy",
+      `<p>Choose a policy for ${ids.length} selected rule${ids.length === 1 ? "" : "s"}. The policy editor preserves assignments and other groups. Saving publishes these selected latest catalogue revisions; other pinned rules stay unchanged. Review each rule's coverage and compatibility risks first.</p><form id="feed-policy-form"><label class="field">Policy<select name="policy" aria-label="Policy"><option value="">Create a new policy</option>${policies.map((p) => `<option value="${p.id}">${esc(p.spec.name)}</option>`).join("")}</select></label><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Configure policy">Configure policy</button></div></form>`,
+    );
+    c.formHandler("feed-policy-form", async (data) => {
+      await editor(
+        Number(data.get("policy")) || undefined,
+        false,
+        undefined,
+        preset,
+      );
+    });
+  }
+  return { render, handle, applySignatureSet, applyFeedRules };
 }

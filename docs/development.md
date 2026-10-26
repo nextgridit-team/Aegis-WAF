@@ -65,3 +65,7 @@ The browser/Pebble flow also checks System settings, authenticated metrics, Web/
 ## Local traffic flow UX fixture
 
 Run `BROWSER_EXECUTABLE=/path/to/chromium node tests/local-flow-ui.cjs` after installing the web/test dependencies. This serves the production local-flow component and CSS with explicitly synthetic host/event fixtures; it does not contact a real Aegis deployment. It verifies 0/4/60/500-host inventories, search/paging, keyboard focus, scoped-count semantics, disabled/wildcard/long-name handling, themes, 320–1440px widths, 200% zoom, moving pulses, reduced motion and cleanup. Screenshots default to `/tmp/aegis-local-flow-ux`; set `BROWSER_ARTIFACT_DIR` to override. The full browser/Pebble fixture separately verifies actual feed integration.
+
+## Community catalogue validation
+
+Run `python3 scripts/build-rule-feed.py --check` and `go test ./internal/app -run 'TestCommunityCatalogue|TestCatalogue'` after editing individual rule files. The authoring guide is in [rules/community](../rules/community/README.md). Real-PostgreSQL tests cover atomic sync, conflicting revisions, pinned policy updates, multiple replicas and persistent removal of the default subscription. The browser suite exercises selection/search, preserving an existing policy, and enforcement on two replicas.

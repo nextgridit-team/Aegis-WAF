@@ -313,3 +313,9 @@ The browser/Pebble flow (`/tmp/aegis-alerts-browser-final`) passed destination c
 ## Local traffic flow UX — 2026-10-26
 
 The compact host-pill layout passed the strict TypeScript/embedded-asset build and the focused Playwright fixture (`tests/local-flow-ui.cjs`, artifacts `/tmp/aegis-local-flow-ux`). Checks cover 0/1/4/60/500 hosts, bounded DOM rendering, name/domain search, pagination, keyboard focus across selection, direct links, truthful out-of-filter counts, long/escaped names, disabled/wildcard routes, light/dark themes, 320/390/768/1440px widths, 200% zoom, moving pulses, reduced motion and disposal. The production-container browser/Pebble fixture also passed actual feed integration, allowed/blocked pulse movement, application filtering and shared local-traffic hiding (`/tmp/aegis-local-flow-browser`). No backend or forwarding behavior changed.
+
+## Shared mitigation catalogue — 2026-10-26
+
+The complete real-PostgreSQL/Redis Go race suite passed (162.251 seconds), followed by vet. Catalogue integration covers separate checksummed downloads, no automatic activation, cross-replica compilation, frozen provenance, explicit targeted refresh, revision-conflict rollback with visible errors, source removal without losing policy snapshots, and persistent removal of the provisioned subscription. Manifest/regression validation and the TypeScript asset build passed. Legacy feed Playwright checks passed, including failure/retry and draft import.
+
+The production-container browser/Pebble acceptance passed (`/tmp/aegis-catalogue-browser`), including catalogue CVE search and pack selection, applying to an existing policy without losing other groups/assignments, and enforcement on both replicas. Declared Brotli request encoding was blocked while ordinary response negotiation remained allowed. These were harmless header tests, not live vulnerability exploitation or proof of complete CVE coverage. [Operator workflow and limits](rule-feeds.md).

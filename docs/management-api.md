@@ -85,3 +85,9 @@ All routes below use the `/api` prefix and session/CSRF or the matching scoped M
 - `POST /alert-rules`, `PUT /alert-rules/{id}`: `{name,enabled,kind,site_id,threshold,window_minutes,cooldown_minutes,channel_ids,revision?}`. Kinds: `blocked_volume,upstream_errors,certificate_expiry,acme_failure`. `site_id:0` means global. Counts 1–1000000, expiry days 1–90, window 1–60 minutes, cooldown 1–10080 minutes. PUT requires current revision. `DELETE /alert-rules/{id}` removes the trigger, preserving prior inbox/history records.
 
 See [setup, provider credentials, HMAC verification, delivery guarantees and MCP workflow](alerts.md).
+
+## Workspace rule catalogues
+
+`POST /api/rule-feeds` accepts `name`, `url` and optional `site_id`. Omit `site_id` or use `0` for a version 2 workspace manifest; positive IDs retain version 1 application imports. `GET /api/rule-catalog` lists available shared rules with stable `id`, `feed_id`, `entry_id`, `revision`, `digest`, `spec`, `pack`, `cves` and `feed_name`. Use these IDs in policy group `rule_ids`, alongside native rule IDs. `GET /api/rule-feeds/{id}/items` includes full metadata, availability, and pinned-policy/update status. Existing sync/delete endpoints support both scopes; `/import` accepts legacy application sources only.
+
+Policies store frozen specs with optional `feed` provenance. Ordinary saves preserve those snapshots. Policy writes accept `refresh_rule_ids:[id]` to refresh only selected rules, or `refresh_rules:true` for all selected snapshots. Send the complete policy input and its current `revision`. Removed entries/sources retain published copies but cannot supply a refresh. Sync never activates rules; changed catalogue definitions invalidate existing MCP simulations. Simulate the exact policy write, including refresh fields, before executing it. Catalogue reads use the existing MCP read permission. See [format, limits and compatibility](rule-feeds.md).

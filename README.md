@@ -56,6 +56,7 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 ## What Aegis does
 
 - **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
+- **Choose targeted mitigation rules.** The [community catalogue](docs/rule-feeds.md) syncs independently versioned CVE rules every 12 hours. Review individual rules or packs and apply them to chosen policies; updates stay pinned until explicitly reviewed.
 - **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
 - **See what happened.** Inspect recorded requests and matched rules, follow live traffic maps, and collect structured JSON events or authenticated Prometheus metrics. Configure [alerts](docs/alerts.md) with notification destinations or a signed webhook to your own AI agent. Filter the dashboard by application or view the whole gateway.
 - **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions and HTTP flood rates. Selective self-hosted image/audio CAPTCHA challenges suspicious traffic and grants bounded clearance after a successful solve.
@@ -68,6 +69,8 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 1. **Get a certificate.** In **Certificates**, request one using your domains, email and a scoped Cloudflare API token, or upload a PEM certificate and key. DNS-01 does not require inbound port 80. [Certificate setup](docs/certificates.md).
 2. **Connect your application.** Add its exact hostnames, reachable HTTP(S) upstream, endpoint type and certificate in **Proxy hosts**. Point client DNS and public traffic at Aegis. Configure trusted proxies first if another proxy sits in front.
 3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or customize one in **Policies**. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit. It takes effect only when assigned; review application compatibility and use Observe while tuning.
+
+For targeted PHP/Node.js delivery-path guards, open **Rules → Rule feeds → Aegis community mitigations → Review**, select compatible rules and choose **Apply selected to policy**. These opt-in guards have explicit limitations and do not replace runtime updates. [Catalogue workflow](docs/rule-feeds.md).
 
 See the [guided setup and investigation workflow](docs/getting-started.md) for signature browsing, exclusions and internal/external assignments. Bot/flood controls and request-content evidence require explicit configuration.
 
@@ -97,7 +100,7 @@ _Actual application screens with isolated test traffic and example domains. [Scr
 
 ![Live flow diagram connecting Aegis directly to protected proxy hosts](docs/screenshots/local-traffic-flow.png)
 
-Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [policies](docs/screenshots/policies.png), [agent access](docs/screenshots/agent-access.png), [System and metrics](docs/screenshots/system.png), and [self-hosted verification](docs/screenshots/bot-challenge.png), and [alerts](docs/screenshots/alerts.png).
+Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [community rule catalogue](docs/screenshots/rule-catalogue.png), [policies](docs/screenshots/policies.png), [agent access](docs/screenshots/agent-access.png), [System and metrics](docs/screenshots/system.png), and [self-hosted verification](docs/screenshots/bot-challenge.png), and [alerts](docs/screenshots/alerts.png).
 
 <a id="structured-security-logs"></a>
 <a id="update-and-recover"></a>
@@ -110,7 +113,7 @@ Start with the **[documentation index](docs/README.md)**, or go directly to:
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                                                                 |
 | Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                                                                      |
-| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md)             |
+| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Rule catalogues](docs/rule-feeds.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md)             |
 | Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Prometheus metrics](docs/observability.md) · [Evidence privacy](docs/evidence-privacy.md) |
 | Scale shared rate budgets                  | [Redis/Dragonfly setup and failure behavior](docs/shared-rate-state.md)                                                                                                               |
 | Configure country restrictions             | [Geo blocking in a policy](docs/geolocation.md#apply-geo-blocking-to-an-application)                                                                                                  |

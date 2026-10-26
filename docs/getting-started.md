@@ -29,3 +29,7 @@ Geo controls are under **Policies → Edit → CIDR access and Geo blocking**: d
 For suspected bots, enable selective self-hosted CAPTCHA in the policy; ordinary below-threshold traffic is not challenged. For replicated flood enforcement, configure **System → Rate-limit state** with an optional shared Redis/Dragonfly endpoint. Local memory remains the default. [Bot verification](bot-protection.md) · [Shared budgets](shared-rate-state.md).
 
 **System → Prometheus metrics** links to the management-only `/metrics` endpoint. A source-restricted Read key can authenticate an HTTPS scraper even with MCP disabled. Scrape every replica. Agents performing live protection changes must first use the [offline impact simulation](agent-access.md#required-simulation-before-live-protection-changes).
+
+## Add targeted community rules
+
+Open **Rules → Rule feeds → Aegis community mitigations → Review** (use **Sync now** first if queued). Search by CVE or technology, review coverage and compatibility, select individual rules or a pack, and **Apply selected to policy**. Save an existing policy or create and assign a new Observe policy before enforcing. Downloads run every 12 hours; published rule copies stay pinned until explicitly refreshed. [Full guide](rule-feeds.md).

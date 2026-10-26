@@ -30,3 +30,7 @@ Native rules use deterministic matching and blocking; managed CRS uses its own a
 - **Shared budgets:** select the deployment-wide backend under **System → Rate-limit state**; policy rates still set the budgets. Local is per replica; optional Redis/Dragonfly is shared. [Backend setup](shared-rate-state.md).
 
 MCP agents must simulate the exact protection mutation and provide a fresh `simulation_id`; dashboard administrators continue using session/CSRF authorization. Rules, CIDR lists and TLS configuration compile into a new snapshot before an atomic swap. Open requests keep their admitted configuration; new requests use the refreshed one. [Agent safety gate](agent-access.md#required-simulation-before-live-protection-changes) · [Reload behavior](architecture.md#atomic-reload-and-active-connections).
+
+## Shared catalogue rules
+
+**Rules → Rule feeds** lists workspace sources. Review individual rules or packs, then use **Apply selected to policy** to open an existing or new policy editor. Catalogue rules are also available directly in each group's signature picker. Published copies record their feed revision, checksum and CVEs; normal edits preserve them. Feed sync never silently changes enforcement. Applying an updated catalogue selection refreshes only those selected rules; **Refresh selected rule snapshots from the library** refreshes the complete selected library set on save. Review compatibility before Block mode. [Feed setup, update behavior and partial-mitigation limits](rule-feeds.md).

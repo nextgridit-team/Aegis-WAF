@@ -26,3 +26,7 @@ Configuration reloads use atomic snapshots without restarting listeners. Updatin
 ## Alerting upgrade
 
 Schema 19 adds encrypted notification destinations, alert rules, an inbox and delivery leases. No destinations, external sends or trigger rules are created automatically. Update all replicas before configuring Alerts; a prior binary does not run the new workers. Notification acknowledgement/configuration is independent of the WAF configuration version and does not invalidate protection simulations. The existing database/external-key backup covers notification configuration too. [Setup and retention](alerts.md).
+
+## Shared rule catalogue (schema 20)
+
+Update all replicas before using workspace feeds or catalogue selections. Existing application-bound feeds retain their version 1 draft-import behavior. Schema 20 adds workspace sources and individually versioned catalogue entries. A community subscription is provisioned once if source capacity permits; deleting it persists. It downloads rules but does not assign them or change existing protection. Policies preserve frozen definitions until an explicit refresh/save. Catalogue changes invalidate older MCP simulation receipts. Backup/restore continues to use PostgreSQL plus the external encryption key. [Catalogue operations](rule-feeds.md).

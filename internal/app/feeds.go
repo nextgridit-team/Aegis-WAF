@@ -156,7 +156,7 @@ func (a *App) fetchFeed(ctx context.Context, rawURL, etag string, site int64) (f
 	}
 	return doc, nextETag, false, nil
 }
-func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string) error {
+func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string) (resultErr error) {
 	ctx, cancel := context.WithTimeout(ctx, 35*time.Second)
 	defer cancel()
 	conn, e := a.db.Acquire(ctx)
@@ -181,7 +181,7 @@ func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string)
 	var rawURL, etag string
 	var site int64
 	var due bool
-	e = conn.QueryRow(ctx, "SELECT url,etag,site_id,next_sync<=now() FROM rule_feeds WHERE id=$1", id).Scan(&rawURL, &etag, &site, &due)
+	e = conn.QueryRow(ctx, "SELECT url,etag,coalesce(site_id,0),next_sync<=now() FROM rule_feeds WHERE id=$1", id).Scan(&rawURL, &etag, &site, &due)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return apiError{404, "feed not found"}
 	}
@@ -191,12 +191,25 @@ func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string)
 	if !manual && !due {
 		return nil
 	}
-	doc, nextETag, unchanged, fetchErr := a.fetchFeed(ctx, rawURL, etag, site)
-	if fetchErr != nil {
-		_, e = conn.Exec(ctx, "UPDATE rule_feeds SET last_attempt=now(),next_sync=now()+interval '12 hours',error=$2 WHERE id=$1", id, fetchErr.Error())
-		if e != nil {
-			return e
+	defer func() {
+		if resultErr != nil {
+			record, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_, _ = conn.Exec(record, "UPDATE rule_feeds SET last_attempt=now(),next_sync=now()+interval '12 hours',error=$2 WHERE id=$1", id, resultErr.Error())
 		}
+	}()
+	var doc feedDocument
+	var manifest ruleManifest
+	var candidates []catalogueCandidate
+	var nextETag string
+	var unchanged bool
+	var fetchErr error
+	if site == 0 {
+		manifest, candidates, nextETag, unchanged, fetchErr = a.fetchCatalogue(ctx, rawURL, etag)
+	} else {
+		doc, nextETag, unchanged, fetchErr = a.fetchFeed(ctx, rawURL, etag, site)
+	}
+	if fetchErr != nil {
 		return fetchErr
 	}
 	tx, e := conn.Begin(ctx)
@@ -204,12 +217,22 @@ func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string)
 		return e
 	}
 	defer tx.Rollback(ctx)
+	// Catalogue changes serialize with policy writes and simulation receipts.
+	if site == 0 {
+		if _, e = tx.Exec(ctx, "SELECT version FROM config_version WHERE id FOR UPDATE"); e != nil {
+			return e
+		}
+	}
 	// Lock the source before candidate mutations; a removed source cannot reappear.
 	var existing int64
 	if e = tx.QueryRow(ctx, "SELECT id FROM rule_feeds WHERE id=$1 FOR UPDATE", id).Scan(&existing); e != nil {
 		return e
 	}
-	if !unchanged {
+	if !unchanged && site == 0 {
+		if e = commitCatalogue(ctx, tx, id, manifest, candidates); e != nil {
+			return e
+		}
+	} else if !unchanged {
 		if _, e = tx.Exec(ctx, "UPDATE rule_feed_items SET available=false WHERE feed_id=$1", id); e != nil {
 			return e
 		}
@@ -286,14 +309,27 @@ func (a *App) createFeed(w http.ResponseWriter, r *http.Request, i identity) err
 		if total >= 20 {
 			return apiError{409, "at most 20 rule feeds are supported"}
 		}
+		if body.SiteID == 0 {
+			var exists bool
+			if e := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM rule_feeds WHERE site_id IS NULL AND url=$1)", body.URL).Scan(&exists); e != nil {
+				return e
+			}
+			if exists {
+				return apiError{409, "this workspace source is already configured"}
+			}
+		}
+
 		var exists bool
-		if e := tx.QueryRow(r.Context(), "SELECT EXISTS(SELECT 1 FROM sites WHERE id=$1)", body.SiteID).Scan(&exists); e != nil {
+		if body.SiteID < 0 {
+			return invalid("invalid application scope")
+		}
+		if e := tx.QueryRow(r.Context(), "SELECT $1::bigint=0 OR EXISTS(SELECT 1 FROM sites WHERE id=$1)", body.SiteID).Scan(&exists); e != nil {
 			return e
 		}
 		if !exists {
 			return invalid("choose an existing application")
 		}
-		if e := tx.QueryRow(r.Context(), "INSERT INTO rule_feeds(name,url,site_id) VALUES($1,$2,$3) RETURNING id", body.Name, body.URL, body.SiteID).Scan(&id); e != nil {
+		if e := tx.QueryRow(r.Context(), "INSERT INTO rule_feeds(name,url,site_id) VALUES($1,$2,nullif($3::bigint,0)) RETURNING id", body.Name, body.URL, body.SiteID).Scan(&id); e != nil {
 			return e
 		}
 		return audit(r.Context(), tx, i.Username, "feed.created", strconv.FormatInt(id, 10))
@@ -313,12 +349,15 @@ func (a *App) importFeed(w http.ResponseWriter, r *http.Request, i identity) err
 	e = a.change(r.Context(), func(tx pgx.Tx) error {
 		ctx := r.Context()
 		var site int64
-		e := tx.QueryRow(ctx, "SELECT site_id FROM rule_feeds WHERE id=$1 FOR UPDATE", id).Scan(&site)
+		e := tx.QueryRow(ctx, "SELECT coalesce(site_id,0) FROM rule_feeds WHERE id=$1 FOR UPDATE", id).Scan(&site)
 		if errors.Is(e, pgx.ErrNoRows) {
 			return apiError{404, "feed not found"}
 		}
 		if e != nil {
 			return e
+		}
+		if site == 0 {
+			return invalid("workspace catalogue rules are selected directly in policy groups")
 		}
 		rows, e := tx.Query(ctx, "SELECT entry_id,spec FROM rule_feed_items WHERE feed_id=$1 AND available AND spec IS DISTINCT FROM imported_spec ORDER BY entry_id", id)
 		if e != nil {
@@ -376,13 +415,20 @@ func (a *App) importFeed(w http.ResponseWriter, r *http.Request, i identity) err
 }
 func feedAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/rule-feeds", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		return a.list(w, r, `SELECT f.id,f.name,f.url,f.site_id,f.last_attempt,f.last_success,f.next_sync,f.error,(SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available) AS candidates,(SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available AND i.spec IS DISTINCT FROM i.imported_spec) AS pending FROM rule_feeds f ORDER BY f.id`)
+		return a.list(w, r, `SELECT f.id,f.name,f.url,f.site_id,f.last_attempt,f.last_success,f.next_sync,f.error,CASE WHEN f.site_id IS NULL THEN (SELECT count(*) FROM rule_catalog c WHERE c.feed_id=f.id AND c.available) ELSE (SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available) END AS candidates,(SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available AND i.spec IS DISTINCT FROM i.imported_spec) AS pending FROM rule_feeds f ORDER BY f.id`)
 	}))
 	m.HandleFunc("POST /api/rule-feeds", a.wrap(true, a.createFeed))
 	m.HandleFunc("GET /api/rule-feeds/{id}/items", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		id, e := resourceID(r)
 		if e != nil {
 			return e
+		}
+		var workspace bool
+		if e = a.db.QueryRow(r.Context(), "SELECT site_id IS NULL FROM rule_feeds WHERE id=$1", id).Scan(&workspace); e != nil {
+			return e
+		}
+		if workspace {
+			return a.listCatalogueItems(w, r, id)
 		}
 		return a.list(w, r, "SELECT entry_id,spec,available,rule_id,spec IS DISTINCT FROM imported_spec AS pending FROM rule_feed_items WHERE feed_id="+strconv.FormatInt(id, 10)+" ORDER BY entry_id")
 	}))

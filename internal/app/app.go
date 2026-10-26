@@ -174,6 +174,9 @@ func (a *App) initialize(ctx context.Context) error {
 	if _, e = tx.Exec(ctx, schema); e != nil {
 		return e
 	}
+	if e = seedCommunityFeed(ctx, tx); e != nil {
+		return e
+	}
 	if e = seedBaselinePolicy(ctx, tx); e != nil {
 		return e
 	}

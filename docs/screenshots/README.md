@@ -57,3 +57,7 @@ Update the source revision/date above when refreshing them. Older screenshots in
 ## Compact local traffic flow — 2026-10-26
 
 `local-traffic-flow.png` was refreshed from `animated-local-flow.png` in `/tmp/aegis-local-flow-browser`, the passing isolated browser/Pebble fixture using `aegis-waf:local-flow-ux`. It shows the compact proxy-host pills and real fixture allowed/blocked pulses, replacing the earlier large-card capture. Search, pagination and 0/1/4/60/500-host extremes are separately tested with explicitly synthetic fixtures in `tests/local-flow-ui.cjs`, including light/dark themes, 320–1440px widths and 200% zoom. The published screenshot uses disposable example hosts and traffic, not production data.
+
+## Shared mitigation catalogue — 2026-10-26
+
+`rule-catalogue.png` is the unedited `rule-catalogue.png` artifact from `/tmp/aegis-catalogue-browser`, captured during the passing browser/Pebble suite on the shared-catalogue implementation based on `ee55e885`. It shows the actual separately versioned PHP/Node.js catalogue with synthetic administrator/session data. The suite also selects a pack, preserves an existing policy's groups/assignments, and verifies the selected guard on two replicas. It does not demonstrate complete CVE coverage or exploit prevention.

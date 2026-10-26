@@ -83,7 +83,7 @@ func (a *App) requestDetails(w http.ResponseWriter, r *http.Request, _ identity)
 		}
 	}
 	if len(ids) > 0 {
-		rows, e := tx.Query(r.Context(), "SELECT id,spec FROM rules WHERE id=ANY($1)", ids)
+		rows, e := tx.Query(r.Context(), "SELECT id,spec FROM rules WHERE id=ANY($1) UNION ALL SELECT id,spec FROM rule_catalog WHERE id=ANY($1)", ids)
 		if e != nil {
 			return e
 		}

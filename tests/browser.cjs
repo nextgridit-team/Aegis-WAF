@@ -993,16 +993,16 @@ const { execFileSync } = require("node:child_process");
       .click();
     await dialog()
       .getByLabel("Application", { exact: true })
-      .selectOption({ label: "Manual TLS" });
+      .selectOption({ label: "Manual TLS · legacy v1" });
     await dialog()
       .getByRole("button", { name: "Add source", exact: true })
       .click();
     await dialog().waitFor({ state: "detached" });
-    await page.getByRole("button", { name: "Sync now", exact: true }).click();
+    await page.locator("tbody tr").filter({hasText:"Aegis starter rules"}).getByRole("button", { name: "Sync now", exact: true }).click();
     await page
       .getByText("3 pending import", { exact: true })
       .waitFor({ timeout: 45000 });
-    await page.getByRole("button", { name: "Review", exact: true }).click();
+    await page.locator("tbody tr").filter({hasText:"Aegis starter rules"}).getByRole("button", { name: "Review", exact: true }).click();
     await dialog()
       .getByText("Exposed configuration probes", { exact: true })
       .waitFor();
@@ -1128,6 +1128,32 @@ const { execFileSync } = require("node:child_process");
     assert.equal(hstsProbe.headers["strict-transport-security"], "max-age=86400; includeSubDomains");
     await nav("Policies").click();
     await screenshot("managed-signature-policy");
+    await nav("Rule feeds").click();
+    await page.getByRole("button", {name:"Use Aegis community feed",exact:true}).click();
+    await dialog().getByRole("heading", {name:"Aegis community mitigations",exact:true}).waitFor();
+    assert.equal(await dialog().locator("[data-catalog-rule]").count(), 2);
+    await dialog().getByLabel("Find catalogue rules").fill("CVE-2026-111497");
+    assert.equal(await dialog().locator("[data-catalog-item]:visible").count(), 1);
+    await dialog().getByRole("button",{name:"Select Node.js Brotli request guard",exact:true}).click();
+    assert.equal(await dialog().locator("[data-catalog-rule]:checked").count(), 1);
+    await dialog().getByLabel("Find catalogue rules").fill("");
+    await screenshot("rule-catalogue");
+    await dialog().getByRole("button",{name:"Apply selected to policy",exact:true}).click();
+    await dialog().getByLabel("Policy",{exact:true}).selectOption({label:"External test policy"});
+    await dialog().getByRole("button",{name:"Configure policy",exact:true}).click();
+    assert.equal(await dialog().getByLabel("Policy name",{exact:true}).inputValue(),"External test policy");
+    assert.equal(await dialog().getByLabel("Assignment application",{exact:true}).locator("option:checked").textContent(),"Manual TLS");
+    assert.equal(await dialog().getByLabel("Group name",{exact:true}).count(),2);
+    assert.equal(await dialog().getByLabel("Group name",{exact:true}).first().inputValue(),"Imported signatures");
+    await dialog().getByRole("button",{name:"Save policy",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    for(const port of [process.env.BROWSER_HTTPS_PORT,process.env.BROWSER_ALT_HTTPS_PORT]){
+      await eventually(async()=>assert.equal((await httpsRequest(Number(port),"manual.example.test",null,"/",{...managedHeaders,"Content-Encoding":"br"})).status,403));
+      assert.equal((await httpsRequest(Number(port),"manual.example.test",null,"/",{...managedHeaders,"Accept-Encoding":"br"})).status,200);
+    }
+    await page.getByRole("button", {name:"Use Aegis community feed",exact:true}).click();
+    assert.match(await dialog().innerText(), /External test policy: pinned r1/);
+    await dialog().getByRole("button",{name:"Close",exact:true}).click();
     await nav("Dashboard").click();
     const resources=page.locator("section").filter({has:page.getByRole("heading",{name:"System performance",exact:true})});
     await resources.waitFor();

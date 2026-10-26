@@ -133,6 +133,7 @@ func (a *App) Management() http.Handler {
 	agentAPI(a, m)
 	policyAPI(a, m)
 	feedAPI(a, m)
+	catalogueAPI(a, m)
 	m.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) { respond(w, 200, map[string]bool{"alive": true}) })
 	m.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if a.active.Load() == nil {

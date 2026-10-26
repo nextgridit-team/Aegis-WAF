@@ -91,7 +91,7 @@ func agentOperations() []agentOperation {
 		"GET /api/policies",
 		"GET /api/policies/{id}/history",
 		"GET /api/protection-settings",
-		"GET /api/rule-feeds",
+		"GET /api/rule-feeds", "GET /api/rule-catalog",
 		"GET /api/rule-feeds/{id}/items",
 		"GET /api/rules",
 		"GET /api/rules/schema",
