@@ -834,7 +834,6 @@ const signatureSetsUI = makeSignatureSetsUI({
   applyToPolicy: (set) => policyPage.applySignatureSet(set),
 });
 const feedsUI = makeFeedsUI({
-  applyToPolicy: (ids, name) => policyPage.applyFeedRules(ids, name),
   api,
   sites: () => state.sites,
   esc,

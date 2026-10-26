@@ -6,7 +6,7 @@ Use **Policies** to create reusable protection and assign it to one or more appl
 
 ## Included baseline
 
-**Baseline protection** ships with request-side CRS enabled in Block mode, paranoia level 1, anomaly threshold 5 and a 1 MiB body limit. Bot and flood controls are off because their appropriate budgets vary by application. Requests above the body limit receive 413 when this policy enforces; tune upload-heavy applications before assignment.
+**Baseline protection** ships with request-side CRS enabled in Block mode, paranoia level 1, anomaly threshold 5 and a 1 MiB body limit. All shipped community mitigations are enabled; the multipart/Brotli guards reject those declared request types, including legitimate uploads. Bot and flood controls are off because their appropriate budgets vary by application. Requests above the body limit receive 413 when this policy enforces; tune upload-heavy applications before assignment.
 
 Choose this policy under **Initial protection policy** when creating a proxy host, or assign it from this page. Site creation and initial policy assignment commit atomically; a failed assignment creates neither. Omitting that choice preserves local application settings. Existing applications are never reassigned automatically. The baseline can be edited, renamed or deleted, and provisioning will not recreate or overwrite it on restart. Up to 50 custom policies are supported in addition to the included baseline.
 
@@ -31,6 +31,8 @@ Native rules use deterministic matching and blocking; managed CRS uses its own a
 
 MCP agents must simulate the exact protection mutation and provide a fresh `simulation_id`; dashboard administrators continue using session/CSRF authorization. Rules, CIDR lists and TLS configuration compile into a new snapshot before an atomic swap. Open requests keep their admitted configuration; new requests use the refreshed one. [Agent safety gate](agent-access.md#required-simulation-before-live-protection-changes) · [Reload behavior](architecture.md#atomic-reload-and-active-connections).
 
-## Shared catalogue rules
+## Community mitigations
 
-**Rules → Rule feeds** lists workspace sources. Review individual rules or packs, then use **Apply selected to policy** to open an existing or new policy editor. Catalogue rules are also available directly in each group's signature picker. Published copies record their feed revision, checksum and CVEs; normal edits preserve them. Feed sync never silently changes enforcement. Applying an updated catalogue selection refreshes only those selected rules; **Refresh selected rule snapshots from the library** refreshes the complete selected library set on save. Review compatibility before Block mode. [Feed setup, update behavior and partial-mitigation limits](rule-feeds.md).
+Edit a policy and use **Community mitigations** to enable or disable catalogue rules independently of native groups and CRS. Select **All available mitigations** or individual rules; search by CVE/name and inspect coverage/compatibility. Disabling preserves the selection for later re-enabling. Custom policies default off. The shipped baseline enables all bundled community mitigations before its first network sync; its one-time upgrade preserves other settings and assignments. Multipart and Brotli upload guards can reject legitimate traffic: review compatibility before assigning the baseline.
+
+Published definitions retain feed revision/checksum/CVEs. An ordinary save preserves them; **Refresh selected mitigation snapshots** adopts downloaded revisions on save. Selecting all captures the current list, not future additions automatically. Existing catalogue rules in custom groups retain their group path/method scopes and also obey the community enable/selection controls. Native noncatalogue groups remain independent. **Rule feeds** manages subscriptions and read-only review. [Full workflow](rule-feeds.md).

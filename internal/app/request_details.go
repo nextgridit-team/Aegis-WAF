@@ -70,7 +70,7 @@ func (a *App) requestDetails(w http.ResponseWriter, r *http.Request, _ identity)
 		}
 	}
 	definitions := map[int64]RuleSpec{}
-	for _, group := range frozen.Groups {
+	for _, group := range effectivePolicyGroups(frozen) {
 		for _, rule := range group.Rules {
 			definitions[rule.RuleID] = rule.Spec
 		}

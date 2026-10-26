@@ -24,6 +24,7 @@ type policyGroup struct {
 	Rules      []policyRule `json:"rules"`
 }
 type policySpec struct {
+	Community             *policyCommunity        `json:"community_mitigations,omitempty"`
 	BotChallenge          botChallengeSettings    `json:"bot_challenge"`
 	NetworkAccess         networkAccessSettings   `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
@@ -46,6 +47,7 @@ type policyGroupInput struct {
 	RuleIDs    []int64  `json:"rule_ids"`
 }
 type policySpecInput struct {
+	Community             *policyCommunityInput   `json:"community_mitigations,omitempty"`
 	BotChallenge          botChallengeSettings    `json:"bot_challenge"`
 	NetworkAccess         networkAccessSettings   `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
@@ -126,13 +128,36 @@ func policyProtection(base *protectionPolicy, s policySpec, id int64) (*protecti
 	return compiled, e
 }
 func policyRuleCount(s policySpec) int {
-	n := 0
+	count := 0
+	grouped := map[int64]bool{}
 	for _, g := range s.Groups {
-		n += len(g.Rules)
+		count += len(g.Rules)
+		for _, r := range g.Rules {
+			if r.Feed != nil {
+				grouped[r.RuleID] = true
+			}
+		}
 	}
-	return n
+	if s.Community != nil {
+		for _, r := range s.Community.Rules {
+			if !grouped[r.RuleID] {
+				count++
+			}
+		}
+	}
+	return count
 }
 func validatePolicySpec(s policySpec) error {
+	if s.Community != nil {
+		if s.Community.Enabled && len(s.Community.Rules) == 0 {
+			return invalid("select at least one community mitigation")
+		}
+		for _, r := range s.Community.Rules {
+			if r.Feed == nil {
+				return invalid("community selections require catalogue provenance")
+			}
+		}
+	}
 	if _, e := normalizeManagedSignatures(s.ManagedSignatures); e != nil {
 		return e
 	}
@@ -149,11 +174,13 @@ func validatePolicySpec(s policySpec) error {
 		return invalid("at most 10 groups and 100 rules per policy")
 	}
 	names := map[string]bool{}
-	for _, g := range s.Groups {
-		if strings.TrimSpace(g.Name) == "" || len(g.Name) > 120 || names[g.Name] {
+	for index, g := range storedPolicyGroups(s) {
+		if strings.TrimSpace(g.Name) == "" || len(g.Name) > 120 || (index < len(s.Groups) && names[g.Name]) {
 			return invalid("policy groups require unique names of 1–120 bytes")
 		}
-		names[g.Name] = true
+		if index < len(s.Groups) {
+			names[g.Name] = true
+		}
 		if len(g.PathPrefix) > 1024 || (g.PathPrefix != "" && !strings.HasPrefix(g.PathPrefix, "/")) {
 			return invalid("group path prefixes must start with / and fit 1024 bytes")
 		}
@@ -238,6 +265,10 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 			g.Rules = append(g.Rules, record)
 		}
 		s.Groups = append(s.Groups, g)
+	}
+	s.Community, e = a.normalizeCommunity(ctx, tx, in.Community, frozen)
+	if e != nil {
+		return s, e
 	}
 	return s, validatePolicySpec(s)
 }
@@ -346,12 +377,18 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 			if version != input.Revision {
 				return apiError{409, "policy changed; reload before saving"}
 			}
-			if !input.RefreshRules {
-				var prior policySpec
-				if e := json.Unmarshal(raw, &prior); e != nil {
-					return e
+			var prior policySpec
+			if e := json.Unmarshal(raw, &prior); e != nil {
+				return e
+			}
+			if input.Spec.Community == nil && prior.Community != nil {
+				input.Spec.Community = &policyCommunityInput{Enabled: prior.Community.Enabled, RuleIDs: []int64{}}
+				for _, r := range prior.Community.Rules {
+					input.Spec.Community.RuleIDs = append(input.Spec.Community.RuleIDs, r.RuleID)
 				}
-				for _, g := range prior.Groups {
+			}
+			if !input.RefreshRules {
+				for _, g := range storedPolicyGroups(prior) {
 					for _, rule := range g.Rules {
 						frozen[rule.RuleID] = rule
 					}
@@ -516,7 +553,7 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 			}
 			binding.CIDRs = append(binding.CIDRs, prefix)
 		}
-		for _, group := range spec.Groups {
+		for _, group := range effectivePolicyGroups(spec) {
 			for _, rule := range group.Rules {
 				total++
 				if total > 1000 {

@@ -177,6 +177,9 @@ func (a *App) initialize(ctx context.Context) error {
 	if e = seedCommunityFeed(ctx, tx); e != nil {
 		return e
 	}
+	if e = seedCommunityCatalogue(ctx, tx); e != nil {
+		return e
+	}
 	if e = seedBaselinePolicy(ctx, tx); e != nil {
 		return e
 	}

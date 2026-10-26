@@ -1,0 +1,28 @@
+name: Request a community mitigation
+description: Suggest a rule with an upstream reference and sanitized examples.
+title: "[Rule request] "
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: Technology, affected versions and CVE or attack class
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Primary advisory references
+      description: Link public upstream advisories or technical documentation. Do not disclose an unpatched private issue here.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Expected match and legitimate nonmatch
+      description: Use synthetic or sanitized requests; no credentials, personal data or unapproved targets.
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Compatibility risks and coverage limits

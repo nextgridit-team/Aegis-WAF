@@ -30,6 +30,6 @@ For suspected bots, enable selective self-hosted CAPTCHA in the policy; ordinary
 
 **System → Prometheus metrics** links to the management-only `/metrics` endpoint. A source-restricted Read key can authenticate an HTTPS scraper even with MCP disabled. Scrape every replica. Agents performing live protection changes must first use the [offline impact simulation](agent-access.md#required-simulation-before-live-protection-changes).
 
-## Add targeted community rules
+## Configure community mitigations
 
-Open **Rules → Rule feeds → Aegis community mitigations → Review** (use **Sync now** first if queued). Search by CVE or technology, review coverage and compatibility, select individual rules or a pack, and **Apply selected to policy**. Save an existing policy or create and assign a new Observe policy before enforcing. Downloads run every 12 hours; published rule copies stay pinned until explicitly refreshed. [Full guide](rule-feeds.md).
+Open **Policies → Edit → Community mitigations**. Enable them and select **All available mitigations** or individual rules, review compatibility, then save. Custom policies default off; the shipped baseline enables all shipped community guards, including multipart/Brotli delivery-path restrictions. Disable any incompatible guard before assigning the baseline to an upload-dependent application. Feed URLs/sync remain in **Rules → Rule feeds**; downloads do not change frozen policy definitions until an explicit refresh/save. [Full guide](rule-feeds.md).

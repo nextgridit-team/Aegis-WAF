@@ -1,0 +1,23 @@
+name: Community rule false positive or missed match
+description: Report a rule that blocks legitimate traffic or misses an expected match.
+title: "[Rule correction] "
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID, revision and Aegis image version
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Sanitized reproducible request
+      description: Include only necessary fields. Never include API keys, cookies, private hostnames or personal data.
+    validations:
+      required: true

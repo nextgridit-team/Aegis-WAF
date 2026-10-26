@@ -30,11 +30,19 @@ func TestWorkspaceCatalogueIntegration(t *testing.T) {
 	path := fmt.Sprintf("/api/rule-feeds/%d", id)
 	api.call("POST", path+"/sync", map[string]any{}, 200)
 	var catalogue []struct {
-		ID    int64  `json:"id"`
-		Entry string `json:"entry_id"`
+		ID     int64  `json:"id"`
+		Entry  string `json:"entry_id"`
+		FeedID int64  `json:"feed_id"`
 	}
 	json.Unmarshal(api.call("GET", "/api/rule-catalog", nil, 200), &catalogue)
-	if len(catalogue) != 2 {
+	filtered := catalogue[:0]
+	for _, item := range catalogue {
+		if item.FeedID == id {
+			filtered = append(filtered, item)
+		}
+	}
+	catalogue = filtered
+	if len(catalogue) != len(manifest.Rules) {
 		t.Fatal("workspace catalogue not synced", catalogue)
 	}
 	var nativeCount int

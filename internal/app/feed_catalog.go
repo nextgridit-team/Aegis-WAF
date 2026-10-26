@@ -105,11 +105,11 @@ func commitCatalogue(ctx context.Context, tx pgx.Tx, id int64, manifest ruleMani
 }
 func catalogueAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/rule-catalog", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		return a.list(w, r, `SELECT c.id,c.feed_id,c.entry_id,c.revision,c.digest,c.spec,c.metadata->>'pack' AS pack,c.metadata->'cves' AS cves,f.name AS feed_name,c.available FROM rule_catalog c JOIN rule_feeds f ON f.id=c.feed_id WHERE c.available ORDER BY c.id`)
+		return a.list(w, r, `SELECT c.id,c.feed_id,c.entry_id,c.revision,c.digest,c.spec,c.metadata,c.metadata->>'pack' AS pack,c.metadata->'cves' AS cves,f.name AS feed_name,c.available FROM rule_catalog c JOIN rule_feeds f ON f.id=c.feed_id WHERE c.available ORDER BY c.id`)
 	}))
 }
 func (a *App) listCatalogueItems(w http.ResponseWriter, r *http.Request, id int64) error {
 	return a.list(w, r, `SELECT c.id AS catalog_id,c.entry_id,c.revision,c.digest,c.spec,c.metadata,c.available,
- coalesce((SELECT jsonb_agg(jsonb_build_object('id',p.id,'name',p.spec->>'name','revision',r->'feed'->'revision','update_available',(r->'feed'->>'digest') IS DISTINCT FROM c.digest)) FROM policies p CROSS JOIN LATERAL jsonb_array_elements(p.spec->'groups') g CROSS JOIN LATERAL jsonb_array_elements(g->'rules') r WHERE (r->>'rule_id')::bigint=c.id),'[]') AS policies
+ coalesce((SELECT jsonb_agg(DISTINCT jsonb_build_object('id',p.id,'name',p.spec->>'name','revision',r->'feed'->'revision','update_available',(r->'feed'->>'digest') IS DISTINCT FROM c.digest)) FROM policies p CROSS JOIN LATERAL jsonb_array_elements(coalesce(p.spec->'groups','[]') || jsonb_build_array(jsonb_build_object('rules',coalesce(p.spec->'community_mitigations'->'rules','[]')))) g CROSS JOIN LATERAL jsonb_array_elements(g->'rules') r WHERE (r->>'rule_id')::bigint=c.id),'[]') AS policies
  FROM rule_catalog c WHERE c.feed_id=`+strconv.FormatInt(id, 10)+` ORDER BY c.entry_id`)
 }

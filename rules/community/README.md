@@ -4,6 +4,8 @@ This directory is the public Aegis workspace feed. `manifest.json` is a small in
 
 Rules are opt-in partial mitigations. They include compatibility risks and links to upstream advisories. Runtime patching remains necessary. See [operator workflow and coverage limits](../../docs/rule-feeds.md).
 
+Anyone may submit a fork/PR or request a rule. Follow the [reviewed contribution workflow](../../docs/rule-contributions.md); tests do not replace maintainer approval.
+
 ## Add or update a rule
 
 1. Copy an existing individual rule file. Use a stable unique ID and matching `<id>.json` filename. New rules start at revision 1; increment an existing rule's revision whenever its bytes change, including metadata or formatting.
@@ -18,6 +20,6 @@ python3 scripts/build-rule-feed.py --check
 go test ./internal/app -run 'TestCommunityCatalogue|TestCatalogue'
 ```
 
-The script reads individual JSON files, preserves a stable rule ordering and hashes their exact bytes. It increases the manifest revision when its generated entries change. Commit the rule file and regenerated manifest together. CI checks the manifest and runs regression vectors. Aegis rejects downgraded revisions, mismatched checksums and changed content that reuses an already downloaded rule revision.
+The script reads individual JSON files, preserves a stable rule ordering and hashes their exact bytes. It increases the manifest revision when its generated entries change. Commit the rule file and regenerated manifest together. CI checks the manifest, increasing revisions and regression vectors. Maintainer review is required by the documented repository protection configuration. Aegis rejects downgraded revisions, mismatched checksums and changed content that reuses an already downloaded rule revision.
 
 To publish elsewhere, host this directory over public HTTPS and subscribe to the manifest URL. Keep rule files beneath the manifest directory; this feed uses sibling JSON filenames. SHA-256 provides consistency with the manifest; it is not an independent publisher signature. Review the publisher and the actual rules before activation.

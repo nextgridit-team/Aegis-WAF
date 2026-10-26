@@ -19,7 +19,7 @@
 | Coordinate flood/bot budgets across replicas           | [Optional shared counters](shared-rate-state.md)                                       |
 | Assign policies and source-specific protection         | [Policies](policies.md)                                                                |
 | Load OWASP CRS and select signatures or exclusions     | [Managed signatures](managed-signatures.md)                                            |
-| Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Shared catalogues and rule feeds](rule-feeds.md)                                 |
+| Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Shared catalogues and rule feeds](rule-feeds.md) · [Contribute a rule](rule-contributions.md)                                 |
 | Tune inspection bounds and false positives             | [Body inspection controls](body-inspection.md) · [Security tuning](security-tuning.md) |
 | Configure trusted proxies, headers and CIDR exemptions | [Headers and client identity](headers-and-cidrs.md)                                    |
 | Configure selective local CAPTCHA and scoped clearance | [Bot protection](bot-protection.md)                                                    |

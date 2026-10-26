@@ -1,0 +1,10 @@
+# Keep rule publication and its validation/review controls owned by maintainers.
+# Required code-owner review must also be enabled in GitHub branch protection.
+/rules/community/ @sparksbenjamin
+/internal/app/feed_catalog* @sparksbenjamin
+/internal/app/policy_community* @sparksbenjamin
+/scripts/build-rule-feed.py @sparksbenjamin
+/scripts/check-rule-revisions.py @sparksbenjamin
+/.github/ @sparksbenjamin
+/CONTRIBUTING.md @sparksbenjamin
+/docs/rule-contributions.md @sparksbenjamin

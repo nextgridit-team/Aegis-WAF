@@ -24,7 +24,7 @@ Most of the earlier feature gaps have been addressed. They should no longer be d
 | Shared rules required manual application-specific imports | Per-rule manifests/files, CVE search, pack selection, reusable policy groups and explicitly pinned updates | [Rule catalogues](rule-feeds.md); `TestWorkspaceCatalogueIntegration`, passing catalogue browser flow |
 | No investigation of ordinary requests | Request-detail views for all recorded outcomes with retained evidence and matched policy/rule definitions | [Request investigation](request-investigation.md); `TestRequestDetailsAllOutcomesAndRetention` |
 
-Detailed execution evidence and its scope are in [verification](verification.md). The current catalogue browser flow verified that applying a selected rule preserves an existing policy's assignments/groups and enforces on both replicas. Header-match tests demonstrate that behavior; they do not prove complete PHP/Node.js vulnerability mitigation. The default community subscription downloads candidates without activating them.
+Detailed execution evidence and its scope are in [verification](verification.md). The current catalogue browser flow verified that applying a selected rule preserves an existing policy's assignments/groups and enforces on both replicas. Header-match tests demonstrate that behavior; they do not prove complete PHP/Node.js vulnerability mitigation. The shipped baseline now enables all bundled community mitigations; custom policies choose their own selection. Feed sync does not change existing frozen definitions.
 
 ## Remaining feature gaps
 

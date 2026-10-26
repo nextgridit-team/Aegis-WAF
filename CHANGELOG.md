@@ -2,6 +2,12 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Policy-owned community controls and contributions
+
+- Policies now own the community enable switch, all/individual selection, coverage review and targeted refresh; feed pages manage subscription/sync and read-only review. Disabling preserves selections and legacy scoped rules keep their scope.
+- Baseline protection enables all shipped community mitigations using bundled, reviewed initial rules. A one-time upgrade adds the absent selection without replacing other settings; subsequent choices persist. These guards can block legitimate multipart/Brotli uploads.
+- Public fork/PR contribution instructions, rule request/correction forms, a submission template, CODEOWNERS and revision/regression CI checks. Image publishing depends on community validation. Required-review branch settings are checked in; a GitHub administrator must activate them to enforce review.
+
 ## 2026-10-26 — Shared mitigation catalogue
 
 - Workspace feeds use a checksummed manifest and one independently versioned JSON file per rule, with CVEs, applicability, compatibility risks and bounded regression cases. Sync every 12 hours or manually; failed updates preserve the last good catalogue.

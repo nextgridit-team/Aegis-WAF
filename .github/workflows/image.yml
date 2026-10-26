@@ -13,8 +13,10 @@ concurrency:
 jobs:
   security-regressions:
     uses: ./.github/workflows/security-checks.yml
+  community-rules:
+    uses: ./.github/workflows/community-rules.yml
   build-publish:
-    needs: security-regressions
+    needs: [security-regressions, community-rules]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -57,7 +59,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Formatting and static checks
         run: |
-          test -z "$(gofmt -l cmd internal skills)"
+          test -z "$(gofmt -l cmd internal skills rules/community)"
           cmp docs/management-api.md internal/app/agent_management_contract.md
           go vet ./...
       - name: PostgreSQL integration and race checks

@@ -38,7 +38,6 @@ type Candidate = {
   pending: boolean;
 };
 type Context = {
-  applyToPolicy: (ids: number[], name: string) => Promise<void>;
   api: <T>(path: string, method?: string, body?: unknown) => Promise<T>;
   sites: () => { id: number; name: string }[];
   esc: (v: unknown) => string;
@@ -70,7 +69,7 @@ export function makeFeedsUI(c: Context) {
         button("add-feed", "Add source"),
       ) +
       ruleTabs(true) +
-      `<div class="info-panel"><h3>Review before activation</h3><p>Sync downloads candidates. Workspace feeds populate a shared catalogue; select individual rules or packs for policy groups. Legacy application feeds import disabled drafts. Feed changes never replace enabled rules or turn on blocking.</p></div>` +
+      `<div class="info-panel"><h3>Review before activation</h3><p>Sync downloads candidates. Workspace feeds populate a shared catalogue; enable and select mitigations inside Policies. Legacy application feeds import disabled drafts. Feed changes never replace enabled rules or turn on blocking.</p></div>` +
       (sources.length
         ? c.table(
             ["Source", "Scope", "Sync status", "Rules", ""],
@@ -83,7 +82,7 @@ export function makeFeedsUI(c: Context) {
                       s.site_id,
               ),
               `<span>${s.error ? "Needs attention" : s.last_success ? "Up to date" : "Queued"}</span>${s.error ? `<small class="error-text">${esc(s.error)}</small>` : ""}<small>Last success: ${esc(date(s.last_success))}</small><small>Next check: ${esc(date(s.next_sync))}</small>`,
-              `<strong>${s.candidates} available</strong><small>${s.site_id ? `${s.pending} pending import` : "Select rules for policies"}</small>`,
+              `<strong>${s.candidates} available</strong><small>${s.site_id ? `${s.pending} pending import` : "Select in Policies"}</small>`,
               `<div class="row-actions">${button("sync-feed", "Sync now", s.id)}${button("review-feed", "Review", s.id)}${button("remove-feed", "Remove", s.id)}</div>`,
             ]),
             "Rule sources",
@@ -138,79 +137,8 @@ export function makeFeedsUI(c: Context) {
   function catalogueReview(source: Source, items: Candidate[]) {
     c.openEditor(
       source.name,
-      `<p class="muted">Select individual rules or a pack, review compatibility risks, then configure a policy. Sync updates this catalogue; published policy copies stay pinned.</p><label class="field">Find rules<input type="search" data-catalog-search aria-label="Find catalogue rules" placeholder="CVE, technology or rule name"></label><div data-catalog-items>${items.map((item) => `<article class="feed-candidate" data-catalog-item data-search="${esc([item.spec.name, item.entry_id, item.metadata?.pack, ...(item.metadata?.cves || []), ...(item.metadata?.technology || [])].join(" ").toLowerCase())}"><label class="check"><input type="checkbox" data-catalog-rule value="${item.catalog_id}" ${!item.available ? "disabled" : ""}><span><strong>${esc(item.spec.name)}</strong> <small>r${item.revision} · ${item.available ? "Available" : "Removed from feed"}</small></span></label><small>${esc(item.metadata?.pack)} · ${esc((item.metadata?.cves || []).join(", "))}</small><p>${esc(item.metadata?.description)}</p><p><strong>Compatibility:</strong> ${esc(item.metadata?.false_positive_risk)}</p><small>${(item.policies || []).map((p) => `${esc(p.name)}: pinned r${p.revision}${p.update_available ? " · Update available" : ""}`).join(" · ") || "Not yet applied to a policy"}</small><details class="advanced"><summary>Coverage, advisories and rule definition</summary><p><strong>Affected versions:</strong> ${esc(item.metadata?.affected_versions)}</p><p><strong>Coverage:</strong> ${esc(item.metadata?.coverage)}</p><p><strong>Limits:</strong> ${esc(item.metadata?.limitations)}</p>${(item.metadata?.references || []).map((url) => `<p><a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(url)}</a></p>`).join("")}<pre>${esc(JSON.stringify(item.spec, null, 2))}</pre></details></article>`).join("") || "<p>Sync this source to load catalogue rules.</p>"}</div><p data-catalog-empty hidden>No rules match your search.</p><div class="form-actions">${[...new Set(items.filter((i) => i.available).map((i) => i.metadata?.pack || "Rules"))].map((pack) => `<button type="button" class="secondary compact" data-catalog-pack="${esc(pack)}">Select ${esc(pack)}</button>`).join("")}</div><div class="form-actions"><span data-catalog-count>0 selected</span><button type="button" class="secondary" data-action="cancel">Close</button><button type="button" class="primary" data-catalog-apply disabled>Apply selected to policy</button></div>`,
+      `<p class="muted">This page manages subscriptions and shows downloaded rules. Enable mitigations and choose individual rules in the policy editor.</p><p>Configure selections under Policies → Edit → Community mitigations.</p>${items.map((item) => `<article class="feed-candidate"><strong>${esc(item.spec.name)}</strong><small>r${item.revision} · ${item.available ? "Available" : "Removed from feed"} · ${esc((item.metadata?.cves || []).join(", "))}</small><p>${esc(item.metadata?.description)}</p><p><strong>Compatibility:</strong> ${esc(item.metadata?.false_positive_risk)}</p><small>${(item.policies || []).map((p) => `${esc(p.name)}: pinned r${p.revision}${p.update_available ? " · Update available" : ""}`).join(" · ")}</small><details class="advanced"><summary>Coverage, advisories and rule definition</summary><p><strong>Affected versions:</strong> ${esc(item.metadata?.affected_versions)}</p><p>${esc(item.metadata?.coverage)}</p><p>${esc(item.metadata?.limitations)}</p>${(item.metadata?.references || []).map((url) => `<p><a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(url)}</a></p>`).join("")}<pre>${esc(JSON.stringify(item.spec, null, 2))}</pre></details></article>`).join("") || "<p>No candidates available.</p>"}<div class="form-actions">${button("cancel", "Close")}</div>`,
     );
-    const dialog = document.getElementById("editor")!;
-    const apply = dialog.querySelector<HTMLButtonElement>(
-      "[data-catalog-apply]",
-    )!;
-    const chosen = () =>
-      Array.from(
-        dialog.querySelectorAll<HTMLInputElement>(
-          "[data-catalog-rule]:checked",
-        ),
-      ).map((input) => Number(input.value));
-    const update = () => {
-      const ids = chosen();
-      apply.disabled = !ids.length;
-      dialog.querySelector("[data-catalog-count]")!.textContent =
-        `${ids.length} selected`;
-    };
-    dialog
-      .querySelectorAll<HTMLInputElement>("[data-catalog-rule]")
-      .forEach((input) => (input.onchange = update));
-    dialog.querySelectorAll<HTMLButtonElement>("[data-catalog-pack]").forEach(
-      (button) =>
-        (button.onclick = () => {
-          for (const item of items)
-            if (
-              item.available &&
-              (item.metadata?.pack || "Rules") === button.dataset.catalogPack
-            )
-              dialog.querySelector<HTMLInputElement>(
-                `[data-catalog-rule=""][value="${item.catalog_id}"]`,
-              )!.checked = true;
-          update();
-        }),
-    );
-    dialog.querySelector<HTMLInputElement>("[data-catalog-search]")!.oninput = (
-      event,
-    ) => {
-      const query = (event.target as HTMLInputElement).value
-        .trim()
-        .toLowerCase();
-      let visible = 0;
-      dialog
-        .querySelectorAll<HTMLElement>("[data-catalog-item]")
-        .forEach((row) => {
-          row.hidden = !row.dataset.search!.includes(query);
-          if (!row.hidden) visible++;
-        });
-      dialog.querySelector<HTMLElement>("[data-catalog-empty]")!.hidden =
-        !!visible;
-    };
-    apply.onclick = async () => {
-      apply.disabled = true;
-      try {
-        const ids = chosen();
-        const packs = new Set(
-          items
-            .filter((item) => ids.includes(item.catalog_id!))
-            .map((item) => item.metadata?.pack),
-        );
-        await c.applyToPolicy(
-          ids,
-          packs.size === 1 ? [...packs][0] || source.name : source.name,
-        );
-      } catch (error) {
-        c.notice(
-          error instanceof Error ? error.message : "Could not configure policy",
-          true,
-        );
-      } finally {
-        apply.disabled = false;
-      }
-    };
   }
   async function handle(action: string | undefined, id: number) {
     switch (action) {
@@ -260,11 +188,15 @@ export function makeFeedsUI(c: Context) {
       }
       case "remove-feed":
         if (
-          confirm("Remove this source? Published policy snapshots and previously imported rules will be kept.")
+          confirm(
+            "Remove this source? Published policy snapshots and previously imported rules will be kept.",
+          )
         ) {
           await api(`/rule-feeds/${id}`, "DELETE");
           await c.refresh();
-          c.notice("Source removed. Published policies and imported rules are unchanged.");
+          c.notice(
+            "Source removed. Published policies and imported rules are unchanged.",
+          );
         }
         return true;
       default:

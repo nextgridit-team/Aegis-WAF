@@ -56,7 +56,7 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 ## What Aegis does
 
 - **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
-- **Choose targeted mitigation rules.** The [community catalogue](docs/rule-feeds.md) syncs independently versioned CVE rules every 12 hours. Review individual rules or packs and apply them to chosen policies; updates stay pinned until explicitly reviewed.
+- **Choose targeted mitigation rules.** The [community catalogue](docs/rule-feeds.md) syncs independently versioned CVE rules every 12 hours. Enable them inside each policy, select all or individual rules, and explicitly refresh pinned updates. The shipped baseline includes all bundled community mitigations.
 - **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
 - **See what happened.** Inspect recorded requests and matched rules, follow live traffic maps, and collect structured JSON events or authenticated Prometheus metrics. Configure [alerts](docs/alerts.md) with notification destinations or a signed webhook to your own AI agent. Filter the dashboard by application or view the whole gateway.
 - **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions and HTTP flood rates. Selective self-hosted image/audio CAPTCHA challenges suspicious traffic and grants bounded clearance after a successful solve.
@@ -68,9 +68,9 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 
 1. **Get a certificate.** In **Certificates**, request one using your domains, email and a scoped Cloudflare API token, or upload a PEM certificate and key. DNS-01 does not require inbound port 80. [Certificate setup](docs/certificates.md).
 2. **Connect your application.** Add its exact hostnames, reachable HTTP(S) upstream, endpoint type and certificate in **Proxy hosts**. Point client DNS and public traffic at Aegis. Configure trusted proxies first if another proxy sits in front.
-3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or customize one in **Policies**. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit. It takes effect only when assigned; review application compatibility and use Observe while tuning.
+3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or customize one in **Policies**. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit, with all shipped community mitigations enabled. It takes effect only when assigned; review application compatibility and use Observe while tuning.
 
-For targeted PHP/Node.js delivery-path guards, open **Rules → Rule feeds → Aegis community mitigations → Review**, select compatible rules and choose **Apply selected to policy**. These opt-in guards have explicit limitations and do not replace runtime updates. [Catalogue workflow](docs/rule-feeds.md).
+Configure targeted PHP/Node.js delivery-path guards under **Policies → Edit → Community mitigations**, with enable/disable and all/individual selection. The baseline enables both guards; review multipart/Brotli upload compatibility before assigning it. These opt-in guards have explicit limitations and do not replace runtime updates. [Catalogue workflow](docs/rule-feeds.md).
 
 See the [guided setup and investigation workflow](docs/getting-started.md) for signature browsing, exclusions and internal/external assignments. Bot/flood controls and request-content evidence require explicit configuration.
 
@@ -125,7 +125,7 @@ Aegis is under active development. Body inspection is bounded and response inspe
 
 ## Support and contributions
 
-Maintained by [nextgridit-team](https://github.com/nextgridit-team). Use [GitHub Issues](https://github.com/nextgridit-team/Aegis-WAF/issues) for bugs and feature requests. Include your image tag/digest, reproduction steps and sanitized logs. Omit passwords, tokens, private keys and captured request secrets. For code changes, follow the [development and testing guide](docs/development.md).
+Maintained by [nextgridit-team](https://github.com/nextgridit-team). Use [GitHub Issues](https://github.com/nextgridit-team/Aegis-WAF/issues) for bugs and feature requests. Include your image tag/digest, reproduction steps and sanitized logs. Omit passwords, tokens, private keys and captured request secrets. Anyone can [submit a community rule](CONTRIBUTING.md) through a reviewed pull request; include compatibility notes and positive/negative regression cases. For code changes, follow the [development and testing guide](docs/development.md).
 
 ## License
 

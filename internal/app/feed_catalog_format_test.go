@@ -40,7 +40,7 @@ func communityFixture(t *testing.T) (ruleManifest, map[string][]byte) {
 }
 func TestCommunityCatalogue(t *testing.T) {
 	m, files := communityFixture(t)
-	if len(m.Rules) != 2 || len(files) != 2 {
+	if len(m.Rules) < 2 || len(files) != len(m.Rules) {
 		t.Fatal("expected independent PHP and Node files")
 	}
 }
@@ -96,7 +96,7 @@ func TestCatalogueMultiFileFetch(t *testing.T) {
 		return &http.Response{StatusCode: 200, Header: http.Header{"Etag": []string{"fixture"}}, Body: io.NopCloser(strings.NewReader(string(raw)))}, nil
 	})}
 	_, items, tag, unchanged, e := a.fetchCatalogue(context.Background(), "https://api.github.com/repos/test/feed/contents/rules/manifest.json", "")
-	if e != nil || unchanged || len(items) != 2 || tag != "fixture" || count != 3 {
+	if e != nil || unchanged || len(items) != len(m.Rules) || tag != "fixture" || count != len(m.Rules)+1 {
 		t.Fatal("multi-file fetch failed", len(items), tag, count, e)
 	}
 }

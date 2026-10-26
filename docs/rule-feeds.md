@@ -2,12 +2,18 @@
 
 Workspace catalogues share independently versioned rules across policies. A small manifest lists **one file per rule**, with a revision and SHA-256 checksum. Administrators choose individual rules or packs; downloading updates never changes published protection automatically.
 
-## Use the community catalogue
+## Enable mitigations in a policy
 
-1. Open **Rules → Rule feeds**. **Aegis community mitigations** is subscribed once during installation or upgrade. Removing it persists across restarts; **Use Aegis community feed** lets you add it again. No rules are assigned automatically.
-2. Choose **Sync now**, then **Review**. Search by CVE, technology or rule name. Expand a rule to see affected versions, coverage, limitations, compatibility risks, advisories and its actual definition.
-3. Select individual checkboxes or a pack, then **Apply selected to policy**. Choose an existing policy or create a new one. The editor preserves existing groups and application assignments. Nothing changes until **Save policy**.
-4. Start with Observe and check legitimate traffic. Assign the policy to the intended applications and enable Block only when its rules are appropriate.
+1. Open **Policies → Edit → Community mitigations**.
+2. Turn on **Enable community mitigations**, then check **All available mitigations** or select individual rules. Search by CVE or name and expand coverage/compatibility notes before enforcing.
+3. Save the policy. Turning the switch off preserves its selection but disables all catalogue mitigations for that policy; turning it back on restores the selection. Policy Off/Observe/Block still governs enforcement.
+4. To adopt downloaded revisions, check **Refresh selected mitigation snapshots** and save. An ordinary save preserves frozen definitions. Selecting all captures the currently available rules; later feed additions do not silently enable themselves.
+
+The shipped **Baseline protection** policy enables every shipped community mitigation, alongside CRS. The reviewed initial rules are bundled into the application, so this does not depend on a successful first network sync. On upgrade, the baseline receives this field once if absent; its other settings and assignments are preserved. Subsequent administrator selections or disabling are never overwritten on restart. Custom policies start with community mitigations off.
+
+**Review upload compatibility before assigning the baseline:** it blocks declared multipart forms/uploads and Brotli-encoded requests. Disable incompatible rules or use a custom policy for applications that need these request types.
+
+**Rules → Rule feeds** manages subscription URLs, sync and read-only catalogue review. It does not apply rules to policies. The Aegis community subscription is provisioned once; deletion persists, and **Use Aegis community feed** can add it again. Removing the source retains published copies, including the baseline's copies.
 
 The current feed includes two **partial delivery-path mitigations**:
 
@@ -30,7 +36,7 @@ https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/
 
 The first scheduled check runs within 30 seconds, then every 12 hours. **Sync now** checks immediately. PostgreSQL coordinates checks across replicas; no extra worker container is required. The page shows errors, last success and next check. Failed downloads, checksum failures, invalid rules, failed regression vectors and revision conflicts preserve the complete last successful catalogue. Checks use ETags when available.
 
-Policies store frozen rule definitions and feed provenance: source, entry ID, revision, checksum, pack and CVEs. An ordinary policy edit preserves these copies. Review shows **Update available** beside policies using an older definition. Select that rule again and use **Apply selected to policy** to refresh only the selected rules. Alternatively, the policy editor's **Refresh selected rule snapshots from the library** updates all selected snapshots on save. Existing history/rollback retains its frozen definitions. Removed feed entries disappear from the available picker; existing policy copies keep working. Removing a source also retains published policy copies and legacy imported rules, but prevents refreshing them from that source.
+Policies store frozen rule definitions and feed provenance: source, entry ID, revision, checksum, pack and CVEs. An ordinary policy edit preserves these copies. Review shows **Update available** beside policies using an older definition. In the policy editor, use **Refresh selected mitigation snapshots** to refresh the current community selection. **Refresh selected rule snapshots from the library** refreshes all selected library snapshots on save. Existing history/rollback retains its frozen definitions. Removed feed entries disappear from the available picker; existing policy copies keep working. Removing a source also retains published policy copies and legacy imported rules, but prevents refreshing them from that source.
 
 A changed catalogue increments the configuration version to invalidate stale MCP simulation receipts; it does not replace live policy copies. Policy changes propagate through the usual two-second snapshot refresh. MCP agents must simulate the exact policy mutation before publishing it.
 
@@ -74,6 +80,6 @@ Public HTTPS on port 443 only. Credentials, query parameters, fragments and redi
 - `GET /api/rule-feeds/{id}/items`: definitions, metadata, availability and pinned-policy/update information
 - `POST /api/rule-feeds/{id}/sync`, `DELETE /api/rule-feeds/{id}`
 - `POST /api/rule-feeds/{id}/import`: legacy sources only
-- Policy writes accept `refresh_rule_ids: [catalogue_rule_id]` for targeted snapshot updates, alongside the current policy revision and complete specification/assignments.
+- Policy writes accept `spec.community_mitigations: {"enabled": true, "rule_ids": [catalogue_rule_id]}`. `refresh_rule_ids` targets snapshot updates; send the current policy revision and complete specification/assignments.
 
 Administrator authentication and write CSRF checks apply. Source creation, successful sync, import and removal are audited without recording rule contents or credentials. MCP exposes the catalogue through the existing scoped management interface; it cannot bypass the required policy simulation gate. See [management API](management-api.md) and [agent access](agent-access.md).

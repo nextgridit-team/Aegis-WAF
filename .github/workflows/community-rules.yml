@@ -1,0 +1,30 @@
+name: Community rule review checks
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Community rule validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Verify manifest and independent rule revisions
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          python3 tests/rule-revisions.py
+          python3 scripts/build-rule-feed.py --check
+          python3 scripts/check-rule-revisions.py --base-ref "$BASE_REF"
+      - name: Validate metadata, bounded matchers and positive/negative regression cases
+        run: go test -count=1 ./internal/app -run 'TestCommunityCatalogue|TestCatalogue'

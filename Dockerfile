@@ -14,6 +14,7 @@ RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY skills/ skills/
+COPY rules/community/ rules/community/
 COPY --from=dashboard /build/internal/app/assets/ internal/app/assets/
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/aegis-waf ./cmd/aegis-waf
 
