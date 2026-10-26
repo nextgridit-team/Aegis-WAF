@@ -12,3 +12,13 @@ Use the same Compose overlays and environment overrides you used for deployment.
 For reproducible deployment or rollback, pin `AEGIS_IMAGE` to a unique build tag or digest. Preserve the database and secret files, and check schema/feature compatibility before downgrading. See [image publishing](image-builds.md) and [backups](deployment.md#backups-and-recovery). Loaded CRS sets stay pinned until you explicitly select a different stored version.
 
 For database, encryption-key and storage recovery details, see [deployment and operations](deployment.md#backups-and-recovery) and [encryption at rest](encryption-at-rest.md).
+
+## Platform hardening upgrade notes
+
+The 2026-10-25 changes add selective self-hosted CAPTCHA, streaming profiles, optional shared counters, enforced MCP simulation and Prometheus metrics. Existing applications retain Web profiles, an 8192-byte stream window and local counters. CAPTCHA and response inspection remain opt-in; existing policy definitions, assignments and loaded signature versions are preserved.
+
+Update every serving replica before enabling new shared policy fields. MCP clients must adopt `simulate_rule_impact` and pass its short-lived `simulation_id` for live protection mutations; earlier direct enforcement calls fail without a receipt. Import the updated bundled agent skill. Simulation is not a separate human-approval workflow and does not expand key scopes.
+
+The default Compose file still starts only the app and PostgreSQL. Add the optional Redis overlay or use an existing backend only when choosing shared budgets in System. Shared enforcing counters return 503 on backend failure; there is no silent local fallback. [Shared-state deployment](shared-rate-state.md).
+
+Configuration reloads use atomic snapshots without restarting listeners. Updating the container is a separate operation: a single-replica deployment can be interrupted during replacement. Keep the database and external key backed up, and verify readiness, routing and new requests after the update. [Change history](../CHANGELOG.md) · [Current limits](limitations.md).

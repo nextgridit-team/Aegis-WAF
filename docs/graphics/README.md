@@ -7,6 +7,6 @@ These original graphics summarize implemented capabilities. They are illustratio
 
 Both reflect feature implementation `275af01a632d246b3eb5b8ccb5ef271da2ef10bc`. Neither uses the earlier demo infographics. Source/demo files remain untouched outside this graphics directory.
 
-Read the [architecture](../architecture.md), [managed signatures](../managed-signatures.md), [inspection controls](../body-inspection.md), [logging](../logging.md) and [limitations](../limitations.md) before changing claims. The optional response checks do not cover arbitrary streams; flood budgets remain replica-local and bot signals are basic. This is a WAF and reverse proxy, not network-layer DDoS protection or an inference gateway.
+Read the [architecture](../architecture.md), [managed signatures](../managed-signatures.md), [inspection controls](../body-inspection.md), [logging](../logging.md) and [limitations](../limitations.md) before changing claims. The optional response checks do not cover arbitrary protocols; streaming windows detect after delivery. Local flood budgets are per replica, with optional Redis/Dragonfly shared counters. Bot signals remain heuristic even with selective self-hosted CAPTCHA. This is a WAF and reverse proxy, not network-layer DDoS protection or an inference gateway.
 
 Keep labels readable at GitHub content width, retain descriptive Markdown alt text, and keep the quickstart above detailed screenshots. This SVG has no scripts, external resources or motion. Check the rendered README at mobile and desktop widths after editing.

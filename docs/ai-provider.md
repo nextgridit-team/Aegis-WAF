@@ -1,14 +1,16 @@
-# AI provider connection
+# Legacy model-provider configuration
 
-Open **AI backend**, enter an OpenAI-compatible API base URL (usually ending `/v1`), and optionally enter an API key. Select **Check connection & load models**, choose a returned text/chat model and save. Keyless local providers are supported. Changes are rechecked before saving; failed checks preserve the saved configuration. Changing endpoints cannot forward a saved key unless the canonical endpoint is unchanged; supply a replacement key or explicitly choose No API key.
+The current dashboard uses **Agent access** to connect an external agent through MCP. Configure that agent's model/provider in its own system; Aegis runs no inference or traffic-analysis job. See [current MCP setup, scopes and simulation](agent-access.md). The former **AI backend** provider form is not a current dashboard page.
 
-Discovery calls `GET <base>/models`, using server-side Bearer authentication when configured. It verifies TLS, bounds response size/time/model count, and does not follow redirects or use environment HTTP proxies. Public endpoints require HTTPS; private/loopback providers can use HTTP. Link-local and metadata endpoints are rejected. Read APIs never return saved credentials; keys are encrypted with AES-256-GCM outside PostgreSQL. The provider configuration is persisted in PostgreSQL with revision checks and audit events.
+Compatibility management routes remain implemented: `GET/PUT/DELETE /api/ai/provider` and `POST /api/ai/provider/test`. They can store a revisioned OpenAI-compatible endpoint/model configuration and discover model metadata. They do not enable inference, send traffic for analysis or authorize automatic policy changes. Normal session/CSRF or permitted MCP Configuration scope applies.
 
-Model discovery establishes access to the model list. It does not test inference capability: lists may include embedding/audio models. No generation call, traffic submission, automatic rule creation or background traffic review is currently enabled.
+Discovery calls the endpoint's `/models` route with optional Bearer authentication, bounded size/time/model counts and verified TLS. It does not follow redirects or use environment proxies. Public endpoints require HTTPS; private/loopback providers can use HTTP. Link-local/metadata endpoints are rejected. Saved API keys are encrypted by the application before PostgreSQL storage, using the external encryption key; normal read APIs return no key. Endpoint changes require replacement or explicitly cleared credentials rather than forwarding a saved secret to another destination.
 
-[Official OpenAI model-list reference](https://developers.openai.com/api/reference/resources/models/methods/list).
+## Historical proposal: built-in review jobs
 
-## Proposed next stage: scoring and background review
+The notes below predate the external-agent/MCP direction. They remain design history, not a shipped workflow or commitment to run an LLM inside Aegis. The operator's agent owns its model, sharing policy and playbook; live protection changes follow the enforced simulation gate.
+
+### Scoring and background review
 
 Keep deterministic rules and rate limits on the synchronous request path. Assign bounded weights to explainable signals and deny at a policy-defined threshold. High-confidence signatures may directly deny; weaker independent signals can accumulate. Avoid counting correlated rules repeatedly. If sender/endpoint risk persists between requests, use a bounded expiring cache and document replica-local behavior. A reputation store must never introduce a database or model dependency for each request.
 

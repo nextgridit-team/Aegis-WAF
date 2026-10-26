@@ -15,7 +15,9 @@ The root README is the landing page: explain who Aegis helps, what works, what i
 3. State encryption scope precisely: application-encrypted private keys and credentials do not imply encrypted public certificate chains, all database columns or host disks.
 4. Give benchmark conditions, source revision and raw measurements. Do not imply capacity or performance parity from unmatched workloads.
 5. Use real application screenshots with provenance and synthetic fixtures. Do not expose production credentials or traffic, or present test-CA issuance as public-CA verification.
-6. Preserve material limits, including per-replica flood budgets, bounded/optional response inspection, optional content evidence, best-effort telemetry and database recovery boundaries.
+6. Preserve material limits, including local versus shared flood budgets, bounded/optional response inspection and after-delivery streaming detection, optional content evidence, best-effort telemetry and database recovery boundaries.
 7. Check relative links, anchors and image paths after moving content. Preserve established root README anchors where practical.
 
 A documentation-only edit needs relevant command, link and factual review. Runtime changes require the checks in the [development guide](development.md).
+
+For shipped changes, update [the dated change history](../CHANGELOG.md), relevant task guides and the bundled MCP skill/API contract. Keep the root README at the feature/quickstart level. Prefer the current measured report while preserving older reports as historical evidence.

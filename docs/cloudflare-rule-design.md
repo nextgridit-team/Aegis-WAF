@@ -1,6 +1,6 @@
 # Application protection mapping: Cloudflare research notes
 
-Reviewed 2026-10-24 against Cloudflare's official product documentation. This document distinguishes current Aegis functionality from the proposed rule-group model; Cloudflare-specific features and plan availability are not Aegis capabilities.
+Reviewed 2026-10-24 against Cloudflare's official product documentation. This is historical research and design context, not the current feature reference. Aegis now ships reusable policies, frozen rule groups, managed signatures, selective CAPTCHA and optional shared counters; see [policies](policies.md), [bot verification](bot-protection.md) and [rate state](shared-rate-state.md). Cloudflare-specific features and plan availability are not Aegis capabilities.
 
 ## What Cloudflare does
 
@@ -14,7 +14,7 @@ Cloudflare bot controls combine settings with custom rules that can use bot-dete
 
 Cloudflare defines processing order and terminating actions: custom rules, rate limiting, managed WAF rules and bot settings run in defined stages. A terminating block prevents later stages from evaluating. Exceptions therefore require explicit scope and ordering. [Interoperability](https://developers.cloudflare.com/waf/feature-interoperability/)
 
-## Recommended Aegis model
+## Original design proposal
 
 This is a design recommendation derived from the research and the user's application-first requirements, not a claim that Cloudflare's internal implementation is known.
 
@@ -44,14 +44,14 @@ An exception must identify the target group/rule or protection component plus a 
 
 Offer suggested groups based on an explicitly chosen application type, with a clear description of coverage and compatibility. Suggestions should explain why they apply and start in Observe. Technology selection is administrator input, not an invented traffic-learning result.
 
-| Group | Intended surface | Initial recommendation |
-| --- | --- | --- |
-| Baseline exposed-resource probes | Sensitive configuration and source-control paths | Review applicability; observe before enforcement |
-| Scanner signals | Declared scanner user agents | Observe; agents can be spoofed and legitimate tools can match |
-| WordPress | Selected WordPress paths/methods | Implement tested stack-specific signatures before advertising coverage |
-| API | Selected API routes and methods | Scope policies to real API behavior; do not require browser-only signals |
-| Authentication abuse | Actual login/reset endpoints | Separate endpoint limits from whole-application flood budgets |
-| Application-specific | Administrator-selected paths and inputs | Keep exceptions and custom rules local to the application |
+| Group                            | Intended surface                                 | Initial recommendation                                                   |
+| -------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
+| Baseline exposed-resource probes | Sensitive configuration and source-control paths | Review applicability; observe before enforcement                         |
+| Scanner signals                  | Declared scanner user agents                     | Observe; agents can be spoofed and legitimate tools can match            |
+| WordPress                        | Selected WordPress paths/methods                 | Implement tested stack-specific signatures before advertising coverage   |
+| API                              | Selected API routes and methods                  | Scope policies to real API behavior; do not require browser-only signals |
+| Authentication abuse             | Actual login/reset endpoints                     | Separate endpoint limits from whole-application flood budgets            |
+| Application-specific             | Administrator-selected paths and inputs          | Keep exceptions and custom rules local to the application                |
 
 SQL injection, XSS and other broad exploit categories need a validated rule corpus or an established compatible engine. The current starter feed is not such a corpus. Do not present a few generic regexes as comprehensive protection. Cloudflare managed signatures are not an exportable Aegis feed; compatibility requires an intentional adapter and an appropriate source/license.
 

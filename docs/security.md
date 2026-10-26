@@ -20,7 +20,7 @@ Coraza runs OWASP CRS request signatures in the application. Policies select Obs
 
 Forwarded client-IP headers are accepted only through configured trusted proxies. Address objects carry no implicit trust or bypass: the selected host/policy determines their use. Local-location labels and map filters do not change enforcement. See [policies](policies.md), [managed signatures](managed-signatures.md), [inspection bounds](security-tuning.md) and [client identity](headers-and-cidrs.md).
 
-CRS response inspection is opt-in and limited to eligible bounded bodies; streaming exemptions and uninspected tails are explicit. Basic User-Agent bot signals can be spoofed, and flood budgets are per replica. Selective self-hosted CAPTCHA grants only bounded bot-challenge clearance; it never bypasses the other protection components. Behavioral learning and network-layer DDoS defenses are not implemented. See [bot verification](bot-protection.md).
+CRS response inspection is opt-in. Web responses can be withheld for bounded inspection; SSE/streaming profiles inspect overlapping windows after delivery and can terminate future output. WebSocket frames, binary gRPC and unsupported content types are not body-inspected. Bot signals can be spoofed. Local flood budgets are per replica; optional Redis/Dragonfly counters coordinate them across replicas and enforcing controls return 503 on shared-state failure. Selective self-hosted CAPTCHA grants only bounded bot-challenge clearance; it never bypasses the other protection components. Behavioral learning and network-layer DDoS defenses are not implemented. See [bot verification](bot-protection.md).
 
 ## Keep evidence collection deliberate
 

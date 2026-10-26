@@ -15,28 +15,42 @@ Replace example IDs and ranges with discovered resources. Read the current contr
 2. Propose a narrow scoped exclusion or custom-rule change. An example scoped exclusion is:
 
 ```json
-{"rule_ids":[942100],"path_prefix":"/search","parameters":["q"],"client_cidrs":["192.168.10.0/24"]}
+{
+  "rule_ids": [942100],
+  "path_prefix": "/search",
+  "parameters": ["q"],
+  "client_cidrs": ["192.168.10.0/24"]
+}
 ```
 
 3. Confirm the combination matches operator intent: path and client predicates combine, and parameter targets exempt only those arguments for those IDs. This example is an exception entry, not a complete policy-update body.
 4. For custom rules, replay retained suspicious and benign samples before activation. Missing facts produce unknown. For CRS settings, use approved isolated transaction tests; selected fact replay cannot reconstruct a full CRS transaction.
-5. Apply the authorized change using the current revision and complete intended assignment list. Verify readback, observe subsequent traffic and retain rollback information.
+5. Simulate the exact management mutation with representative tests, review known/unknown outcomes and obtain `simulation_id`. Apply the authorized identical change using that receipt, the current revision and complete intended assignment list. Verify readback, observe subsequent traffic and retain rollback information.
 
 ## Propose a custom rule from evidence
 
 Read `get_rule_schema`, inspect permitted retained samples, create a minimal application-scoped rule and call `propose_rule` with the RuleSpec as `input`. Example shape, using an actually discovered site ID:
 
 ```json
-{"input":{"schema_version":1,"name":"Observe sensitive environment-file probes","scope":{"site_id":123},"all":[{"field":"path","op":"equals","value":"/.env"}],"action":"observe","ttl_seconds":900}}
+{
+  "input": {
+    "schema_version": 1,
+    "name": "Observe sensitive environment-file probes",
+    "scope": { "site_id": 123 },
+    "all": [{ "field": "path", "op": "equals", "value": "/.env" }],
+    "action": "observe",
+    "ttl_seconds": 900
+  }
+}
 ```
 
-Read the returned rule ID, replay the same definition with selected event IDs, review benign matches/unknowns, then activate under the playbook's authorization. A proposal is disabled. If the application uses a policy, its frozen rule groups determine enforcement; add the rule to the intended policy group rather than assuming standalone activation changes policy-bound traffic. Policy rule refresh is explicit; inspect the management contract before replacing frozen definitions.
+Read the returned rule ID, replay the same definition with selected event IDs, review benign matches/unknowns, then run `simulate_rule_impact` for the exact activation and supply its receipt when activating under the playbook's authorization. A proposal is disabled. If the application uses a policy, its frozen rule groups determine enforcement; add the rule to the intended policy group rather than assuming standalone activation changes policy-bound traffic. Policy rule refresh is explicit; inspect the management contract before replacing frozen definitions.
 
 ## Add an application and certificate
 
 1. Discover exact hostnames, approved upstream, certificate coverage, existing policies and proxy topology.
 2. Choose an existing ACME account (account registration is console-only) and approved DNS credential, or upload operator-supplied PEM material using the certificate scope. Follow current issuance/upload payloads; never echo credentials. Poll jobs and inspect errors. Preserve existing valid certificates if issuance/renewal fails.
-3. Create/update the application through `management_operation`. Validate hostname coverage, upstream reachability and intended HTTPS redirect behavior. Configure only known proxy source addresses and the sanitized client-IP header if behind a proxy.
+3. Simulate the intended host mutation, then create/update the application through `management_operation` with the returned receipt. Validate hostname coverage, upstream reachability and intended HTTPS redirect behavior. Configure only known proxy source addresses and the sanitized client-IP header if behind a proxy.
 4. Select a baseline or custom policy explicitly. Preserve intended application assignments. Add reusable address objects/groups for trust/exemptions only when authorized.
 5. Verify certificate metadata and application readback, wait for propagation and run an approved benign HTTP/HTTPS check. Do not claim public DNS validation from local test results.
 
@@ -48,7 +62,7 @@ For CIDR controls, create one IP/subnet per object, group objects and reference 
 
 ## Roll back an authorized change
 
-Read current policy/rule history and current revision. Select the recorded target and call the discovered rollback operation with its required concurrency fields. Verify assignments as well as definitions; do not assume rollback recreates deleted address objects or reinstates application bindings. If a referenced object no longer exists, reconcile explicitly rather than applying a partial policy. Verify resulting logs/behavior and report the new revision.
+Read current policy/rule history and current revision. Select the recorded target, simulate that exact rollback, and call the discovered operation with its receipt and required concurrency fields. Verify assignments as well as definitions; do not assume rollback recreates deleted address objects or reinstates application bindings. If a referenced object no longer exists, reconcile explicitly rather than applying a partial policy. Verify resulting logs/behavior and report the new revision.
 
 ## Autonomous-operation template
 

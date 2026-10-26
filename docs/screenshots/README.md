@@ -1,6 +1,6 @@
 # README screenshots
 
-The front-page images are real browser screenshots from the isolated acceptance deployment, using application source revision `49f23edd0ff47e02486e8733431bd3c088303fd3` and synthetic traffic on 2026-10-25. They use example domains, a test-only administrator and disposable certificates. They contain no production traffic, real credentials or customer configuration. The captured interface supports light and dark modes; a button label describes the theme it switches to.
+The original front-page images listed in the first table are real browser screenshots from the isolated acceptance deployment, using application source revision `49f23edd0ff47e02486e8733431bd3c088303fd3` and synthetic traffic on 2026-10-25. They use example domains, a test-only administrator and disposable certificates. They contain no production traffic, real credentials or customer configuration. The captured interface supports light and dark modes; a button label describes the theme it switches to.
 
 | README file                | Acceptance artifact            | Shown                                                |
 | -------------------------- | ------------------------------ | ---------------------------------------------------- |
@@ -45,3 +45,7 @@ Update the source revision/date above when refreshing them. Older screenshots in
 `response-status.png` and `live-traffic-map.png` come from the isolated final browser fixture (`aegis-waf:status-labels-test`, local image `9b2291f45ad3`, `/tmp/aegis-live-release`). The table includes real fixture upstream/WAF responses; the map animates actual allowed/blocked requests sent through the fixture. Private fixture clients use an explicitly logical unknown-location marker, not invented geographic positions. IP-object names and hostnames are synthetic. The live view also passed application filtering, pause/resume, reduced-motion behavior and four responsive widths.
 
 `local-traffic-flow.png` is the `animated-local-flow.png` component capture from `tests/browser.cjs`, using isolated proxy hosts and observed test requests. It shows the host-only live diagram; no production traffic or credentials are used.
+
+## System, metrics and selective CAPTCHA — 2026-10-25
+
+`system.png` and `bot-challenge.png` come from `/tmp/aegis-platform-browser-final`, the passing isolated browser/Pebble acceptance fixture for source revision `4cc198dccedbb8cefce558ef58dc083750fcf07a`. System shows local/shared counter selection and authenticated metrics discovery. The challenge shows the self-hosted verification page for a suspicious fixture client; ordinary clients were also verified to pass without a challenge. The test database, keys, certificates and cookies were disposable, and the challenge has expired. No production settings or traffic are shown.

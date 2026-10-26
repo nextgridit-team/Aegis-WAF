@@ -39,10 +39,25 @@ The suite generates temporary credentials and certificates, uses random localhos
 
 For a source-built deployment, use `docker compose -f compose.yaml -f compose.build.yaml up -d --build` after generating bootstrap secrets. This overlay uses `aegis-waf:local` and disables registry pulls.
 
-Without `TEST_DATABASE_URL`, database integration tests are skipped. Use the isolated Docker integration command for the complete database suite.
+Without `TEST_DATABASE_URL`, database integration tests are skipped. Shared-backend tests additionally require `TEST_REDIS_ADDRESS`; set `TEST_REDIS_PASSWORD` when authentication is required. Use the isolated commands below to exercise these paths.
 
 ## README maintenance
 
 Keep implemented behavior separate from proposals, verify setup commands against Compose, and link detailed operations/API material rather than expanding the front page indefinitely. Use relative repository links, descriptive image text and real synthetic-data screenshots. The structure follows [GitHub README guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes), [Write the Docs](https://www.writethedocs.org/guide/writing/beginners-guide-to-docs/) and [GitHub diagram support](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams). Refresh images using the [screenshot guide](screenshots/README.md).
 
 Security regression and fuzz targets are documented in [inspection and telemetry](security-tuning.md). Run `go test ./internal/app -run '^$' -fuzz '^FuzzRequestBodyReplay$' -fuzztime=20s -parallel=2` for the bounded local fuzz check. MCP integration uses a real official-SDK client over TLS against an isolated database, without an external model.
+
+## Shared counters, simulation and streaming regressions
+
+```sh
+# Full PostgreSQL/race/vet suite with a disposable authenticated Redis backend.
+AEGIS_TEST_RATE_STATE_IMAGE=redis:8-alpine python3 tests/go-integration.py
+
+# Run the same suite with the supported Dragonfly fixture instead.
+AEGIS_TEST_RATE_STATE_IMAGE=docker.dragonflydb.io/dragonflydb/dragonfly:v2.0.0 \
+  python3 tests/go-integration.py
+```
+
+The runner cleans up its own containers/network. These are test-only services, not new production requirements. CI's image job also supplies Redis alongside PostgreSQL. Tests cover cross-replica budgets, outage/recovery, capacity/TTL bounds, encrypted credentials, simulation receipt binding and rollback, unknown evidence, streaming-window matches, and active HTTP/1.1/HTTP/2/upgraded connections through rule/CIDR/TLS reloads.
+
+The browser/Pebble flow also checks System settings, authenticated metrics, Web/SSE selection and selective CAPTCHA with cross-replica clearance. Its CAPTCHA answer access reads only the isolated test database/key; no production bypass endpoint is built into Aegis. Prometheus tests validate exposition, bounded labels, authentication, queue-independent counting and secret-free MCP success/error/panic events.

@@ -10,4 +10,14 @@ Click a country on the world map to see region counts; the US additionally displ
 
 In a policy, evaluation order is verified client identity → policy selection → CIDR block → CIDR allow → Geo → remaining WAF protections. Blocks win CIDR overlaps. Allow behavior is a per-policy choice: **Geo only** or **all WAF protections**. Unreliable forwarded identities cannot use allow entries. Unknown-country behavior is explicit Allow/Block. Policy Off disables these controls; Observe records would-block decisions without rejecting. Geo requires a downloaded Country database before enabling. CIDR hits skip Geo enforcement lookups; optional regional log enrichment still occurs asynchronously.
 
+## Apply Geo blocking to an application
+
+1. Download the Country database under **Dashboard → Database sync & regions** if it is not already available. Review and accept the dataset license.
+2. Open **Policies**, choose **Edit** on the policy, and expand **CIDR access and Geo blocking**. This section is collapsed initially.
+3. Set **Geo mode** to **Block**. Choose **Country list behavior**: block the selected countries, or allow selected countries and block other known locations.
+4. Enter two-letter **Country codes**, choose **Unknown location behavior**, and save the policy. The policy itself must be in Block to enforce; Observe records decisions without blocking.
+5. Confirm the intended application appears under **Application assignments**. Editing a shared policy changes every application assigned to it. Use a separate policy when applications need different country rules.
+
+CIDR block/allow decisions run first. A Geo-only allow entry skips Geo while retaining other protections; an all-WAF allow entry bypasses the rest of the WAF. A local-map location reference changes display metadata, not the real client IP used for enforcement. Inspect the recorded network decision in request details after the normal refresh interval. See [policy selection](policies.md).
+
 IP geolocation is approximate; VPNs/proxies can relocate apparent visitors. Private/non-global addresses and missing records are unknown. Logs store country and first-level region codes/names, not city coordinates or street addresses. These fields remain potentially personal data with existing client IPs; apply your deployment's retention/access/data-residency rules. Free datasets have reduced accuracy and coverage.

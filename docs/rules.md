@@ -1,6 +1,6 @@
 # Declarative rules and traffic evidence
 
-Aegis evaluates administrator-authored JSON signatures in Go. There is no model connection, automatic rule generation, behavioral learning, CAPTCHA, or automatic activation. Named [rule feeds](rule-feeds.md) provide optional synced candidates; [basic bot/flood controls](dashboard.md) are configured independently. The format is intended for future structured model proposals; importing a proposal always creates a draft. Treat captured traffic and any future model output as untrusted input.
+Aegis evaluates administrator-authored JSON signatures in Go. The native engine does not run a model, learn behavior or activate proposals automatically. Named [rule feeds](rule-feeds.md) provide synced candidates; [bot verification](bot-protection.md) and [flood controls](shared-rate-state.md) are configured separately. External agents can use the [MCP interface](agent-access.md) to propose structured rules, test them and make authorized changes with simulation receipts. Imported proposals remain disabled drafts. Treat captured traffic and model output as untrusted input.
 
 ## Workflow
 
@@ -11,6 +11,8 @@ Aegis evaluates administrator-authored JSON signatures in Go. There is no model 
 5. **Observe** records matching rule IDs while continuing normal proxying. **Enforce blocking** requires an explicit administrator action and returns HTTP 403 for matches. Activation lasts between 60 seconds and 24 hours. Disable or rollback when needed.
 
 Rollback restores the immediately preceding saved state, including its original expiry. It cannot extend an expired activation. Successive rollbacks toggle between the two most recent states. Saving, activation, disabling, deletion, rollback, and capture configuration are authenticated, CSRF-protected, transactionally audited operations. Audit entries contain action/resource IDs, not condition values or samples. History persists in PostgreSQL; the UI shows the latest 20 entries.
+
+MCP live-protection mutations require `simulate_rule_impact` and a fresh `simulation_id` in addition to the key scope. The dashboard workflow uses administrator sessions/CSRF instead. For policy-bound applications, add a draft to the intended frozen policy group; standalone activation does not replace that policy. [Policy workflow](policies.md) · [Simulation contract](agent-access.md#required-simulation-before-live-protection-changes).
 
 ## Version 1 format
 
@@ -31,14 +33,14 @@ Rollback restores the immediately preceding saved state, including its original 
 
 Use an actual existing site ID. `path_prefix` and `evidence_ids` are optional; evidence references must identify unexpired samples from that site at save time. The authenticated `GET /api/rules/schema` endpoint serves the JSON Schema. Unknown JSON properties are rejected. Runtime validation additionally checks site existence, protected fields, RE2 syntax, CIDRs and byte limits. Invalid edits preserve the previous working version.
 
-| Field       | Key                                           | Operators / meaning                                                          |
-| ----------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
-| `method`    | None                                          | `equals`, `in`; uppercase letters, e.g. `GET`                                |
-| `path`      | None                                          | `equals`, `in`, `contains`, `prefix`, `regex`; Go URL path, decoded once     |
-| `client_ip` | None                                          | `cidr`; resolved client IP, IPv4 or IPv6 (peer unless trusted proxies are configured)                                 |
-| `header`    | Header name                                   | `equals`, `in`, `contains`, `prefix`, `regex`; case-insensitive header names |
-| `query`     | Query key                                     | Same string operators; query decoding once, including `+` as space           |
-| `json_body` | JSON pointer, e.g. `/file` or `/items/0/name` | Same string operators; scalar string, number or boolean                      |
+| Field       | Key                                           | Operators / meaning                                                                   |
+| ----------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `method`    | None                                          | `equals`, `in`; uppercase letters, e.g. `GET`                                         |
+| `path`      | None                                          | `equals`, `in`, `contains`, `prefix`, `regex`; Go URL path, decoded once              |
+| `client_ip` | None                                          | `cidr`; resolved client IP, IPv4 or IPv6 (peer unless trusted proxies are configured) |
+| `header`    | Header name                                   | `equals`, `in`, `contains`, `prefix`, `regex`; case-insensitive header names          |
+| `query`     | Query key                                     | Same string operators; query decoding once, including `+` as space                    |
+| `json_body` | JSON pointer, e.g. `/file` or `/items/0/name` | Same string operators; scalar string, number or boolean                               |
 
 String values compare case-sensitively. `in` takes an array of 1–32 strings; other operators take one string. Repeated query/header values use any-value matching. Conditions combine with AND; there is no arbitrary code, scripting, shell, SQL, recursive expression language, or external call. Regex uses Go's linear-time RE2 engine without lookaround/backreferences. The optional path prefix is a literal string prefix, not a path-segment boundary. Paths are not case-folded, dot-segment cleaned, or repeatedly decoded by the engine. Upstream frameworks can interpret paths, headers and query strings differently; these rules are deliberately not a complete injection detector.
 

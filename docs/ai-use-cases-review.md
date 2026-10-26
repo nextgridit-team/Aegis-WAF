@@ -1,5 +1,7 @@
 # Review of the AI build sheet
 
+Historical proposal review: Aegis now exposes external-agent MCP access rather than running the review jobs proposed here. Read [Agent access](agent-access.md) for shipped behavior. Operator approval rules belong to the external playbook; Aegis enforces key scopes and simulation receipts, not a mandatory human-approval workflow.
+
 The proposed first increment should be false-positive triage (#3), then rule drafting (#1). Both can use bounded, opt-in evidence and produce reviewed drafts without adding inference to forwarding. Keep provider setup separate from permission to send traffic data. This review does not enable inference or automated enforcement.
 
 Several claims and implementation details need tightening before building:

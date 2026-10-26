@@ -43,9 +43,9 @@ Policy specifications and local protection settings accept `bot_challenge:{enabl
 
 Site `headers` also supports `hsts:{enabled:true,max_age_seconds:31536000,include_subdomains:false}`. HSTS is off when absent/disabled; max age accepts 0–63072000 seconds. It is emitted only for native or trusted-proxy HTTPS and overrides upstream HSTS. Enabled HSTS conflicts with a manual Set/Remove of `Strict-Transport-Security`. It does not change upstream CA trust. See [HTTPS security controls](headers-and-cidrs.md#hsts-and-upstream-certificate-trust).
 
-Managed signatures support `body_limit_action` (`reject`, default, or `process_partial`), `response_mode` (`off`, default, `observe`, or `block`), `response_body_limit_bytes` (default 262144; 4096–1048576), `response_body_limit_action` (`reject`, default, or `process_partial`) and `outbound_threshold` (default 4; 1–100). Policy/signature Observe caps response Block. Request `body_limit_bytes` remains 4096–1048576, default 65536 for custom policies. Access-log `managed_signatures` includes separate `response_mode` and `response_inspection` when enabled, with combined detection rule IDs. See [inspection behavior and streaming exemptions](body-inspection.md).
+Managed signatures support `body_limit_action` (`reject`, default, or `process_partial`), `response_mode` (`off`, default, `observe`, or `block`), `response_body_limit_bytes` (default 262144; 4096–1048576), `response_body_limit_action` (`reject`, default, or `process_partial`) and `outbound_threshold` (default 4; 1–100). Policy/signature Observe caps response Block. Request `body_limit_bytes` remains 4096–1048576, default 65536 for custom policies. Access-log `managed_signatures` includes separate `response_mode` and `response_inspection` when enabled, with combined detection rule IDs. See [buffered and streaming inspection behavior](body-inspection.md).
 
-Agent scopes: `read` (always included), `evidence`, `draft`, `enforce`, `configuration`, `certificates`, `agent_admin`. Broad management uses `list_management_operations`, `get_management_contract` and `management_operation` with `{method,path,input}`. Account/session/bootstrap operations and new MCP-key creation are hard-denied regardless of scopes. Existing-key revocation requires `agent_admin`. Configuration changes can affect routing/trust/protection boundaries.
+Agent scopes: `read` (always included), `evidence`, `draft`, `enforce`, `configuration`, `certificates`, `agent_admin`. Broad management uses `list_management_operations`, `get_management_contract` and `management_operation` with `{method,path,input,simulation_id?}`. Account/session/bootstrap operations and new MCP-key creation are hard-denied regardless of scopes. Existing-key revocation requires `agent_admin`. Configuration changes can affect routing/trust/protection boundaries.
 
 `GET /agent-access/skill` downloads the authenticated `aegis-waf.zip` portable skill bundle (binary ZIP, not JSON). MCP `get_agent_skill` returns the same files as structured documentation, separately from general management operations. Import behavior depends on the agent client.
 
@@ -61,8 +61,14 @@ View-only local filtering: `GET /live-traffic?exclude_local=true` excludes recor
 
 MCP protection mutations require `simulate_rule_impact` followed by the exact operation with its `simulation_id`. Receipts are single-use, expire after two minutes and bind the issuing key, candidate and configuration version. Missing or invalid receipts return 428; regular dashboard requests retain session/CSRF authorization. See [simulation inputs, coverage and workflow](agent-access.md#required-simulation-before-live-protection-changes).
 
+## Proxy host streaming profiles
+
 Site writes also accept `traffic_profile` (`web`, default, or `streaming`) and `stream_window_bytes` (4096–65536, default 8192). Streaming flushes immediately and uses bounded response windows when policy response inspection is enabled. A match can terminate remaining output, not retract previously sent bytes. See [streaming behavior and telemetry](body-inspection.md#sse-and-streaming-api-profiles).
 
+## Shared counter settings
+
 Shared counter configuration: `GET/PUT /rate-state`, `POST /rate-state/test`. Fields are `backend` (memory/redis), `address` (host:port), optional `username`/write-only `password`, `clear_password`, `tls`, `timeout_ms` (20–250, default 100), and current `revision`. Reads return nested `settings`, `has_password`, loaded revision and failure count. Configuration scope covers MCP; PUT requires simulation. See [optional Redis/Dragonfly counters](shared-rate-state.md).
+
+## Metrics
 
 `GET /metrics` on the management listener returns authenticated Prometheus exposition using a dashboard session or source-restricted Read key over HTTPS (MCP enablement is independent). `GET /api/metrics` is a session/MCP-readable alias. Scrape every replica; counters are replica-local and reset on restart. See [observability, labels and histogram semantics](observability.md).

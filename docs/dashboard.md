@@ -4,7 +4,7 @@ The dashboard is the default signed-in landing page. Select **All applications**
 
 Request rate (HTTP QPS/RPS) means completed requests over the trailing ten seconds divided by ten. Chart buckets also cover ten seconds. Connections count actual sockets on the public HTTP/HTTPS listeners, including idle keep-alive and upgraded WebSockets. Management traffic is excluded. Each socket is attributed to applications it has served until it closes. An HTTP/2 socket may serve multiple hostnames, so application counts cannot be summed to obtain a global total. In-flight requests are measured separately.
 
-Every replica publishes a small PostgreSQL heartbeat once per second. The dashboard aggregates replicas reporting within ten seconds; a failed replica can remain visible during that interval. Access logs are best effort, so statistics can undercount during queue saturation or database outages. The dashboard warns when reporting replicas have dropped logs since starting. There are no synthetic visitors, connection animations or fabricated locations.
+Every replica publishes a small PostgreSQL heartbeat once per second. The dashboard aggregates replicas reporting within ten seconds; a failed replica can remain visible during that interval. Access logs are best effort, so statistics can undercount during queue saturation or database outages. The dashboard warns when reporting replicas have dropped logs since starting. No synthetic traffic is added to product statistics; live-map animations represent recorded requests, and unavailable locations stay explicit.
 
 ## Country map
 
@@ -20,9 +20,11 @@ These controls protect HTTP application throughput; they do not provide network-
 
 ## Bot signals
 
-Bot mode independently offers Off, Observe and Block. The initial detector identifies declared scanner and headless-browser user agents (`sqlmap`, `nikto`, `nuclei`, `masscan`, `zgrab`, `HeadlessChrome`, `PhantomJS`). Missing user agents are optional. Signals are explainable and appear in dashboard totals and access logs. Block returns HTTP 403 unless an exceeded flood limit already requires 429.
+Bot mode independently offers Off, Observe and Block. Without CAPTCHA enabled, scanner/headless User-Agent signals retain the basic observe/block behavior. Missing User-Agent detection is optional.
 
-User agents are spoofable and legitimate tests/monitoring can match. This is basic signature-based bot detection, with no claim of verified bot identity, browser challenges, fingerprinting, CAPTCHA, behavioral learning or AI. Start in Observe and assess your application's traffic before blocking.
+Enable **Challenge suspected bots with self-hosted CAPTCHA** in the policy or unassigned application settings for selective verification. Suspicion scores combine declared automation, header/path signals and frequency. Below-threshold requests receive no challenge. Observe records would-challenge decisions; Block asks suspicious clients to solve a local image/audio challenge. A successful solve grants expiring application/client-bound clearance from repeat challenges, while CIDR/Geo, flood limits and signatures still apply.
+
+Headers can be spoofed and bots can solve CAPTCHA. This does not provide verified-bot identity, behavioral learning or network-layer DDoS protection. Start in Observe and tune for legitimate clients. See [scores, API clients, clearance and database-failure behavior](bot-protection.md).
 
 ## Client identity behind proxies
 
@@ -59,7 +61,7 @@ Client displays in Dashboard, Activity, regional requests and request details us
 
 ## Live traffic map
 
-Use the **Live traffic map** button beside the Dashboard title (the traffic chart also links to it).  It has no separate sidebar entry. The page polls the recorded event tail once per second, animating allowed requests green and recorded WAF blocks red, with an auto-following request log, application filter, pause/resume and request details. The gateway and request animations use approximate regional coordinates from the local City database when available, with a country-area fallback. Configure the Gateway public IP under Address objects to locate Aegis and marked local objects. Unlocated source markers appear only when the feed contains unknown traffic. These are approximate locations, not precise visitor coordinates. Unknown traffic is not assigned a fabricated geographic origin.
+Use the **Live traffic map** button beside the Dashboard title (the traffic chart also links to it). It has no separate sidebar entry. The page polls the recorded event tail once per second, animating allowed requests green and recorded WAF blocks red, with an auto-following request log, application filter, pause/resume and request details. The gateway and request animations use approximate regional coordinates from the local City database when available, with a country-area fallback. Configure the Gateway public IP under Address objects to locate Aegis and marked local objects. Unlocated source markers appear only when the feed contains unknown traffic. These are approximate locations, not precise visitor coordinates. Unknown traffic is not assigned a fabricated geographic origin.
 
 The feed shows completed requests after asynchronous logging, usually 1–2 seconds later; active long streams appear upon completion. It reads up to 200 records from the last minute per refresh, deduplicates recent IDs, retains 200 visible log rows and caps simultaneous animations at 30. This is a best-effort visualization, not an exhaustive event-delivery protocol or a TCP connection counter. Activity retains the database records. Pause affects only the view. Reduced-motion preferences disable map animations and initially disable auto-follow; users can control auto-follow explicitly.
 
@@ -76,3 +78,9 @@ Live coordinates are read from each replica’s cached City database on the mana
 The filter uses the recorded Local network classification (`local_reference` or `local_unlocated`) from IP objects, not all private addresses. Records made before enabling Local network are not retrospectively reclassified. The default shows all traffic. Filtering happens before the live feed limit so local traffic does not crowd out external events.
 
 See [shared counter configuration and failure handling](shared-rate-state.md) before scaling flood or bot-frequency enforcement.
+
+## System settings and standard monitoring
+
+**System → Rate-limit state** selects local memory or optional shared Redis/Dragonfly counters. The policy still defines rates, bursts and exemptions. The connection test checks draft settings without activating them. **System → Prometheus metrics** links to authenticated management `/metrics`; scrape every replica for cluster totals. See [counter failure behavior](shared-rate-state.md) and [metric meanings](observability.md).
+
+Geo enforcement belongs to **Policies → Edit → CIDR access and Geo blocking**, not the map's display settings. That section is collapsed initially. Set Geo mode, country-list behavior, country codes and unknown-location behavior, then save the policy assigned to the application. [Geo setup](geolocation.md#apply-geo-blocking-to-an-application).

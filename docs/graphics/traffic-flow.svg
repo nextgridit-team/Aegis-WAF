@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="610" viewBox="0 0 1200 610" role="img" aria-labelledby="title description">
   <title id="title">How Aegis handles traffic</title>
-  <desc id="description">Clients send HTTP or HTTPS requests to Aegis. It applies the selected application policy before forwarding allowed requests upstream. Optional response inspection checks eligible response bodies before they reach clients. Rejected traffic stops at Aegis. Access logs are queued asynchronously to PostgreSQL after the decision. Routing and certificates use cached configuration; flood budgets are per replica.</desc>
+  <desc id="description">Clients send HTTP or HTTPS requests to Aegis. It applies the selected application policy before forwarding allowed requests upstream. Optional Web response inspection checks eligible bodies before delivery; streaming windows inspect after delivery and can stop future output. Rejected traffic stops at Aegis. Access logs are queued asynchronously to PostgreSQL after the decision. Routing and certificates use cached configuration; local flood budgets are per replica or optionally shared through Redis/Dragonfly.</desc>
   <defs>
     <marker id="allowed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#78d8bc"/></marker>
     <marker id="blocked" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#ed7777"/></marker>
@@ -11,7 +11,7 @@
   </style>
   <rect width="1200" height="610" rx="20" fill="#10181e"/>
   <text x="42" y="58" class="title">How Aegis handles traffic</text>
-  <text x="42" y="94" class="subtitle">Inspect before forwarding. Record the decision asynchronously.</text>
+  <text x="42" y="94" class="subtitle">Inspect requests before forwarding. Queue access logs after the action.</text>
   <rect class="card" x="40" y="150" width="200" height="165" rx="16"/>
   <text x="140" y="216" class="heading" text-anchor="middle">Clients</text>
   <text x="140" y="257" class="body" text-anchor="middle">HTTP(S)</text>
@@ -21,7 +21,7 @@
   <text x="570" y="249" class="small" text-anchor="middle">CIDR / Geo · bot / flood · CRS</text>
   <path d="M382 271H758" stroke="#365854"/>
   <text x="570" y="309" class="body" text-anchor="middle">Optional response CRS</text>
-  <text x="570" y="341" class="small" text-anchor="middle">Bounded checks for eligible bodies</text>
+  <text x="570" y="341" class="small" text-anchor="middle">Buffered Web / streaming windows</text>
   <rect class="card" x="940" y="150" width="220" height="165" rx="16"/>
   <text x="1050" y="216" class="heading" text-anchor="middle">Applications</text>
   <text x="1050" y="257" class="small" text-anchor="middle">HTTP(S) upstreams</text>
@@ -42,5 +42,5 @@
   <text x="1030" y="478" class="small" text-anchor="middle">Async access logs</text>
   <text x="1030" y="510" class="small" text-anchor="middle">State and coordination</text>
   <text x="42" y="559" class="small">Routes and certificates use cached configuration.</text>
-  <text x="42" y="588" class="small">HTTP flood budgets are per replica. Response inspection is opt-in.</text>
+  <text x="42" y="588" class="small">HTTP local flood budgets are per replica or optionally shared through Redis/Dragonfly. Response inspection is opt-in.</text>
 </svg>

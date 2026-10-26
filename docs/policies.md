@@ -20,4 +20,13 @@ Assigned policies replace local bot/flood and standalone rule activation for tha
 
 Configuration and frozen signatures live in PostgreSQL and propagate through the normal two-second snapshot refresh. Requests select cached policies without database or model calls. Metadata logs identify the selected policy and version. Policy saves, default reassignment, deletion and rollback produce administrative audit events.
 
-The current engine uses deterministic matching and blocking. Weighted scoring, endpoint-specific rate policies, coverage recommendations and AI-generated policy changes are future work.
+Native rules use deterministic matching and blocking; managed CRS uses its own anomaly scoring. Native weighted scoring, endpoint-specific rate budgets and built-in AI policy generation are not implemented. External agents can propose and apply scoped, simulated changes through MCP.
+
+## Configure the recent controls
+
+- **Geo:** Edit the policy and expand **CIDR access and Geo blocking**. Set Geo mode, country-list behavior, country codes and unknown-location behavior. The Country database must be downloaded first. [Step-by-step Geo setup](geolocation.md#apply-geo-blocking-to-an-application).
+- **Selective CAPTCHA:** enable anti-bot signals and **Challenge suspected bots with self-hosted CAPTCHA**. Tune the threshold, frequency and clearance window; Observe never challenges. Clearance does not bypass other protections. [Bot verification](bot-protection.md).
+- **Response inspection:** use **Managed signatures → Signature tuning**. Response mode defaults Off. Web profiles buffer eligible bodies; SSE/streaming profiles inspect after delivery. Endpoint type/window belong to the proxy host. [Inspection controls](body-inspection.md).
+- **Shared budgets:** select the deployment-wide backend under **System → Rate-limit state**; policy rates still set the budgets. Local is per replica; optional Redis/Dragonfly is shared. [Backend setup](shared-rate-state.md).
+
+MCP agents must simulate the exact protection mutation and provide a fresh `simulation_id`; dashboard administrators continue using session/CSRF authorization. Rules, CIDR lists and TLS configuration compile into a new snapshot before an atomic swap. Open requests keep their admitted configuration; new requests use the refreshed one. [Agent safety gate](agent-access.md#required-simulation-before-live-protection-changes) · [Reload behavior](architecture.md#atomic-reload-and-active-connections).

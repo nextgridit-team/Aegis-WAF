@@ -1,6 +1,6 @@
 # Aegis documentation
 
-[Project overview and quickstart](../README.md) · [Current limitations](limitations.md) · [Limitations review](limitations-review.md) · [Security model](security.md)
+[Project overview and quickstart](../README.md) · [Change history](../CHANGELOG.md) · [Current limitations](limitations.md) · [Limitations review](limitations-review.md) · [Security model](security.md)
 
 ## Install and operate
 
@@ -16,7 +16,7 @@
 
 | Goal                                                   | Guide                                                                                  |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Coordinate flood/bot budgets across replicas | [Optional shared counters](shared-rate-state.md) |
+| Coordinate flood/bot budgets across replicas           | [Optional shared counters](shared-rate-state.md)                                       |
 | Assign policies and source-specific protection         | [Policies](policies.md)                                                                |
 | Load OWASP CRS and select signatures or exclusions     | [Managed signatures](managed-signatures.md)                                            |
 | Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Rule feeds](rule-feeds.md)                                 |
@@ -30,7 +30,7 @@
 
 | Goal                                            | Guide                                                                                   |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Scrape Prometheus and collect structured events | [Metrics and observability](observability.md) |
+| Scrape Prometheus and collect structured events | [Metrics and observability](observability.md)                                           |
 | Understand dashboard metrics and traffic views  | [Dashboard](dashboard.md)                                                               |
 | Inspect an individual request                   | [Request investigation](request-investigation.md)                                       |
 | Collect structured security events              | [Logging and SIEM integration](logging.md) · [JSON Schema](security-events.schema.json) |
