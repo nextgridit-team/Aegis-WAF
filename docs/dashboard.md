@@ -22,7 +22,7 @@ These controls protect HTTP application throughput; they do not provide network-
 
 Bot mode independently offers Off, Observe and Block. Without CAPTCHA enabled, scanner/headless User-Agent signals retain the basic observe/block behavior. Missing User-Agent detection is optional.
 
-Enable **Challenge suspected bots with self-hosted CAPTCHA** in the policy or unassigned application settings for selective verification. Suspicion scores combine declared automation, header/path signals and frequency. Below-threshold requests receive no challenge. Observe records would-challenge decisions; Block asks suspicious clients to solve a local image/audio challenge. A successful solve grants expiring application/client-bound clearance from repeat challenges, while CIDR/Geo, flood limits and signatures still apply.
+Enable **Challenge suspected bots with self-hosted CAPTCHA** in the policy or unassigned application settings for selective verification. Suspicion scores combine declared automation, header/path signals and frequency. Website hosts use the browser challenge; API/SSE hosts instead return JSON denials in Block mode and omit browser-header mismatch scoring. Below-threshold requests receive no challenge. Observe records would-challenge decisions; Block asks suspicious clients to solve a local image/audio challenge. A successful solve grants expiring application/client-bound clearance from repeat challenges, while CIDR/Geo, flood limits and signatures still apply.
 
 Headers can be spoofed and bots can solve CAPTCHA. This does not provide verified-bot identity, behavioral learning or network-layer DDoS protection. Start in Observe and tune for legitimate clients. See [scores, API clients, clearance and database-failure behavior](bot-protection.md).
 

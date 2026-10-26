@@ -6,6 +6,8 @@ This records shipped behavior rather than proposed features. Container builds us
 
 ### Added
 
+- Explicit Website/API/SSE proxy-host profiles. API/SSE use JSON gateway denials, omit browser-header mismatch scoring, and block suspicious clients without browser CAPTCHA. All retain policy-configured signatures/body limits. Existing Web defaults are preserved; existing streaming hosts now use machine-client bot handling. [Profiles](docs/body-inspection.md#endpoint-profiles).
+
 - Selective, fully self-hosted image/audio CAPTCHA with explainable suspicion scores, expiring application/client-bound clearance and PostgreSQL-backed multi-replica verification. Existing policies keep it disabled until configured. [Bot protection](docs/bot-protection.md).
 - Enforced MCP `simulate_rule_impact` before live rule/policy/host/protection/existing-address mutations. Receipts bind the key, exact candidate and configuration version, expire after two minutes and can be used once. Unknown evidence stays unknown; unconfigured test hosts cannot satisfy assertions. [Agent workflow](docs/agent-access.md#required-simulation-before-live-protection-changes).
 - Per-host Web or SSE/streaming profiles and bounded overlapping response inspection. Streams deliver immediately; detections can terminate future output, not retract sent bytes. [Inspection modes](docs/body-inspection.md).

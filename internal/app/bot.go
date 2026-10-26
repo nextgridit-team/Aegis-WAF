@@ -56,7 +56,7 @@ func (a *App) botContext(p *protectionPolicy, site int64, policyID, revision int
 	scope := hash(strconv.FormatInt(site, 10) + ":" + requestHost(r.Host) + ":" + strconv.FormatInt(policyID, 10) + ":" + strconv.FormatInt(revision, 10) + ":" + p.botFingerprint)
 	return botRequest{site: site, scope: scope, binding: a.botMAC("binding", scope+":"+ip.String()+":"+r.UserAgent()), bucket: a.botMAC("bucket", strconv.FormatInt(site, 10)+":"+ip.String()), secure: secure, result: botResult{Threshold: p.BotChallenge.Threshold}}
 }
-func (a *App) botScore(p *protectionPolicy, site int64, r *http.Request, ip netip.Addr, now time.Time) botResult {
+func (a *App) botScore(p *protectionPolicy, site int64, r *http.Request, ip netip.Addr, now time.Time, profile ...string) botResult {
 	result := botResult{Threshold: p.BotChallenge.Threshold, Decision: "allow"}
 	add := func(score int, reason string) { result.Score += score; result.Reasons = append(result.Reasons, reason) }
 	ua := strings.ToLower(r.UserAgent())
@@ -72,7 +72,7 @@ func (a *App) botScore(p *protectionPolicy, site int64, r *http.Request, ip neti
 	if ua == "" && p.BlockEmptyUA {
 		add(60, "empty_user_agent")
 	}
-	if strings.Contains(ua, "mozilla/") && r.Header.Get("Accept") == "" && r.Header.Get("Accept-Language") == "" {
+	if (len(profile) == 0 || !(Site{TrafficProfile: profile[0]}).machineEndpoint()) && strings.Contains(ua, "mozilla/") && r.Header.Get("Accept") == "" && r.Header.Get("Accept-Language") == "" {
 		add(25, "browser_header_mismatch")
 	}
 	path := strings.ToLower(r.URL.Path)

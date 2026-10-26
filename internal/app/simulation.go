@@ -523,8 +523,11 @@ func simulatePayload(ctx context.Context, app *App, snapshot *snapshot, payload 
 		}
 	}
 	if policy != nil && policy.BotChallenge.Enabled && policy.BotMode == "block" {
-		score := app.botScore(policy, site, request, ip, time.Now())
+		score := app.botScore(policy, site, request, ip, time.Now(), route.site.TrafficProfile)
 		if score.Score >= score.Threshold {
+			if route.site.machineEndpoint() {
+				return "block", ids, nil
+			}
 			return "challenge", ids, nil
 		}
 	}

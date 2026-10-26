@@ -15,9 +15,9 @@ For database, encryption-key and storage recovery details, see [deployment and o
 
 ## Platform hardening upgrade notes
 
-The 2026-10-25 changes add selective self-hosted CAPTCHA, streaming profiles, optional shared counters, enforced MCP simulation and Prometheus metrics. Existing applications retain Web profiles, an 8192-byte stream window and local counters. CAPTCHA and response inspection remain opt-in; existing policy definitions, assignments and loaded signature versions are preserved.
+The 2026-10-25 changes add selective self-hosted CAPTCHA, streaming profiles, optional shared counters, enforced MCP simulation and Prometheus metrics. Existing applications retain their saved profiles, an 8192-byte default stream window and local counters. Hosts without a profile default to Website (`web`). API/SSE profiles use JSON gateway errors and block high bot suspicion without browser CAPTCHA; review bot settings when updating existing streaming hosts. CAPTCHA and response inspection remain opt-in; existing policy definitions, assignments and loaded signature versions are preserved.
 
-Update every serving replica before enabling new shared policy fields. MCP clients must adopt `simulate_rule_impact` and pass its short-lived `simulation_id` for live protection mutations; earlier direct enforcement calls fail without a receipt. Import the updated bundled agent skill. Simulation is not a separate human-approval workflow and does not expand key scopes.
+Update every serving replica before enabling new shared policy fields or selecting API. Older builds reject the `api` profile; change affected hosts back to `web` before a downgrade. MCP clients must adopt `simulate_rule_impact` and pass its short-lived `simulation_id` for live protection mutations; earlier direct enforcement calls fail without a receipt. Import the updated bundled agent skill. Simulation is not a separate human-approval workflow and does not expand key scopes.
 
 The default Compose file still starts only the app and PostgreSQL. Add the optional Redis overlay or use an existing backend only when choosing shared budgets in System. Shared enforcing counters return 503 on backend failure; there is no silent local fallback. [Shared-state deployment](shared-rate-state.md).
 

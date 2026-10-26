@@ -1380,6 +1380,17 @@ const { execFileSync } = require("node:child_process");
       const response=await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"text/html"}});
       assert.equal(response.status(),403);
     });
+    // A streaming host can be changed to API, persisted, and still enforce CRS.
+    await page.locator("tbody tr").filter({hasText:"Baseline-protected app"}).getByRole("button",{name:"Edit",exact:true}).click();
+    await dialog().getByLabel("Endpoint type",{exact:true}).selectOption("api");
+    await dialog().getByRole("button",{name:"Save proxy host",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    await page.locator("tbody tr").filter({hasText:"Baseline-protected app"}).getByText(/API ·/).waitFor();
+    await eventually(async()=>{
+      const response=await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"text/html"}});
+      assert.equal(response.status(),403);
+      assert.equal((await response.json()).error,"managed_signature_rejected");
+    });
     // Fully self-hosted selective CAPTCHA: no provider keys or test bypass route.
     if (process.env.BROWSER_CAPTCHA_DATABASE_CONTAINER) {
       await nav("Policies").click();

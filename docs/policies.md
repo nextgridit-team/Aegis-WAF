@@ -25,7 +25,7 @@ Native rules use deterministic matching and blocking; managed CRS uses its own a
 ## Configure the recent controls
 
 - **Geo:** Edit the policy and expand **CIDR access and Geo blocking**. Set Geo mode, country-list behavior, country codes and unknown-location behavior. The Country database must be downloaded first. [Step-by-step Geo setup](geolocation.md#apply-geo-blocking-to-an-application).
-- **Selective CAPTCHA:** enable anti-bot signals and **Challenge suspected bots with self-hosted CAPTCHA**. Tune the threshold, frequency and clearance window; Observe never challenges. Clearance does not bypass other protections. [Bot verification](bot-protection.md).
+- **Selective CAPTCHA:** enable anti-bot signals and **Challenge suspected bots with self-hosted CAPTCHA**. Tune the threshold, frequency and clearance window; Observe never challenges. API/SSE hosts block high suspicion with JSON instead of a browser challenge. Clearance does not bypass other protections. [Bot verification](bot-protection.md).
 - **Response inspection:** use **Managed signatures → Signature tuning**. Response mode defaults Off. Web profiles buffer eligible bodies; SSE/streaming profiles inspect after delivery. Endpoint type/window belong to the proxy host. [Inspection controls](body-inspection.md).
 - **Shared budgets:** select the deployment-wide backend under **System → Rate-limit state**; policy rates still set the budgets. Local is per replica; optional Redis/Dragonfly is shared. [Backend setup](shared-rate-state.md).
 

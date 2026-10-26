@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -16,8 +17,8 @@ func normalizeSiteTraffic(site *Site) error {
 	if site.TrafficProfile == "" {
 		site.TrafficProfile = "web"
 	}
-	if site.TrafficProfile != "web" && site.TrafficProfile != "streaming" {
-		return invalid("traffic_profile must be web or streaming")
+	if site.TrafficProfile != "web" && site.TrafficProfile != "api" && site.TrafficProfile != "streaming" {
+		return invalid("traffic_profile must be web, api or streaming")
 	}
 	if site.StreamWindowBytes == 0 {
 		site.StreamWindowBytes = 8192
@@ -33,7 +34,35 @@ func newSiteProxy(target *url.URL, site Site, headers HeaderSettings) *httputil.
 		proxy.FlushInterval = -1
 		proxy.Transport.(*http.Transport).ResponseHeaderTimeout = 2 * time.Minute
 	}
+	if site.machineEndpoint() {
+		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+			source, code := "gateway_error", "upstream_unavailable"
+			var rejected managedResponseError
+			if errors.As(err, &rejected) {
+				source, code = "waf", "response_rejected"
+			}
+			if status, ok := w.(*statusWriter); ok {
+				status.responseSource = source
+			}
+			site.rejectRequest(w, http.StatusBadGateway, code)
+		}
+	}
 	return proxy
+}
+
+func (s Site) machineEndpoint() bool {
+	return s.TrafficProfile == "api" || s.TrafficProfile == "streaming"
+}
+
+// The profile changes gateway-owned errors only; upstream responses are preserved.
+func (s Site) rejectRequest(w http.ResponseWriter, status int, code string) {
+	w.Header().Set("Cache-Control", "no-store")
+	if s.machineEndpoint() {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		respond(w, status, map[string]string{"error": code})
+		return
+	}
+	http.Error(w, code, status)
 }
 
 func (s *managedResponseState) stream(response *http.Response, mediaType string) error {

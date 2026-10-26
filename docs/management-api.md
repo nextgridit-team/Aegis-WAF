@@ -63,7 +63,7 @@ MCP protection mutations require `simulate_rule_impact` followed by the exact op
 
 ## Proxy host streaming profiles
 
-Site writes also accept `traffic_profile` (`web`, default, or `streaming`) and `stream_window_bytes` (4096–65536, default 8192). Streaming flushes immediately and uses bounded response windows when policy response inspection is enabled. A match can terminate remaining output, not retract previously sent bytes. See [streaming behavior and telemetry](body-inspection.md#sse-and-streaming-api-profiles).
+Site writes also accept `traffic_profile` (`web`, default, `api`, or `streaming`) and `stream_window_bytes` (4096–65536, default 8192). API and streaming profiles return JSON gateway denials, omit browser-header mismatch scoring and do not issue/accept browser CAPTCHA clearance. Suspicion above the policy threshold blocks in Block mode; Observe records it. Website retains selective CAPTCHA. Streaming flushes immediately and uses bounded response windows when policy response inspection is enabled. A match can terminate remaining output, not retract previously sent bytes. See [streaming behavior and telemetry](body-inspection.md#sse-and-streaming-api-profiles).
 
 ## Shared counter settings
 

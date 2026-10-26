@@ -18,6 +18,12 @@ func TestStreamingProfileValidation(t *testing.T) {
 			t.Fatal("accepted invalid profile", site)
 		}
 	}
+	for _, profile := range []string{"web", "api", "streaming"} {
+		site := Site{TrafficProfile: profile}
+		if err := normalizeSiteTraffic(&site); err != nil {
+			t.Fatal(err)
+		}
+	}
 	site := Site{}
 	if normalizeSiteTraffic(&site) != nil || site.TrafficProfile != "web" || site.StreamWindowBytes != 8192 {
 		t.Fatal("bad profile defaults", site)

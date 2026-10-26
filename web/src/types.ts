@@ -5,7 +5,7 @@ import type { PolicySummary } from "./policy-page";
 import type { HeaderSettings } from "./headers";
 import type { Protection } from "./dashboard";
 export type Site = {
-  traffic_profile?: "web" | "streaming";
+  traffic_profile?: "web" | "api" | "streaming";
   stream_window_bytes?: number;
   policies?: PolicySummary[];
   headers?: HeaderSettings | null;

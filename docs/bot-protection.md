@@ -52,3 +52,7 @@ See [policies](policies.md), [client identity and exemptions](headers-and-cidrs.
 All serving replicas must run a build supporting bot verification before enabling it in a shared policy. During a rolling upgrade, leave the new setting disabled until every replica is updated. Application-specific response-header rewrites do not override the gateway-owned challenge page's CSP, content type, no-store policy or proof cookies; per-host HSTS still applies.
 
 Bot-frequency signals use the selected [rate-state backend](shared-rate-state.md). Shared-state failure is explicit: enforcing CAPTCHA protection returns 503; Observe records incomplete evaluation. Challenge/clearance state itself remains PostgreSQL-backed.
+
+## API and streaming hosts
+
+API and SSE/streaming endpoint profiles retain policy-configured bot scoring, but omit browser-header mismatch scoring and never issue CAPTCHA or use browser clearance. At or above the threshold, Block returns a JSON 403 and Observe records the suspicion without denial. Challenge endpoints return JSON 404. Website retains the browser workflow described above. Profiles do not disable scanner, headless, optional empty-User-Agent, probe or frequency checks. [Endpoint profile behavior](body-inspection.md#endpoint-profiles).

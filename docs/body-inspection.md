@@ -48,9 +48,23 @@ Existing custom-rule replay uses retained request facts and does not replay resp
 
 The implementation uses the established Coraza transaction phases and [body-limit directives](https://www.coraza.io/docs/seclang/directives/); Aegis applies its own bounded read/replay and error handling around those phases.
 
+## Endpoint profiles
+
+Choose **Proxy hosts → Add/Edit → Endpoint type**. This is a host setting; the assigned policy still controls CRS, body ceilings, rates, network rules and exclusions. The profile is not authentication or automatic API-schema validation.
+
+| Profile                               | Bot handling                                                                                | Response handling when inspection is enabled                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Website** (`web`, default)          | Browser-header signals and optional selective CAPTCHA                                       | Eligible bounded bodies inspected before delivery                     |
+| **API** (`api`)                       | No browser-header mismatch signal or CAPTCHA; high suspicion blocks with JSON in Block mode | Eligible bounded bodies inspected before delivery                     |
+| **SSE / streaming API** (`streaming`) | Same machine-client bot handling as API                                                     | Immediate flushing with bounded overlapping inspection after delivery |
+
+API/SSE gateway denials and upstream-connect/response-inspection failures use JSON error codes with the original HTTP status. They issue no challenge cookies and do not accept browser-clearance bypasses; reserved challenge URLs return 404. Observe records suspicion without blocking. Scanner, headless, optional empty-User-Agent, path and frequency signals remain enabled according to the policy. Explicit CIDR/exemption rules still apply.
+
+CRS request parsing remains content-type based for all profiles, including JSON bodies. API does not require JSON for every request: uploads and other supported formats retain the selected policy's bounds. Upstream status/body/content-type and CORS behavior are preserved; selecting API does not create API keys or make an unauthenticated upstream private. Mixed websites/API paths should use separate proxy hosts when different profiles are required; per-path profile overrides are not implemented.
+
 ## SSE and streaming API profiles
 
-In **Proxy hosts → Add/Edit → Endpoint type**, choose **Web application** (default) or **SSE / streaming API**. The choice is stored per host in PostgreSQL. Streaming profiles flush every upstream read immediately and allow up to two minutes for upstream response headers (Web defaults to 30 seconds). They do not buffer the entire response or impose the five-second buffered-body timer. A correct `text/event-stream` response receives streaming handling automatically, including on Web hosts. Other streaming text/NDJSON endpoints should explicitly select the streaming profile.
+In **Proxy hosts → Add/Edit → Endpoint type**, choose **Website** (default), **API**, or **SSE / streaming API**. The choice is stored per host in PostgreSQL. Streaming profiles flush every upstream read immediately and allow up to two minutes for upstream response headers (Website/API default to 30 seconds). They do not buffer the entire response or impose the five-second buffered-body timer. A correct `text/event-stream` response receives streaming handling automatically, including on Web hosts. Other streaming text/NDJSON endpoints should explicitly select the streaming profile.
 
 Response inspection remains policy-controlled and Off by default. When enabled, streaming text uses overlapping, bounded windows instead of buffering to EOF. The host window is 4096–65536 bytes, default 8192, capped by the policy's response-body limit. Reads are at most half a window; a response-only CRS transaction inspects each delivered chunk together with preceding window bytes before the next read. The final chunk is inspected before EOF. Windows have independent anomaly scores, use response/path/client exclusions and do not recreate the original request-body transaction. Patterns longer than a window, cross-window score accumulation, protocol semantics and prompt-injection intent are not covered.
 

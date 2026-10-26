@@ -502,7 +502,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		signals, protectionBlocked, protectionStatus = a.protectResolved(policy, rt.site.ID, r, clientIP, start, reliableIdentity)
 	}
 	if policy != nil && policy.BotChallenge.Enabled && policy.BotMode != "off" && !botEndpoint && !network.Blocked && !network.BypassWAF && !protectionBlocked && (!reliableIdentity || !matchesCIDRs(policy.botExempt, clientIP)) {
-		botDecision = a.botScore(policy, rt.site.ID, r, clientIP, start)
+		botDecision = a.botScore(policy, rt.site.ID, r, clientIP, start, rt.site.TrafficProfile)
 		if botDecision.StateUnavailable {
 			signals = append(signals, "bot_rate_state_unavailable")
 		}
@@ -513,7 +513,15 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		} else if botDecision.Score >= botDecision.Threshold {
 			if policy.BotMode == "observe" {
 				botDecision.Decision = "observe"
-				signals = append(signals, "bot_would_challenge")
+				if rt.site.machineEndpoint() {
+					signals = append(signals, "bot_would_block")
+				} else {
+					signals = append(signals, "bot_would_challenge")
+				}
+			} else if rt.site.machineEndpoint() {
+				protectionBlocked, protectionStatus = true, http.StatusForbidden
+				botDecision.Decision = "blocked"
+				signals = append(signals, "bot_suspicion_blocked")
 			} else {
 				botReq = a.botContext(policy, rt.site.ID, policyID, policyRevision, r, clientIP, secureResponse)
 				botReq.result = botDecision
@@ -606,12 +614,20 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}()
 	if network.Blocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		http.Error(rec, "request blocked by network access policy", http.StatusForbidden)
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, http.StatusForbidden, "network_access_denied")
+		} else {
+			http.Error(rec, "request blocked by network access policy", http.StatusForbidden)
+		}
 		return
 	}
 	if managedBlocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		http.Error(rec, "request rejected by managed signature protection", managedStatus)
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, managedStatus, "managed_signature_rejected")
+		} else {
+			http.Error(rec, "request rejected by managed signature protection", managedStatus)
+		}
 		return
 	}
 	if protectionBlocked {
@@ -619,15 +635,27 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		if protectionStatus == 429 {
 			rec.Header().Set("Retry-After", "1")
 		}
-		http.Error(rec, "request blocked by gateway protection", protectionStatus)
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, protectionStatus, "gateway_protection_denied")
+		} else {
+			http.Error(rec, "request blocked by gateway protection", protectionStatus)
+		}
 		return
 	}
 	if blocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, http.StatusForbidden, "policy_denied")
+		} else {
+			http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
+		}
 		return
 	}
 	if botEndpoint {
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, http.StatusNotFound, "browser_verification_unavailable")
+			return
+		}
 		if policy == nil {
 			http.NotFound(rec, r)
 			return
