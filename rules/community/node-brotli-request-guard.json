@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "node-brotli-request-guard",
+  "pack": "Node.js Brotli request guard",
+  "technology": [
+    "nodejs"
+  ],
+  "cves": [
+    "CVE-2026-111497"
+  ],
+  "description": "Reject requests declaring Brotli content encoding on applications that do not require compressed uploads.",
+  "affected_versions": "Affected Node.js 22.x, 24.x and 26.x builds described in the 21 October 2026 Node.js security advisory; applicability requires application Brotli decompression.",
+  "coverage": "Blocks declared Content-Encoding br request delivery through Aegis before the request reaches the upstream.",
+  "limitations": "Partial delivery-path mitigation, not a Brotli payload detector. Does not cover unlabelled files, application-specific decoding, outbound downloads, direct-origin access, oversized/uninspectable header facts or other vulnerabilities. Upgrade Node.js.",
+  "false_positive_risk": "Blocks legitimate Brotli-compressed uploads. Apply only where this request encoding is unnecessary. Accept-Encoding br response negotiation is unaffected.",
+  "references": [
+    "https://nodejs.org/en/blog/vulnerability/october-2026-security-releases"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Node.js Brotli request guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "header",
+        "key": "Content-Encoding",
+        "op": "regex",
+        "value": "(?i)(?:^|,)[\\t ]*br[\\t ]*(?:,|$)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "declared Brotli",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "br"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "case variant",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "BR"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "encoding list",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "gzip, br"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary gzip",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "gzip"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "unrelated token",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "zebra"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "no encoding",
+      "method": "POST",
+      "path": "/",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "tab whitespace",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "gzip,\tbr"
+      },
+      "body": "",
+      "expected_match": true
+    }
+  ]
+}

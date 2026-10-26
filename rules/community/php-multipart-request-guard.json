@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "php-multipart-request-guard",
+  "pack": "PHP2Shell multipart guard",
+  "technology": [
+    "php"
+  ],
+  "cves": [
+    "CVE-2026-109618",
+    "CVE-2026-109619"
+  ],
+  "description": "Reject multipart form submissions on PHP applications that do not require multipart forms or uploads.",
+  "affected_versions": "PHP releases before 8.2.35, 8.3.36, 8.4.27 or 8.5.12 in their respective release branches; consult PHP/vendor advisories.",
+  "coverage": "Blocks declared multipart/form-data requests through Aegis, reducing exposure to multipart startup and session-upload-progress paths.",
+  "limitations": "Partial mitigation only. Does not cover application-driven memory exhaustion, other stale-state consumers, non-multipart paths, oversized/uninspectable header facts, origin bypass or PHP Windows cURL outbound Brotli decoding. Update PHP and apply official configuration guidance.",
+  "false_positive_risk": "Blocks legitimate file uploads and multipart forms, including forms without files. Do not apply to applications requiring them.",
+  "references": [
+    "https://www.php.net/archive/2026.php",
+    "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
+    "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "PHP2Shell multipart guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "header",
+        "key": "Content-Type",
+        "op": "regex",
+        "value": "(?i)^[\\t ]*multipart/form-data(?:[\\t ]*;|[\\t ]*$)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "multipart upload",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Type": "multipart/form-data; boundary=example"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "case variant",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Type": "MULTIPART/FORM-DATA; boundary=example"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "JSON request",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "URL-encoded form",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "unrelated media type",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Type": "multipart/form-data-example"
+      },
+      "body": "",
+      "expected_match": false
+    }
+  ]
+}

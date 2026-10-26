@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "name": "Aegis community mitigation rules",
+  "revision": 2,
+  "rules": [
+    {
+      "id": "node-brotli-request-guard",
+      "path": "node-brotli-request-guard.json",
+      "sha256": "405230f979678b481f9381b8bcd35505e437ce59669ae7b4420c3048641a0381"
+    },
+    {
+      "id": "php-multipart-request-guard",
+      "path": "php-multipart-request-guard.json",
+      "sha256": "3776a57379cdc46befe3af4fd49730260ecb3407dd4a053626a98f5a8b566b24"
+    }
+  ]
+}
