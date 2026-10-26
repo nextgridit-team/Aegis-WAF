@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-unifi-sso-path-traversal",
+  "pack": "UniFi OS request guards",
+  "technology": [
+    "ubiquiti",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-34910",
+    "CVE-2026-34908"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects traversal markers beneath the validate-sso routing prefix.",
+  "affected_versions": "Ubiquiti Inc UniFi OS Server: 0 to <5.0.8; Ubiquiti Inc UDM: 0 to <5.1.12; Ubiquiti Inc UDM-Pro: 0 to <5.1.12; Ubiquiti Inc UDM-SE: 0 to <5.1.12; Ubiquiti Inc UDM-Pro-Max: 0 to <5.1.12; Ubiquiti Inc UDM-Beast: 0 to <5.1.11; Ubiquiti Inc EFG: 0 to <5.1.12; Ubiquiti Inc UDW: 0 to <5.1.12; Ubiquiti Inc UDR: 0 to <5.1.12; Ubiquiti Inc UDR7: 0 to <5.1.12; Ubiquiti Inc UDR-5G: 0 to <5.1.12; Ubiquiti Inc Express 7: 0 to <5.1.12; Ubiquiti Inc UNVR: 0 to <5.1.12; Ubiquiti Inc UNVR-Pro: 0 to <5.1.12; Ubiquiti Inc UNVR-Instant: 0 to <5.1.12; Ubiquiti Inc UNVR-G2: 0 to <5.1.12; Ubiquiti Inc UNVR-G2-Pro: 0 to <5.1.12; Ubiquiti Inc ENVR: 0 to <5.1.12; Ubiquiti Inc ENVR-Core: 0 to <5.1.12; Ubiquiti Inc UNAS-2: 0 to <5.1.10; Ubiquiti Inc UNAS-4: 0 to <5.1.10; Ubiquiti Inc UNAS-Pro: 0 to <5.1.10; Ubiquiti Inc UNAS-Pro-4: 0 to <5.1.10; Ubiquiti Inc UNAS-Pro-8: 0 to <5.1.10; Ubiquiti Inc UCKP: 0 to <5.1.12; Ubiquiti Inc UCK: 0 to <5.1.12; Ubiquiti Inc UCK-Enterprise: 0 to <5.1.12; Ubiquiti Inc UCG-Ultra: 0 to <5.1.12; Ubiquiti Inc UCG-Max: 0 to <5.1.12; Ubiquiti Inc UCG-Fiber: 0 to <5.1.12; Ubiquiti Inc UCG-Industrial: 0 to <5.1.12; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects traversal markers beneath the validate-sso routing prefix.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Literal traversal-like SSO path segments are denied; ordinary SSO validation paths remain eligible.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-34910",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-34910.yaml",
+    "https://www.cve.org/CVERecord?id=CVE-2026-34908",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-34908.yaml",
+    "https://bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis",
+    "https://community.ui.com/releases/Security-Advisory-Bulletin-064-064/84811c09-4cf4-42ab-bd61-cc994445963b",
+    "https://www.it-connect.tech/critical-3-exploit-chain-grants-root-access-on-unifi-os-server/",
+    "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-34908"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "UniFi SSO path traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/auth/validate-sso/"
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:\\.\\.|%2e)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/api/auth/validate-sso/..%2f..%2fproxy/users/api/v2/ucs/update/latest_package",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/validate-sso/example",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

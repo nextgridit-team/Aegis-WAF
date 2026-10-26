@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-pagebuilderck-upload-containment",
+  "pack": "Page Builder request guards",
+  "technology": [
+    "joomlack",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-56290"
+  ],
+  "description": "Temporary endpoint containment. Blocks the documented Page Builder CK picture-upload operation.",
+  "affected_versions": "joomlack.fr JoomlaCK.fr Page Builder CK extension for Joomla: 1.0-3.6.0; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks the documented Page Builder CK picture-upload operation.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate picture uploads through this operation are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-56290",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-56290.yaml",
+    "https://cxsecurity.com/issue/WLB-2026070010",
+    "https://www.exploit-db.com/exploits/52626",
+    "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Page Builder CK picture-upload containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/index\\.php$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^com_pagebuilderck$",
+        "key": "option"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^browse\\.ajaxAddPicture$",
+        "key": "task"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/index.php?option=com_pagebuilderck&task=browse.ajaxAddPicture",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/index.php?option=com_pagebuilderck&task=browse.list",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

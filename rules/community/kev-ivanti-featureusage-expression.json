@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-ivanti-featureusage-expression",
+  "pack": "Endpoint Manager Mobile (EPMM) request guards",
+  "technology": [
+    "ivanti",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-4427"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects expression-language interpolation markers in the format query argument.",
+  "affected_versions": "Ivanti Endpoint Manager Mobile: consult linked CNA affected configuration; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects expression-language interpolation markers in the format query argument.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate format strings containing literal interpolation syntax are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-4427",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-4427.yaml",
+    "https://forums.ivanti.com/s/article/Security-Advisory-Ivanti-Endpoint-Manager-Mobile-EPMM"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Ivanti feature-usage expression guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/v2/featureusage(?:_history)?/?$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "\\$\\{",
+        "key": "format"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/api/v2/featureusage_history?format=%24%7B%27example%27%7D",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v2/featureusage_history?format=json",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

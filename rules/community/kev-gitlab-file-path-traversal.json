@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-gitlab-file-path-traversal",
+  "pack": "Community Edition and Enterprise Edition request guards",
+  "technology": [
+    "gitlab",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-85706"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects absolute/traversal file.path query values on repository file-write routes.",
+  "affected_versions": "GitLab GitLab: 18.7 to <18.11.12, 19.0 to <19.0.9, 19.1 to <19.1.8, 19.2 to <19.2.6, 19.3 to <19.3.2; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects absolute/traversal file.path query values on repository file-write routes.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate API callers using absolute file.path values are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-85706",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-85706.yaml",
+    "https://about.gitlab.com/releases/2026/09/10/patch-release-gitlab-19-3-2-released/",
+    "https://gitlab.com/gitlab-org/gitlab/-/commit/0ff7b6b2911723389f2271b10362591b0a69a166",
+    "https://github.com/ynsmroztas/GitLabSniper",
+    "https://github.com/mhtsec/CVE-2026-85706"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "GitLab repository file-path guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/v4/projects/[^/]+/repository/files/"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?:^/|\\.\\.)",
+        "key": "file.path"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/1/repository/files/example?file.path=%2Foutside.txt",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/1/repository/files/example?file.path=docs%2Fexample.txt",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

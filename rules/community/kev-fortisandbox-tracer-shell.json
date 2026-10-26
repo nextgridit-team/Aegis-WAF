@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-fortisandbox-tracer-shell",
+  "pack": "FortiSandbox request guards",
+  "technology": [
+    "fortinet",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-39808"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects shell metacharacters in the tracer-behavior jid query argument.",
+  "affected_versions": "Fortinet FortiSandbox: 4.4.0 through 4.4.8; Fortinet FortiSandbox PaaS: 23.4.4374, 23.4.4350, 23.3.4329, 23.1.4245, 22.2.4151, 22.2.4134, 22.1.4113, 21.4.4072, 21.3.4055; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects shell metacharacters in the tracer-behavior jid query argument.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate jid values containing shell punctuation are blocked.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-39808",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-39808.yaml",
+    "https://fortiguard.fortinet.com/psirt/FG-IR-26-100"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "FortiSandbox tracer shell-marker guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/fortisandbox/job-detail/tracer-behavior/?$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "[;`|]|\\$\\(",
+        "key": "jid"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/fortisandbox/job-detail/tracer-behavior?jid=example%7Cmarker",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/fortisandbox/job-detail/tracer-behavior?jid=123",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

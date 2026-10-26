@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-solarwinds-jsonrpc-jndi",
+  "pack": "Web Help Desk request guards",
+  "technology": [
+    "solarwinds",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-40551"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects remote JNDI schemes in the documented JSON-RPC parameter slot.",
+  "affected_versions": "SolarWinds Web Help Desk: 12.8.8 HF1 and below; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects remote JNDI schemes in the documented JSON-RPC parameter slot.",
+  "limitations": "Other RPC layouts, gadget fields and non-JSON requests are outside this matcher. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate administration using remote JNDI lookups through this slot is denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-40551",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-40551.yaml",
+    "https://horizon3.ai/attack-research/cve-2025-40551-another-solarwinds-web-help-desk-deserialization-issue/",
+    "https://www.solarwinds.com/trust-center/security-advisories/CVE-2025-40551",
+    "https://documentation.solarwinds.com/en/success_center/whd/content/release_notes/whd_2026-1_release_notes.htm"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Web Help Desk JSON-RPC JNDI guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)/helpdesk/WebObjects/Helpdesk\\.woa/wo/"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "(?i)^(?:ldap|rmi|iiop|dns)://",
+        "key": "/params/1/jndiPath"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/helpdesk/WebObjects/Helpdesk.woa/wo/example",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"params\": [\"example\", {\"jndiPath\": \"ldap://example.invalid/example\"}]}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/helpdesk/WebObjects/Helpdesk.woa/wo/example",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"params\": [\"example\", {\"jndiPath\": \"local-resource\"}]}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

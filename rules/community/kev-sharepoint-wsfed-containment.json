@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-sharepoint-wsfed-containment",
+  "pack": "SharePoint request guards",
+  "technology": [
+    "microsoft",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-58644"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /_trust/default.aspx.",
+  "affected_versions": "Microsoft Microsoft SharePoint Enterprise Server 2016: 16.0.0 to <16.0.5556.1005; Microsoft Microsoft SharePoint Server 2019: 16.0.0 to <16.0.10417.20153; Microsoft Microsoft SharePoint Server Subscription Edition: 16.0.0 to <16.0.19725.20384; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /_trust/default.aspx.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-58644",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-58644.yaml",
+    "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-58644",
+    "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-58644",
+    "https://github.com/WismanSec/sharepoint-2026-poc",
+    "https://www.rapid7.com/blog/post/etr-cve-2026-58644-microsoft-sharepoint-server-unauthenticated-remote-code-execution-vulnerability-exploited-in-the-wild/",
+    "https://documentation.n-able.com/N-central/Release_Notes/GA/Content/N-central_2026.3_HF1_Release_Notes.htm"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "SharePoint WS-Federation containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/_trust/default\\.aspx/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/_trust/default.aspx",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/_trust/default.aspx",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-apriso-async-message-containment",
+  "pack": "DELMIA Apriso request guards",
+  "technology": [
+    "dassault-syst-mes",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-6205",
+    "CVE-2025-6204"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /Apriso/MessageProcessor/FlexNetMessageProcessor.svc.",
+  "affected_versions": "Dassault Systèmes DELMIA Apriso: Release 2020 Golden through Release 2020 SP4, Release 2021 Golden through Release 2021 SP3, Release 2022 Golden through Release 2022 SP3, Release 2023 Golden through Release 2023 SP3, Release 2024 Golden through Release 2024 SP1, Release 2025 Golden through Release 2025 SP1; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /Apriso/MessageProcessor/FlexNetMessageProcessor.svc.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-6205",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-6205.yaml",
+    "https://www.cve.org/CVERecord?id=CVE-2025-6204",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-6204.yaml",
+    "https://www.3ds.com/trust-center/security/security-advisories/cve-2025-6205",
+    "https://projectdiscovery.io/blog/remote-code-execution-in-delmia-apriso",
+    "https://www.3ds.com/trust-center/security/security-advisories/cve-2025-6204"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Apriso asynchronous-message containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/Apriso/MessageProcessor/FlexNetMessageProcessor\\.svc$"
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "(?i)/ProcessMessageASync_v2\"?$",
+        "key": "SOAPAction"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/Apriso/MessageProcessor/FlexNetMessageProcessor.svc",
+      "headers": {
+        "SOAPAction": "http://tempuri.org/IFlexNetMessageProcessor/ProcessMessageASync_v2"
+      },
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/Apriso/MessageProcessor/FlexNetMessageProcessor.svc",
+      "headers": {
+        "SOAPAction": "http://tempuri.org/IFlexNetMessageProcessor/ProcessMessageASync_v2"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

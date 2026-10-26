@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-wordpress-batch-route-confusion",
+  "pack": "Core request guards",
+  "technology": [
+    "wordpress",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-63030"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects a leading triple-slash path in the first query-routed WordPress batch item.",
+  "affected_versions": "WordPress WordPress: 6.9.0 to <6.9.5, 7.0.0 to <7.0.2; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects a leading triple-slash path in the first query-routed WordPress batch item.",
+  "limitations": "Only the first batch item and query-routed form are inspected; later/nested items and canonical REST routing need additional protection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Unusual legitimate triple-slash batch paths are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-63030",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-63030.yaml",
+    "https://github.com/WordPress/wordpress-develop/security/advisories/GHSA-ff9f-jf42-662q",
+    "https://github.com/WordPress/wordpress-develop/security/advisories/GHSA-fpp7-x2x2-2mjf",
+    "https://slcyber.io/research-center/wp2shell-pre-authentication-rce-in-wordpress-core",
+    "https://www.aikido.dev/blog/unauthenticated-rce-in-wordpress-wp2shell",
+    "https://wordpress.org/news/2026/07/wordpress-7-0-2-release/",
+    "https://github.com/sergiointel/wp2shell-poc/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "WordPress query batch-route confusion guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^/batch/v1/?$",
+        "key": "rest_route"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "^///",
+        "key": "/requests/0/path"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/?rest_route=%2Fbatch%2Fv1",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"requests\": [{\"path\": \"///\", \"method\": \"POST\"}]}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/?rest_route=%2Fbatch%2Fv1",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"requests\": [{\"path\": \"/wp/v2/posts\", \"method\": \"POST\"}]}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

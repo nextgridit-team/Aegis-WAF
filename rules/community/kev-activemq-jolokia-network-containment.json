@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-activemq-jolokia-network-containment",
+  "pack": "ActiveMQ request guards",
+  "technology": [
+    "apache",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-34197"
+  ],
+  "description": "Temporary endpoint containment. Blocks array-form Jolokia network-connector operations in the first item.",
+  "affected_versions": "Apache Software Foundation Apache ActiveMQ Broker: 0 to <5.19.4, 6.0.0 to <6.2.3; Apache Software Foundation Apache ActiveMQ All: 0 to <5.19.4, 6.0.0 to <6.2.3; Apache Software Foundation Apache ActiveMQ: 0 to <5.19.4, 6.0.0 to <6.2.3; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks array-form Jolokia network-connector operations in the first item.",
+  "limitations": "Object-form requests and later array entries are not inspected. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate connector administration in that array position is denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-34197",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-34197.yaml",
+    "https://horizon3.ai/attack-research/disclosures/cve-2026-34197-activemq-rce-jolokia/",
+    "https://activemq.apache.org/security-advisories"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "ActiveMQ Jolokia connector containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/jolokia/?$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "(?i)NetworkConnector",
+        "key": "/0/operation"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/api/jolokia/",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "[{\"operation\": \"removeNetworkConnector\"}]",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/jolokia/",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "[{\"operation\": \"readAttribute\"}]",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

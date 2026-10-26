@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-loadmaster-json-shell",
+  "pack": "LoadMaster request guards",
+  "technology": [
+    "progress",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-8037"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects shell metacharacters in the documented g0 JSON field on accessv2.",
+  "affected_versions": "Progress Software LoadMaster: V7.2.60.0 to <V7.2.63.2, V7.2.54.12 to <V7.2.54.18; Progress Software ECS Connections Manager: V7.2.60.0 to <V7.2.63.2; Progress Software Object Scale Connection Manager: V7.2.60.0 to <V7.2.63.2; Progress Software MOVEit WAF: V7.2.60.0 to <V7.2.63.2; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects shell metacharacters in the documented g0 JSON field on accessv2.",
+  "limitations": "Only the g0 JSON field is inspected; other fields and form bodies are not covered. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate g0 values containing shell punctuation are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-8037",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-8037.yaml",
+    "https://community.progress.com/s/article/LoadMaster-Critical-Security-Bulletin-June-2026-CVE-2026-8037-CVE-2026-33691",
+    "https://labs.watchtowr.com/enterprise-tech-in-shell-out-progress-kemp-loadmaster-uninitialized-heap-to-pre-auth-rce-cve-2026-8037/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "LoadMaster JSON shell-marker guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/accessv2/?$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "[;`|]|\\$\\(",
+        "key": "/g0"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/accessv2",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"g0\": \"example; harmless-marker\"}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/accessv2",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"g0\": \"example\"}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

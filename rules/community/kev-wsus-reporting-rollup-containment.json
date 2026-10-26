@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-wsus-reporting-rollup-containment",
+  "pack": "Windows request guards",
+  "technology": [
+    "microsoft",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-59287"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /ReportingWebService/ReportingWebService.asmx.",
+  "affected_versions": "Microsoft Windows Server 2012: 6.2.9200.0 to <6.2.9200.25728; Microsoft Windows Server 2012 (Server Core installation): 6.2.9200.0 to <6.2.9200.25728; Microsoft Windows Server 2012 R2: 6.3.9600.0 to <6.3.9600.22826; Microsoft Windows Server 2012 R2 (Server Core installation): 6.3.9600.0 to <6.3.9600.22826; Microsoft Windows Server 2016: 10.0.14393.0 to <10.0.14393.8524; Microsoft Windows Server 2016 (Server Core installation): 10.0.14393.0 to <10.0.14393.8524; Microsoft Windows Server 2019: 10.0.17763.0 to <10.0.17763.7922; Microsoft Windows Server 2019 (Server Core installation): 10.0.17763.0 to <10.0.17763.7922; Microsoft Windows Server 2022: 10.0.20348.0 to <10.0.20348.4297; Microsoft Windows Server 2022, 23H2 Edition (Server Core installation): 10.0.25398.0 to <10.0.25398.1916; Microsoft Windows Server 2025: 10.0.26100.0 to <10.0.26100.6905; Microsoft Windows Server 2025 (Server Core installation): 10.0.26100.0 to <10.0.26100.6905; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /ReportingWebService/ReportingWebService.asmx.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-59287",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-59287.yaml",
+    "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2025-59287",
+    "https://www.huntress.com/blog/exploitation-of-windows-server-update-services-remote-code-execution-vulnerability",
+    "https://hawktrace.com/blog/CVE-2025-59287",
+    "https://research.eye.security/wsus-deserialization-exploit-in-the-wild-cve-2025-59287",
+    "https://unit42.paloaltonetworks.com/microsoft-cve-2025-59287/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "WSUS reporting rollup containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/ReportingWebService/ReportingWebService\\.asmx$"
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "/GetRollupConfiguration\"?$",
+        "key": "SOAPAction"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/ReportingWebService/ReportingWebService.asmx",
+      "headers": {
+        "SOAPAction": "http://www.microsoft.com/SoftwareDistribution/GetRollupConfiguration"
+      },
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/ReportingWebService/ReportingWebService.asmx",
+      "headers": {
+        "SOAPAction": "http://www.microsoft.com/SoftwareDistribution/GetRollupConfiguration"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

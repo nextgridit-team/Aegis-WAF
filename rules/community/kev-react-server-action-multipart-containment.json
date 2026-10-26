@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-react-server-action-multipart-containment",
+  "pack": "React Server Components request guards",
+  "technology": [
+    "meta",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-55182"
+  ],
+  "description": "Temporary endpoint containment. Blocks multipart requests declaring a Next-Action operation.",
+  "affected_versions": "Meta react-server-dom-webpack: 19.0.0 through 19.0.0, 19.1.0 through 19.1.1, 19.2.0 through 19.2.0; Meta react-server-dom-turbopack: 19.0.0 through 19.0.0, 19.1.0 through 19.1.1, 19.2.0 through 19.2.0; Meta react-server-dom-parcel: 19.0.0 through 19.0.0, 19.1.0 through 19.1.1, 19.2.0 through 19.2.0; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks multipart requests declaring a Next-Action operation.",
+  "limitations": "Multipart serialization is not inspected. Other server-function transports and action layouts are not covered. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate multipart React server actions, including uploads, are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-55182",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-55182.yaml",
+    "https://github.com/assetnote/react2shell-scanner",
+    "https://gist.github.com/maple3142/48bc9393f45e068cf8c90ab865c0f5f3",
+    "https://www.facebook.com/security/advisories/cve-2025-55182",
+    "https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components",
+    "https://github.com/vercel/next.js/security/advisories/GHSA-9qr9-h5gf-34mp",
+    "https://vercel.com/changelog/cve-2025-55182"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "React server-action multipart containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": ".+",
+        "key": "Next-Action"
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "(?i)^multipart/form-data",
+        "key": "Content-Type"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Next-Action": "example",
+        "Content-Type": "multipart/form-data; boundary=example"
+      },
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

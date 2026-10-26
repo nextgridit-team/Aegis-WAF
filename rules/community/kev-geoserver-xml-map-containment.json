@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-geoserver-xml-map-containment",
+  "pack": "GeoServer request guards",
+  "technology": [
+    "osgeo",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-58360"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /geoserver/wfs.",
+  "affected_versions": "geoserver geoserver: >= 2.26.0, < 2.26.2, < 2.25.6; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /geoserver/wfs.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-58360",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-58360.yaml",
+    "https://github.com/geoserver/geoserver/security/advisories/GHSA-fjf5-xgmq-5525"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "GeoServer XML map-operation containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/(?:geoserver/)?wfs/?$"
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "(?i)^application/vnd\\.ogc\\.sld\\+xml",
+        "key": "Content-Type"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/geoserver/wfs",
+      "headers": {
+        "Content-Type": "application/vnd.ogc.sld+xml"
+      },
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/geoserver/wfs",
+      "headers": {
+        "Content-Type": "application/vnd.ogc.sld+xml"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

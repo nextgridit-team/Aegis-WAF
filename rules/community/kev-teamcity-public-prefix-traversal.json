@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-teamcity-public-prefix-traversal",
+  "pack": "TeamCity request guards",
+  "technology": [
+    "jetbrains",
+    "http"
+  ],
+  "cves": [
+    "CVE-2024-27199"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects traversal components beneath the documented public TeamCity routing prefixes.",
+  "affected_versions": "JetBrains TeamCity: 0 to <2023.11.4; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects traversal components beneath the documented public TeamCity routing prefixes.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Literal traversal-like resource paths under these prefixes are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2024-27199",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-27199.yaml",
+    "https://www.rapid7.com/blog/post/2024/03/04/etr-cve-2024-27198-and-cve-2024-27199-jetbrains-teamcity-multiple-authentication-bypass-vulnerabilities-fixed/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "TeamCity public-prefix traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/(?:res|update|\\.well-known/acme-challenge)/"
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:\\.\\.[/\\\\]|%2e)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/res/../admin/diagnostic.jsp",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/res/example.css",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

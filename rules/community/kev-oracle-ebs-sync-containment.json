@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-oracle-ebs-sync-containment",
+  "pack": "E-Business Suite request guards",
+  "technology": [
+    "oracle",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-61882"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /OA_HTML/SyncServlet.",
+  "affected_versions": "Oracle Corporation Oracle Concurrent Processing: 12.2.3 through 12.2.14; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /OA_HTML/SyncServlet.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-61882",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-61882.yaml",
+    "https://labs.watchtowr.com/well-well-well-its-another-day-oracle-e-business-suite-pre-auth-rce-chain-cve-2025-61882well-well-well-its-another-day-oracle-e-business-suite-pre-auth-rce-chain-cve-2025-61882/",
+    "https://github.com/watchtowrlabs/watchTowr-vs-Oracle-E-Business-Suite-CVE-2025-61882",
+    "https://www.oracle.com/security-alerts/alert-cve-2025-61882.html",
+    "https://blogs.oracle.com/security/post/apply-july-2025-cpu",
+    "https://vred.mbbank.com.vn/p/oracle-e-business-suite-authentication",
+    "https://gist.github.com/testanull/a897473577b8650932221172e50304ce#file-ebs_cve-2025-61882_poc-py"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Oracle EBS SyncServlet containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/OA_HTML/SyncServlet/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/OA_HTML/SyncServlet",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/OA_HTML/SyncServlet",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

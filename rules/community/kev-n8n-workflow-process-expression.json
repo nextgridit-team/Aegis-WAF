@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-n8n-workflow-process-expression",
+  "pack": "n8n request guards",
+  "technology": [
+    "n8n",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-68613"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects selected Node process/module constructs in the documented second-node string expression slot.",
+  "affected_versions": "n8n-io n8n: >= 0.211.0, < 1.120.4, = 1.121.0; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects selected Node process/module constructs in the documented second-node string expression slot.",
+  "limitations": "Other node positions, expression fields and execution constructs remain uninspected. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate workflow expressions accessing process/module facilities are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-68613",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-68613.yaml",
+    "https://github.com/n8n-io/n8n/security/advisories/GHSA-v98v-ff95-f3cp"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "n8n workflow process-expression guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/rest/workflows/?$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "(?i)(?:process\\.mainModule|child_process)",
+        "key": "/nodes/1/parameters/values/string/0/value"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/rest/workflows",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"nodes\": [{}, {\"parameters\": {\"values\": {\"string\": [{\"value\": \"={{this.process.mainModule.require('example')}}\"}]}}}]}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/rest/workflows",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"nodes\": [{}, {\"parameters\": {\"values\": {\"string\": [{\"value\": \"={{1 + 1}}\"}]}}}]}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

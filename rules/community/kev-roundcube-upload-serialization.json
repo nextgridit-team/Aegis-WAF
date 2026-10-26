@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-roundcube-upload-serialization",
+  "pack": "Webmail request guards",
+  "technology": [
+    "roundcube",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-49113"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects selected PHP serialization markers in the upload _from query selector.",
+  "affected_versions": "Roundcube Webmail: 0 to <1.5.10, 1.6.0 to <1.6.11; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects selected PHP serialization markers in the upload _from query selector.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Unusual legitimate upload identifiers containing serialization syntax are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-49113",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-49113.yaml",
+    "https://fearsoff.org/research/roundcube",
+    "https://github.com/advisories/GHSA-8j8w-wwqc-x596",
+    "https://roundcube.net/news/2025/06/01/security-updates-1.6.11-and-1.5.10",
+    "https://github.com/roundcube/roundcubemail/commit/0376f69e958a8fef7f6f09e352c541b4e7729c4d",
+    "https://github.com/roundcube/roundcubemail/commit/7408f31379666124a39f9cb1018f62bc5e2dc695",
+    "https://github.com/roundcube/roundcubemail/commit/c50a07d88ca38f018a0f4a0b008e9a1deb32637e"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Roundcube upload serialization-marker guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^upload$",
+        "key": "_action"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?:[OC]:[0-9]+:|Crypt_GPG_Engine)",
+        "key": "_from"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/?_action=upload&_from=%21%22%3BO%3A16%3A%22Crypt_GPG_Engine%22%3A1%3A%7B%7D",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/?_action=upload&_from=settings",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

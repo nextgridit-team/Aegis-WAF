@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-forticlient-site-sql",
+  "pack": "FortiClient EMS request guards",
+  "technology": [
+    "fortinet",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-21643"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects selected SQL syntax in the Site header on init_consts.",
+  "affected_versions": "Fortinet FortiClientEMS: 7.4.4; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects selected SQL syntax in the Site header on init_consts.",
+  "limitations": "Other SQL dialects or injection shapes can bypass this heuristic. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate tenant identifiers containing SQL punctuation may be denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-21643",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-21643.yaml",
+    "https://www.fortiguard.com/psirt/FG-IR-2026-21643"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "FortiClient EMS Site-header SQL guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/v1/init_consts/?$"
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "(?i)(?:;\\s*(?:select|insert|update|delete)|\\bpg_sleep\\s*\\(|--|/\\*)",
+        "key": "Site"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/init_consts",
+      "headers": {
+        "Site": "tenant1; SELECT pg_sleep(1)--"
+      },
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/init_consts",
+      "headers": {
+        "Site": "tenant1"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

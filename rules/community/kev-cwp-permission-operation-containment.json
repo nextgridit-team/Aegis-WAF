@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-cwp-permission-operation-containment",
+  "pack": "Control Web Panel request guards",
+  "technology": [
+    "cwp",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-48703"
+  ],
+  "description": "Temporary endpoint containment. Blocks the documented CWP file-manager permission-change operation.",
+  "affected_versions": "centos-webpanel CentOS Web Panel: 0 to <0.9.8.1205; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks the documented CWP file-manager permission-change operation.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate permission changes through this route are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-48703",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-48703.yaml",
+    "https://fenrisk.com/rce-centos-webpanel"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "CWP permission-change containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/[^/]+/index\\.php$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^filemanager$",
+        "key": "module"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^changePerm$",
+        "key": "acc"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/example/index.php?module=filemanager&acc=changePerm",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/example/index.php?module=filemanager&acc=list",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

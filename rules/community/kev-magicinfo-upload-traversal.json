@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-magicinfo-upload-traversal",
+  "pack": "MagicINFO 9 Server request guards",
+  "technology": [
+    "samsung",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-4632",
+    "CVE-2024-7399"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects parent-directory components in the updater fileName query field.",
+  "affected_versions": "Samsung Electronics MagicINFO 9 Server: 0 to <21.1052; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records. Earlier MagicINFO 9 Server ranges are recorded separately in CVE-2024-7399; verify that CNA record too.",
+  "coverage": "Rejects parent-directory components in the updater fileName query field.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate update operations intentionally using parent paths are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-4632",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-4632.yaml",
+    "https://www.cve.org/CVERecord?id=CVE-2024-7399",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-7399.yaml",
+    "https://arcticwolf.com/resources/blog/follow-up-samsung-patches-zero-day-vulnerability-magicinfo-9-server-cve-2025-4632/",
+    "https://ssd-disclosure.com/ssd-advisory-samsung-magicinfo-unauthenticated-rce/",
+    "https://www.huntress.com/blog/rapid-response-samsung-magicinfo9-server-flaw"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "MagicINFO uploader path traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/MagicInfo/servlet/SWUpdateFileUploader$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?:\\.\\.[/\\\\]|%2e)",
+        "key": "fileName"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/MagicInfo/servlet/SWUpdateFileUploader?fileName=.%2F..%2F..%2Fserver%2Fexample.html",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/MagicInfo/servlet/SWUpdateFileUploader?fileName=example.html",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

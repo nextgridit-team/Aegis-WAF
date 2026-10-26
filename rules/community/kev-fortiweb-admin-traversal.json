@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-fortiweb-admin-traversal",
+  "pack": "FortiWeb request guards",
+  "technology": [
+    "fortinet",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-64446"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects traversal markers after the FortiWeb administrative API prefix.",
+  "affected_versions": "Fortinet FortiWeb: 8.0.0 through 8.0.1, 7.6.0 through 7.6.4, 7.4.0 through 7.4.9, 7.2.0 through 7.2.11, 7.0.0 through 7.0.11; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects traversal markers after the FortiWeb administrative API prefix.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Traversal-like literal administrative path names are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-64446",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-64446.yaml",
+    "https://x.com/defusedcyber/status/1975242250373517373",
+    "https://github.com/watchtowrlabs/watchTowr-vs-Fortiweb-AuthBypass",
+    "https://github.com/rapid7/metasploit-framework/pull/20698/files"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "FortiWeb admin CGI traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/v2\\.0/cmdb/system/admin"
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:\\.\\.|%2e)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/api/v2.0/cmdb/system/admin%3f/../../../../../cgi-bin/fwbcgi",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v2.0/cmdb/system/admin",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

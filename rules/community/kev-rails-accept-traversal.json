@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-rails-accept-traversal",
+  "pack": "Ruby on Rails request guards",
+  "technology": [
+    "rails",
+    "http"
+  ],
+  "cves": [
+    "CVE-2019-5418"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects repeated traversal components in the Accept content-negotiation header.",
+  "affected_versions": "Rails https://github.com/rails/rails: 5.2.2.1, 5.1.6.2, 5.0.7.2, 4.2.11.1; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects repeated traversal components in the Accept content-negotiation header.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Nonstandard legitimate Accept values containing filesystem traversal are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2019-5418",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2019/CVE-2019-5418.yaml",
+    "https://github.com/omarkurt/CVE-2019-5418",
+    "https://weblog.rubyonrails.org/2019/3/13/Rails-4-2-5-1-5-1-6-2-have-been-released/",
+    "https://www.exploit-db.com/exploits/46585/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Rails Accept-header traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "(?:\\.\\.[/\\\\]){2,}",
+        "key": "Accept"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/example",
+      "headers": {
+        "Accept": "../../../../etc/passwd{{"
+      },
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/example",
+      "headers": {
+        "Accept": "text/html, application/json"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}
