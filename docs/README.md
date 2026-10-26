@@ -28,6 +28,8 @@
 
 ## Observe and investigate
 
+[Configure alerts, notification destinations and AI wake-up](alerts.md).
+
 | Goal                                            | Guide                                                                                   |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Scrape Prometheus and collect structured events | [Metrics and observability](observability.md)                                           |

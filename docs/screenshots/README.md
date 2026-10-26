@@ -49,3 +49,7 @@ Update the source revision/date above when refreshing them. Older screenshots in
 ## System, metrics and selective CAPTCHA — 2026-10-25
 
 `system.png` and `bot-challenge.png` come from `/tmp/aegis-platform-browser-final`, the passing isolated browser/Pebble acceptance fixture for source revision `4cc198dccedbb8cefce558ef58dc083750fcf07a`. System shows local/shared counter selection and authenticated metrics discovery. The challenge shows the self-hosted verification page for a suspicious fixture client; ordinary clients were also verified to pass without a challenge. The test database, keys, certificates and cookies were disposable, and the challenge has expired. No production settings or traffic are shown.
+
+## Configurable alerts — 2026-10-26
+
+`alerts.png` is `alerts-1440.png` from `/tmp/aegis-alerts-browser-final`, the passing isolated browser/Pebble fixture for the configurable-alerting change. It shows a real recorded fixture CRS block producing an application-scoped alert and an administrator acknowledgement. The fixture also created a signed automation destination, sent its explicit test and verified 390px/1440px layouts. Receiver URLs, signing secrets and production traffic are not shown. This verifies the Aegis workflow against an isolated HTTP receiver, not delivery to live Slack/Discord/other third-party accounts or execution by an external AI agent.

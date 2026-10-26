@@ -123,7 +123,6 @@ Reviewed the Cloudflare workflows documented by acme.sh, Certbot and lego. The d
 
 The Nexus candidate image passed strict TypeScript compilation and the full browser suite using real Pebble account registration/HTTP-01 validation, issuance and trusted HTTPS through both replicas. Existing Cloudflare configuration, dark-mode persistence, 24 responsive page checks and proxy/rule flows passed. Live Cloudflare issuance still requires the user's token and domain. No backend API/schema changes were needed for this UX update.
 
-
 ## Traffic dashboard, bot/flood protection and URL feeds — 2026-10-24
 
 Passed strict TypeScript build, production image build, real PostgreSQL race
@@ -164,7 +163,6 @@ cloudflare-rule-design.md using Cloudflare's primary documentation.
 Reusable versioned rule groups and attachments are a proposed next schema
 increment, not part of this implementation; current rule/feed imports remain
 site-scoped and require explicit activation.
-
 
 ## Standalone HTTPS management regression
 
@@ -303,3 +301,11 @@ The [limitations review](limitations-review.md) prioritizes automatic access/aud
 The final production-container browser/Pebble acceptance passed after correcting the System selector's explicit accessible label and protecting inline form drafts from background polling. It exercised local/shared state controls (including an accurately reported failed draft connection), session-authenticated Prometheus exposition, streaming-profile selection, baseline assignment, self-hosted CAPTCHA image/answer verification and clearance on a second replica, plus the existing certificate/routing/policy/map flows. Artifacts were saved to `/tmp/aegis-platform-browser-final`.
 
 The final container smoke/latency fixture passed: UID 10001 and arbitrary UID 23456, read-only root/tmpfs and packaged CA access, cross-replica sessions/certificates/routing, default and sealed-cache database-outage behavior, cold-start readiness, accurate failed writes, restart reload, native management HTTPS and graceful shutdown. The optional Redis Compose overlay separately passed health/non-root/read-only/no-published-port checks. The measured CRS baseline was 10,807.5 requests/sec, mean 1.471 ms and p99 3.793 ms in the fixed local fixture, with zero dropped logs/evidence and zero worker panics. [Raw results and comparison limits](benchmarks.md#platform-hardening-verification-2026-10-25).
+
+## Configurable alerts and endpoint profiles — 2026-10-26
+
+Website/API/SSE profiles were verified with the complete PostgreSQL/Redis race/vet suite (146.884 seconds), focused profile-aware MCP simulation/skill tests, and browser/Pebble acceptance (`/tmp/aegis-api-browser`). API retains SQLi/body-limit/response-leak enforcement while producing JSON denials and blocking high bot suspicion without browser CAPTCHA.
+
+Alerting checks exercise encrypted write-only destinations, HMAC signatures, seven provider payloads against isolated HTTP receivers, metadata/link-local restrictions, disabled redirects, cross-replica cooldown and delivery claims, acknowledgement, retry limits/redaction, all four trigger queries and ascending backlog cursors. Notification administration is verified not to change WAF configuration versions or invalidate simulation receipts. The frozen release passed the full PostgreSQL/Redis race/vet suite (153.307 seconds), focused final alert/migration/skill checks (11.279 seconds), and container smoke checks for non-root/read-only operation, encrypted certificates, replica sessions, outages, sealed-cache recovery, native management TLS and graceful shutdown; initial migration expectations were updated from schema 18 to 19.
+
+The browser/Pebble flow (`/tmp/aegis-alerts-browser-final`) passed destination creation/test-send, application-scoped trigger creation, a real CRS-triggered inbox entry and acknowledgement at 390px/1440px, alongside the existing full acceptance flow. The isolated test receiver returned HTTP 2xx; external provider accounts and agent reasoning/startup were not tested. Actual AI wake-up requires the operator's configured receiver/orchestrator. The root README links the current alert guide; [screenshot provenance](screenshots/README.md) records the fixture image scope.

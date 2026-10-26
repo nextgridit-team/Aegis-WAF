@@ -2,6 +2,16 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Configurable alerts and external-agent wake-up
+
+### Added
+
+- Configurable alert inbox, scoped trigger rules and asynchronous notification delivery: signed automation/generic webhooks, Slack, Discord, Gotify, ntfy and an optional existing Apprise bridge. PostgreSQL coordinates replicas, encrypted destination settings, cooldowns, retry leases and acknowledgement. MCP exposes investigation/acknowledgement; a configured external receiver wakes the operator’s agent. [Alert setup and guarantees](docs/alerts.md).
+
+### Operational boundaries
+
+- Additive schema version 19; no destinations or rules are created automatically. Notifications do not change WAF configuration versions. History retains 30 days and approximately 1000 alerts; at-least-once delivery requires receiver deduplication. The current MCP transport remains stateless: users configure their own webhook receiver or polling agent.
+
 ## 2026-10-25 — Bot verification and platform hardening
 
 ### Added

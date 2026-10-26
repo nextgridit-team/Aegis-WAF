@@ -116,6 +116,7 @@ type App struct {
 	evidenceDropped               atomic.Uint64
 	flood                         floodLimiter
 	botRates                      floodLimiter
+	notificationTests             chan struct{}
 	botWork                       chan struct{}
 	simulationWork                chan struct{}
 	botClearances                 botClearanceCache
@@ -146,7 +147,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	a := &App{simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a := &App{notificationTests: make(chan struct{}, 2), simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
 	a.prom = newGatewayTelemetry(a)
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {

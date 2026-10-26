@@ -21,15 +21,15 @@ Included workflows cover request investigation, false-positive tuning, disabled 
 
 ## Permissions and tools
 
-| Permission | Available tools | Effect |
-| --- | --- | --- |
-| Read (always included) | `get_dashboard`, `list_applications`, `list_policies`, `list_rules`, `get_rule_schema`, `list_signature_sets`, `list_access_logs` | Workspace metadata, aggregates and latest 200 request records; no retained request samples |
-| Evidence | `get_request_details`, `list_evidence`, `replay_rule` | Retained request facts and offline custom-rule replay; missing/expired facts remain unavailable |
-| Draft | `propose_rule` | Creates a disabled rule; does not update or activate existing rules |
-| Enforce | Rule, signature, feed and policy mutations through `management_operation`, plus convenience tools | Can change live protections, assignments, history and rollback |
-| Configuration | Application, proxy-header/trust/exemption, address-object/group, Geo, traffic and compatibility provider settings | Can change routing and security boundaries and enable evidence collection |
-| Certificates | Certificate upload/replacement/deletion, DNS credentials, directory lookup, issuance and job retry | Handles certificate operations; stored keys/tokens are never returned |
-| Agent administration | Read agent/key metadata, revoke existing keys, enable/disable agent endpoint | Cannot create new keys or accounts, even with all scopes |
+| Permission             | Available tools                                                                                                                                       | Effect                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Read (always included) | `get_dashboard`, `list_applications`, `list_policies`, `list_rules`, `get_rule_schema`, `list_signature_sets`, `list_access_logs`                     | Workspace metadata, aggregates and latest 200 request records; no retained request samples      |
+| Evidence               | `get_request_details`, `list_evidence`, `replay_rule`                                                                                                 | Retained request facts and offline custom-rule replay; missing/expired facts remain unavailable |
+| Draft                  | `propose_rule`                                                                                                                                        | Creates a disabled rule; does not update or activate existing rules                             |
+| Enforce                | Rule, signature, feed and policy mutations through `management_operation`, plus convenience tools                                                     | Can change live protections, assignments, history and rollback                                  |
+| Configuration          | Application, proxy-header/trust/exemption, address-object/group, Geo, traffic, alerts/notification administration and compatibility provider settings | Can change routing and security boundaries and enable evidence collection                       |
+| Certificates           | Certificate upload/replacement/deletion, DNS credentials, directory lookup, issuance and job retry                                                    | Handles certificate operations; stored keys/tokens are never returned                           |
+| Agent administration   | Read agent/key metadata, revoke existing keys, enable/disable agent endpoint                                                                          | Cannot create new keys or accounts, even with all scopes                                        |
 
 Permissions cover the whole workspace; per-application agent roles are not implemented. Stored private keys/tokens, administrator/bootstrap/session operations, new accounts (including ACME registration), and new MCP-key creation remain unavailable. Uploading certificates or supplying new DNS credentials is permitted by the certificate scope; normal APIs never read stored secrets back.
 
@@ -58,10 +58,10 @@ Synthetic payloads accept `host`, `method` (default GET), relative `path`, `clie
 {
   "method": "POST",
   "path": "/api/rules/42/activate",
-  "input": {"action": "block", "ttl_seconds": 300},
+  "input": { "action": "block", "ttl_seconds": 300 },
   "test_payloads": [
-    {"host": "app.example.com", "path": "/", "expected": "allow"},
-    {"host": "app.example.com", "path": "/.env", "expected": "block"}
+    { "host": "app.example.com", "path": "/", "expected": "allow" },
+    { "host": "app.example.com", "path": "/.env", "expected": "block" }
   ]
 }
 ```
@@ -82,3 +82,7 @@ The prior provider connection API remains for compatibility, but its configurati
 ## Monitoring keys
 
 A source-restricted Read key can authenticate HTTPS management `/metrics` scrapes even while MCP is disabled. Normal expiry/revocation applies, and no new permissions are granted. MCP completion logs/counters omit arguments and report success, error or contained panic. See [metrics semantics and privacy](observability.md).
+
+## Alert-driven investigation
+
+Configure notification destinations and trigger rules in **Alerts**. A signed automation webhook can wake the operator's chosen agent; the current stateless MCP server does not push unsolicited wake-up messages. Read alert IDs, metadata and the inbox through scoped management operations, investigate with the appropriate evidence permission, and acknowledge review with Configuration permission. Protection changes still require simulation and their own scopes. [Receiver setup and playbook](alerts.md#wake-any-agent-investigate-over-mcp).

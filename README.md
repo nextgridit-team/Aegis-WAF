@@ -57,7 +57,7 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 
 - **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
 - **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
-- **See what happened.** Inspect recorded requests and matched rules, follow live traffic maps, and collect structured JSON events or authenticated Prometheus metrics. Filter the dashboard by application or view the whole gateway.
+- **See what happened.** Inspect recorded requests and matched rules, follow live traffic maps, and collect structured JSON events or authenticated Prometheus metrics. Configure [alerts](docs/alerts.md) with notification destinations or a signed webhook to your own AI agent. Filter the dashboard by application or view the whole gateway.
 - **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions and HTTP flood rates. Selective self-hosted image/audio CAPTCHA challenges suspicious traffic and grants bounded clearance after a successful solve.
 - **Handle streaming APIs.** Choose Website, API or SSE/streaming per proxy host. API/SSE return JSON denials without browser CAPTCHA. Optional response inspection uses bounded overlapping windows for streams; it can stop future output but cannot retract bytes already delivered.
 - **Connect your own agent.** An optional management MCP endpoint offers scoped, expiring keys, a downloadable skill and enforced offline simulation before live protection changes. Your agent and model run outside Aegis; no built-in inference is required.
@@ -97,7 +97,7 @@ _Actual application screens with isolated test traffic and example domains. [Scr
 
 ![Live flow diagram connecting Aegis directly to protected proxy hosts](docs/screenshots/local-traffic-flow.png)
 
-Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [policies](docs/screenshots/policies.png), [agent access](docs/screenshots/agent-access.png), [System and metrics](docs/screenshots/system.png), and [self-hosted verification](docs/screenshots/bot-challenge.png).
+Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [policies](docs/screenshots/policies.png), [agent access](docs/screenshots/agent-access.png), [System and metrics](docs/screenshots/system.png), and [self-hosted verification](docs/screenshots/bot-challenge.png), and [alerts](docs/screenshots/alerts.png).
 
 <a id="structured-security-logs"></a>
 <a id="update-and-recover"></a>

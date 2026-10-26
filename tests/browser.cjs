@@ -1391,6 +1391,35 @@ const { execFileSync } = require("node:child_process");
       assert.equal(response.status(),403);
       assert.equal((await response.json()).error,"managed_signature_rejected");
     });
+    // Notification destinations, threshold rules and acknowledgement are browser-managed.
+    await nav("Alerts").click();
+    await page.getByRole("heading",{name:"Alerts",exact:true}).waitFor();
+    await page.getByRole("button",{name:"Destinations",exact:true}).click();
+    await page.getByRole("button",{name:"Add destination",exact:true}).click();
+    await dialog().getByLabel("Name",{exact:true}).fill("Fixture agent receiver");
+    await dialog().getByLabel("Provider",{exact:true}).selectOption("automation");
+    await dialog().getByLabel("Destination URL (write only)",{exact:true}).fill(upstream+"/alerts");
+    await dialog().getByLabel("Signing secret / token (write only)",{exact:true}).fill("isolated-browser-fixture-signing-secret-123456");
+    await dialog().getByLabel("Allow private-network destination (HTTP allowed only to private/loopback addresses)",{exact:true}).check();
+    await dialog().getByRole("button",{name:"Save destination",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    await page.locator("tbody tr").filter({hasText:"Fixture agent receiver"}).getByRole("button",{name:"Send test",exact:true}).click();
+    await page.getByText("Test notification delivered.",{exact:true}).waitFor();
+    await page.getByRole("button",{name:"Trigger rules",exact:true}).click();
+    await page.getByRole("button",{name:"Add alert rule",exact:true}).click();
+    await dialog().getByLabel("Name",{exact:true}).fill("Investigate fixture blocks");
+    await dialog().getByLabel("Application",{exact:true}).selectOption({label:"Baseline-protected app"});
+    await dialog().getByLabel("Threshold (count; days for certificate expiration)",{exact:true}).fill("1");
+    await dialog().getByLabel("Fixture agent receiver",{exact:true}).check();
+    await dialog().getByRole("button",{name:"Save alert rule",exact:true}).click();
+    await dialog().waitFor({state:"detached"});
+    await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"application/json"}});
+    await page.getByRole("button",{name:/^Inbox/}).click();
+    await eventually(async()=>{await page.getByRole("button",{name:"Refresh",exact:true}).click();assert.equal(await page.locator("tbody tr").filter({hasText:"Investigate fixture blocks"}).count(),1)});
+    await page.locator("tbody tr").filter({hasText:"Investigate fixture blocks"}).getByRole("button",{name:"Acknowledge",exact:true}).click();
+    await page.locator("tbody tr").filter({hasText:"Investigate fixture blocks"}).getByRole("cell",{name:/^Acknowledged/}).waitFor();
+    for(const width of [390,1440]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(out,`alerts-${width}.png`)});}
+    await nav("Proxy hosts").click();
     // Fully self-hosted selective CAPTCHA: no provider keys or test bypass route.
     if (process.env.BROWSER_CAPTCHA_DATABASE_CONTAINER) {
       await nav("Policies").click();

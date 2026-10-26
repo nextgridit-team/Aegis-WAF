@@ -22,3 +22,7 @@ Update every serving replica before enabling new shared policy fields or selecti
 The default Compose file still starts only the app and PostgreSQL. Add the optional Redis overlay or use an existing backend only when choosing shared budgets in System. Shared enforcing counters return 503 on backend failure; there is no silent local fallback. [Shared-state deployment](shared-rate-state.md).
 
 Configuration reloads use atomic snapshots without restarting listeners. Updating the container is a separate operation: a single-replica deployment can be interrupted during replacement. Keep the database and external key backed up, and verify readiness, routing and new requests after the update. [Change history](../CHANGELOG.md) · [Current limits](limitations.md).
+
+## Alerting upgrade
+
+Schema 19 adds encrypted notification destinations, alert rules, an inbox and delivery leases. No destinations, external sends or trigger rules are created automatically. Update all replicas before configuring Alerts; a prior binary does not run the new workers. Notification acknowledgement/configuration is independent of the WAF configuration version and does not invalidate protection simulations. The existing database/external-key backup covers notification configuration too. [Setup and retention](alerts.md).

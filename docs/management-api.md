@@ -72,3 +72,16 @@ Shared counter configuration: `GET/PUT /rate-state`, `POST /rate-state/test`. Fi
 ## Metrics
 
 `GET /metrics` on the management listener returns authenticated Prometheus exposition using a dashboard session or source-restricted Read key over HTTPS (MCP enablement is independent). `GET /api/metrics` is a session/MCP-readable alias. Scrape every replica; counters are replica-local and reset on restart. See [observability, labels and histogram semantics](observability.md).
+
+## Alerts and notifications
+
+All routes below use the `/api` prefix and session/CSRF or the matching scoped MCP management operation. `GET /alerts`, `GET /alerts/{id}`, `GET /alert-deliveries`, `GET /alert-rules` and `GET /notification-channels` require Read. Notification/rule writes, test sends and acknowledgement require Configuration. They do not require rule simulation.
+
+- `GET /alerts?after_id=0&unacknowledged=true`: up to 200 alert objects. `after_id` selects ascending cursor order; absent selects newest first. Alert fields: `id,rule_id,at,kind,site_id,title,count,window_start,window_end,acknowledged_at,acknowledged_by`.
+- `POST /alerts/{id}/acknowledge` with `{}`: persist reviewed status; idempotent state, audited invocation.
+- `GET /alert-deliveries`: latest 200 delivery records with `id,alert_id,channel_id,status,attempts,error,next_attempt`.
+- `POST /notification-channels`, `PUT /notification-channels/{id}`: `{name,provider,enabled,revision?,config?:{url,secret,allow_private}}`. Providers: `automation,webhook,slack,discord,gotify,ntfy,apprise`. Creation/provider changes require config; omission on edit retains encrypted settings. PUT requires current revision. Automation secret must be at least 32 bytes. Read fields: `id,name,provider,enabled,revision,has_config`; no URL or secret.
+- `DELETE /notification-channels/{id}`: requires removing rule references first. `POST /notification-channels/{id}/test` with `{}` explicitly sends a saved-destination test, even if disabled.
+- `POST /alert-rules`, `PUT /alert-rules/{id}`: `{name,enabled,kind,site_id,threshold,window_minutes,cooldown_minutes,channel_ids,revision?}`. Kinds: `blocked_volume,upstream_errors,certificate_expiry,acme_failure`. `site_id:0` means global. Counts 1–1000000, expiry days 1–90, window 1–60 minutes, cooldown 1–10080 minutes. PUT requires current revision. `DELETE /alert-rules/{id}` removes the trigger, preserving prior inbox/history records.
+
+See [setup, provider credentials, HMAC verification, delivery guarantees and MCP workflow](alerts.md).

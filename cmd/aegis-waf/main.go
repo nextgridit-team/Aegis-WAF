@@ -116,6 +116,9 @@ func run() error {
 	go func() { defer wg.Done(); a.RunWorker(ctx, "geolocation-sync", a.GeoSyncWorker) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "region-cache", a.RegionCacheWorker) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "bot-challenge-cleanup", a.BotChallengeWorker) }()
+	wg.Add(2)
+	go func() { defer wg.Done(); a.RunWorker(ctx, "alert-evaluation", a.AlertWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "notification-delivery", a.NotificationWorker) }()
 	errs := make(chan error, 3)
 	for i, s := range servers {
 		go func(i int, s *http.Server) {

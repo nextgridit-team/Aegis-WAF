@@ -29,3 +29,5 @@ Handle failures:
 MCP operation errors are also returned as tool results with `isError=true`; read the error rather than treating a successful transport response as a successful operation. The transport is stateless: a load balancer can route requests to any replica. It permits eight concurrent MCP HTTP requests per replica, with a 30-second deadline; long tasks such as queued Geo sync need later status polling.
 
 Read keys can also authenticate management HTTPS `/metrics` scrapes even when MCP itself is disabled. Source restrictions, expiry and revocation still apply. Metrics contain no request payloads or client-IP labels.
+
+Alert inbox/history reads use Read. Acknowledgement, trigger/destination management and explicit test sends use Configuration; they are independent of protection simulation/version changes. Destination URLs/tokens/signing secrets are never returned by normal reads.

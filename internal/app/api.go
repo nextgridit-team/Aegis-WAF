@@ -125,6 +125,7 @@ func (a *App) Management() http.Handler {
 	m := http.NewServeMux()
 	m.Handle("GET /metrics", a.metricsHandler())
 	m.HandleFunc("GET /api/metrics", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error { a.serveMetrics(w, r); return nil }))
+	alertAPI(a, m)
 	rateStateAPI(a, m)
 	dashboardAPI(a, m)
 	signatureAPI(a, m)

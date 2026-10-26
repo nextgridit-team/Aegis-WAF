@@ -136,3 +136,12 @@ INSERT INTO schema_version(version) VALUES (17) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS rate_state(id boolean PRIMARY KEY DEFAULT true CHECK(id),settings jsonb NOT NULL DEFAULT '{}'::jsonb,password_cipher bytea,key_id text NOT NULL DEFAULT '',namespace text NOT NULL DEFAULT gen_random_uuid()::text,revision bigint NOT NULL DEFAULT 1);
 INSERT INTO rate_state(id) VALUES(true) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES(18) ON CONFLICT DO NOTHING;
+
+-- Version 19: configurable notifications, durable alert inbox and leased delivery.
+CREATE TABLE IF NOT EXISTS notification_channels(id bigserial PRIMARY KEY,name text NOT NULL,provider text NOT NULL,enabled boolean NOT NULL DEFAULT true,config_cipher bytea NOT NULL,key_id text NOT NULL,revision bigint NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS alert_rules(id bigserial PRIMARY KEY,spec jsonb NOT NULL,channel_ids bigint[] NOT NULL DEFAULT '{}',revision bigint NOT NULL DEFAULT 1,created_at timestamptz NOT NULL DEFAULT now(),last_emitted timestamptz,next_eval timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS alerts(id bigserial PRIMARY KEY,data jsonb NOT NULL,at timestamptz NOT NULL DEFAULT now(),acknowledged_at timestamptz,acknowledged_by text NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS alerts_at ON alerts(at);
+CREATE TABLE IF NOT EXISTS alert_deliveries(id bigserial PRIMARY KEY,alert_id bigint NOT NULL REFERENCES alerts ON DELETE CASCADE,channel_id bigint NOT NULL REFERENCES notification_channels ON DELETE CASCADE,status text NOT NULL DEFAULT 'pending' CHECK(status IN('pending','sent','failed')),attempts int NOT NULL DEFAULT 0,error text NOT NULL DEFAULT '',next_attempt timestamptz NOT NULL DEFAULT now(),lease_until timestamptz,lease_owner text NOT NULL DEFAULT '',UNIQUE(alert_id,channel_id));
+CREATE INDEX IF NOT EXISTS alert_deliveries_due ON alert_deliveries(next_attempt) WHERE status='pending';
+INSERT INTO schema_version VALUES(19) ON CONFLICT DO NOTHING;
