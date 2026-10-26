@@ -88,7 +88,7 @@ func emitSecurityEvent(logger *slog.Logger, e accessEvent) {
 		slog.Int("schema_version", 1), slog.String("event", kind), slog.String("action", action), slog.Time("timestamp", e.at.UTC()), slog.Time("request_at", e.at),
 		slog.Int64("site_id", e.site), slog.Int64("policy_id", e.policyID), slog.Int64("policy_revision", e.policyRevision), slog.String("client_ip", e.peer), slog.String("method", e.method), slog.Int("status", e.status), slog.String("response_source", responseSource), slog.Int64("duration_ms", e.duration),
 		slog.Any("rule_triggered", triggers), slog.Any("matched_payload", payload), slog.String("matched_payload_source", source), slog.Bool("payload_truncated", truncated),
-		slog.Any("rule_ids", ids), slog.Any("signature_ids", signatureIDs), slog.Any("signals", signals), slog.Any("network_access", e.network),
+		slog.Any("rule_ids", ids), slog.Any("signature_ids", signatureIDs), slog.Any("signals", signals), slog.Any("network_access", e.network), slog.Any("bot", e.bot),
 	}
 	if e.evidence != nil {
 		attrs = append(attrs, slog.String("evidence_id", e.evidence.id))

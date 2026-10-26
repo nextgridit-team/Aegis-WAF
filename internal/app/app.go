@@ -77,6 +77,7 @@ type accessEvent struct {
 	regionCode, regionName                               string
 	network                                              networkAccessResult
 	managed                                              managedSignatureResult
+	bot                                                  botResult
 	prepareEvidence                                      func() *evidenceEvent
 	releaseEvidence                                      func()
 	geo                                                  *maxminddb.Reader
@@ -110,6 +111,9 @@ type App struct {
 	captureSlots                  chan struct{}
 	evidenceDropped               atomic.Uint64
 	flood                         floodLimiter
+	botRates                      floodLimiter
+	botWork                       chan struct{}
+	botClearances                 botClearanceCache
 	metrics                       liveMetrics
 	replicaID                     string
 	feedHTTP                      http.RoundTripper
@@ -137,7 +141,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	a := &App{managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a := &App{botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {
 			slog.Warn("snapshot cache unavailable; database startup required")
@@ -334,6 +338,7 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 	p := &httputil.ReverseProxy{BufferPool: &forwardingBuffers, Rewrite: func(pr *httputil.ProxyRequest) {
 		pr.SetURL(target)
 		rewriteProxyHeaders(pr, settings)
+		stripBotCookies(pr.Out)
 		if state, _ := pr.In.Context().Value(managedResponseKey{}).(*managedResponseState); state != nil {
 			pr.Out.Header.Set("Accept-Encoding", "identity")
 		}
@@ -408,7 +413,20 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	start := time.Now()
 	secureResponse := r.TLS != nil
-	rec := &statusWriter{ResponseWriter: w, status: 200, responseSource: "waf", beforeHeader: func(h http.Header) { rt.site.Headers.applyResponseSecurity(h, secureResponse) }, onHijack: func(c net.Conn) net.Conn {
+	botOwnedResponse := strings.HasPrefix(r.URL.Path, botChallengePrefix)
+	rec := &statusWriter{ResponseWriter: w, status: 200, responseSource: "waf", beforeHeader: func(h http.Header) {
+		if botOwnedResponse {
+			// Application header rewrites must not remove proof cookies, cache a
+			// challenge or replace its CSP/content type. Retain host HSTS only.
+			security := http.Header{}
+			rt.site.Headers.applyResponseSecurity(security, secureResponse)
+			if value := security.Get("Strict-Transport-Security"); value != "" {
+				h.Set("Strict-Transport-Security", value)
+			}
+			return
+		}
+		rt.site.Headers.applyResponseSecurity(h, secureResponse)
+	}, onHijack: func(c net.Conn) net.Conn {
 		return &trackedConnection{Conn: c, closed: func() { a.ConnectionState(c, http.StateClosed) }}
 	}}
 	policy := s.protection[rt.site.ID]
@@ -435,10 +453,41 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	if policy != nil {
 		network = policy.network.evaluate(clientIP, reliableIdentity, func() string { return countryFor(s.geo, clientIP) })
 	}
+	botEndpoint := strings.HasPrefix(r.URL.Path, botChallengePrefix)
+	botDecision := botResult{}
+	botBlocked, botRequired := false, false
+	var botReq botRequest
 	signals := []string{}
 	protectionBlocked, protectionStatus := false, 0
 	if !network.Blocked && !network.BypassWAF {
 		signals, protectionBlocked, protectionStatus = a.protectResolved(policy, rt.site.ID, r, clientIP, start, reliableIdentity)
+	}
+	if policy != nil && policy.BotChallenge.Enabled && policy.BotMode != "off" && !botEndpoint && !network.Blocked && !network.BypassWAF && !protectionBlocked && (!reliableIdentity || !matchesCIDRs(policy.botExempt, clientIP)) {
+		botDecision = a.botScore(policy, rt.site.ID, r, clientIP, start)
+		if botDecision.Score >= botDecision.Threshold {
+			if policy.BotMode == "observe" {
+				botDecision.Decision = "observe"
+				signals = append(signals, "bot_would_challenge")
+			} else {
+				botReq = a.botContext(policy, rt.site.ID, policyID, policyRevision, r, clientIP, secureResponse)
+				botReq.result = botDecision
+				ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+				cleared, err := a.hasBotClearance(ctx, r, botReq)
+				cancel()
+				if err != nil {
+					protectionBlocked = true
+					protectionStatus = 503
+					botDecision.Decision = "unavailable"
+					signals = append(signals, "bot_verification_unavailable")
+				} else if cleared {
+					botDecision.Decision = "cleared"
+				} else {
+					botRequired = true
+					botDecision.Decision = "challenge"
+					signals = append(signals, "bot_challenge_required")
+				}
+			}
+		}
 	}
 	if network.WouldBlock {
 		signals = append(signals, network.Decision)
@@ -449,13 +498,17 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	facts.facts["client_ip"] = Fact{State: "present", Values: []string{clientIP.String()}}
 	results := []RuleResult{}
 	blocked := false
-	if !network.Blocked && !network.BypassWAF {
+	if !botEndpoint && !network.Blocked && !network.BypassWAF {
 		results, blocked = evaluateRules(activeRules, facts, start)
 	}
-	evidence := a.deferEvidence(s.capture[rt.site.ID], facts, results, start, rt.site.ID)
+	capturePolicy := s.capture[rt.site.ID]
+	if botEndpoint {
+		capturePolicy = nil
+	}
+	evidence := a.deferEvidence(capturePolicy, facts, results, start, rt.site.ID)
 	managedResult := managedSignatureResult{}
 	managedBlocked, managedStatus := false, 0
-	if managed != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked {
+	if !botEndpoint && managed != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked {
 		if managed.Options.ResponseMode != "off" {
 			ctx, cancel := context.WithCancel(r.Context())
 			defer cancel()
@@ -478,7 +531,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		}
 
 		peer := clientIP.String()
-		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
 			event.securitySamples = capture.Settings.SecuritySamples
@@ -524,6 +577,31 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	if blocked {
 		rec.Header().Set("Cache-Control", "no-store")
 		http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
+		return
+	}
+	if botEndpoint {
+		if policy == nil {
+			http.NotFound(rec, r)
+			return
+		}
+		botReq = a.botContext(policy, rt.site.ID, policyID, policyRevision, r, clientIP, secureResponse)
+		botDecision = a.serveBotEndpoint(rec, r, botReq, policy, reliableIdentity)
+		botBlocked = botDecision.Decision == "failed"
+		if botDecision.Decision == "passed" {
+			signals = append(signals, "bot_challenge_passed")
+		} else if botBlocked {
+			signals = append(signals, "bot_challenge_failed")
+		}
+		return
+	}
+	if botRequired {
+		botOwnedResponse = true
+		botBlocked = true
+		if !secureResponse && rt.site.CertificateID != nil {
+			http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), 308)
+			return
+		}
+		a.requireBotChallenge(rec, r, botReq, reliableIdentity)
 		return
 	}
 	if !secureResponse && rt.site.RedirectHTTPS {

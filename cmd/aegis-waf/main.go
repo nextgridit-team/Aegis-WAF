@@ -109,12 +109,13 @@ func run() error {
 		}
 		servers = append(servers, s)
 	}
-	wg.Add(5)
+	wg.Add(6)
 	go func() { defer wg.Done(); a.RunWorker(ctx, "configuration", a.Background) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "acme", a.ACMEWorker) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "rule-feeds", a.FeedWorker) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "geolocation-sync", a.GeoSyncWorker) }()
 	go func() { defer wg.Done(); a.RunWorker(ctx, "region-cache", a.RegionCacheWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(ctx, "bot-challenge-cleanup", a.BotChallengeWorker) }()
 	errs := make(chan error, 3)
 	for i, s := range servers {
 		go func(i int, s *http.Server) {

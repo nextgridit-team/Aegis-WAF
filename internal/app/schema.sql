@@ -113,3 +113,12 @@ ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS observed_country text NOT NULL 
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location_source text NOT NULL DEFAULT '';
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location_reference_ip text NOT NULL DEFAULT '';
 INSERT INTO schema_version VALUES(14) ON CONFLICT DO NOTHING;
+
+-- Version 15: short-lived self-hosted CAPTCHA challenges and scoped clearances.
+CREATE TABLE IF NOT EXISTS bot_challenges(id text PRIMARY KEY,scope text NOT NULL,binding text NOT NULL,client_bucket text NOT NULL,answer_cipher bytea NOT NULL,key_id text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),expires_at timestamptz NOT NULL,attempts integer NOT NULL DEFAULT 0 CHECK(attempts BETWEEN 0 AND 5),media_reads integer NOT NULL DEFAULT 0 CHECK(media_reads BETWEEN 0 AND 20),used boolean NOT NULL DEFAULT false);
+CREATE INDEX IF NOT EXISTS bot_challenges_expiry ON bot_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS bot_challenges_client ON bot_challenges(client_bucket,created_at);
+CREATE TABLE IF NOT EXISTS bot_clearances(token_hash text PRIMARY KEY,scope text NOT NULL,binding text NOT NULL,expires_at timestamptz NOT NULL);
+CREATE INDEX IF NOT EXISTS bot_clearances_expiry ON bot_clearances(expires_at);
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS bot jsonb NOT NULL DEFAULT '{}'::jsonb;
+INSERT INTO schema_version VALUES(15) ON CONFLICT DO NOTHING;

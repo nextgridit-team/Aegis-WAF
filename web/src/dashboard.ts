@@ -1,3 +1,8 @@
+import {
+  botChallengeMarkup,
+  readBotChallenge,
+  type BotChallenge,
+} from "./bot-challenge";
 import { hideLocalTraffic, saveHideLocalTraffic } from "./map-preferences";
 import { localLocationNote } from "./location";
 import {
@@ -26,6 +31,7 @@ import { protectionOptions, readProtectionOptions } from "./protection-options";
 import { world } from "./world";
 type Site = { id: number; name: string; policies?: PolicySummary[] };
 export type Protection = {
+  bot_challenge?: BotChallenge;
   trusted_addresses?: AddressSelection;
   flood_exempt_addresses?: AddressSelection;
   bot_exempt_addresses?: AddressSelection;
@@ -122,6 +128,10 @@ const signalNames: Record<string, string> = {
   application_rate: "Application request rate",
   automation_user_agent: "Automation user agent",
   empty_user_agent: "Missing user agent",
+  bot_challenge_required: "Bot verification required",
+  bot_challenge_passed: "Bot verification passed",
+  bot_challenge_failed: "Bot verification failed",
+  bot_would_challenge: "Bot verification recommended (Observe)",
 };
 const format = (n: number) =>
   new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(n);
@@ -450,7 +460,7 @@ export function makeDashboardUI(d: Deps) {
       const assigned =
         sites.find((site) => String(site.id) === select.value)?.policies || [];
       document.getElementById("protection-fields")!.innerHTML =
-        `${policySummary(assigned, esc)}<div ${assigned.length ? "hidden" : ""}><h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. This is a basic signal detector, not a browser challenge or advanced bot classifier.</p></div>${protectionOptions(p, { objects, groups })}`;
+        `${policySummary(assigned, esc)}<div ${assigned.length ? "hidden" : ""}><h3>HTTP flood protection</h3>${mode("mode", "Flood mode", p.mode)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", p.requests_per_second, 100000)}${number("burst", "Client burst allowance", p.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", p.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", p.site_burst, 2000000)}</div><p class="muted">Token buckets permit short bursts, then block with HTTP 429 and Retry-After. Limits are per replica, so total capacity increases with replica count.</p><h3>Bot signals</h3>${mode("bot_mode", "Bot mode", p.bot_mode)}<label class="check"><input name="block_empty_user_agent" type="checkbox" ${p.block_empty_user_agent ? "checked" : ""}><span>Flag requests without a User-Agent header</span></label><p class="muted">Detects declared scanner and headless-browser user agents. Observe first: APIs, monitoring tools and test browsers can be legitimate. Enable selective verification to challenge only requests that reach the configured suspicion threshold.</p>${botChallengeMarkup(p.bot_challenge)}</div>${protectionOptions(p, { objects, groups })}`;
     };
     fill();
     select.addEventListener("change", fill);
@@ -462,6 +472,7 @@ export function makeDashboardUI(d: Deps) {
         site_requests_per_second: Number(f.get("site_requests_per_second")),
         site_burst: Number(f.get("site_burst")),
         bot_mode: String(f.get("bot_mode")),
+        bot_challenge: readBotChallenge(f),
         block_empty_user_agent: f.has("block_empty_user_agent"),
         ...readProtectionOptions(f),
       };

@@ -83,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix='aegis-acme-ui-') as work:
         credentials = work / 'credentials.json'
         credentials.write_text(json.dumps({'secret': (secret_dir / 'bootstrap_secret').read_text().strip(), 'password': secrets.token_urlsafe(32)}))
         credentials.chmod(0o600)
-        browser_env = dict(os.environ, BROWSER_CREDENTIALS_FILE=str(credentials), BROWSER_BASE_URL=f'http://127.0.0.1:{port("app", 9090)}', BROWSER_PROXY_URL=f'http://127.0.0.1:{port("app", 8080)}', BROWSER_HTTPS_PORT=port('app', 8443), BROWSER_ALT_HTTPS_PORT=port('app_alt', 8443), BROWSER_ACME_DIRECTORY='https://pebble:14000/dir', BROWSER_ISSUER_ROOT=str(root_file), BROWSER_UPSTREAM_URL='http://upstream:8000', BROWSER_ARTIFACT_DIR=str(ARTIFACTS))
+        browser_env = dict(os.environ, BROWSER_CAPTCHA_DATABASE_CONTAINER=dc("ps", "-q", "db").stdout.strip(), BROWSER_TEST_ENCRYPTION_KEY_FILE=str(secret_dir / "encryption_key"), BROWSER_CREDENTIALS_FILE=str(credentials), BROWSER_BASE_URL=f'http://127.0.0.1:{port("app", 9090)}', BROWSER_PROXY_URL=f'http://127.0.0.1:{port("app", 8080)}', BROWSER_HTTPS_PORT=port('app', 8443), BROWSER_ALT_HTTPS_PORT=port('app_alt', 8443), BROWSER_ACME_DIRECTORY='https://pebble:14000/dir', BROWSER_ISSUER_ROOT=str(root_file), BROWSER_UPSTREAM_URL='http://upstream:8000', BROWSER_ARTIFACT_DIR=str(ARTIFACTS))
         result = run('node', str(ROOT / 'tests/browser.cjs'), check=False, env=browser_env)
         print(result.stdout, end='', flush=True)
         if result.returncode:

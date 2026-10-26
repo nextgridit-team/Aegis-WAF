@@ -33,6 +33,10 @@ func seedBaselinePolicy(ctx context.Context, tx pgx.Tx) error {
 		return e
 	}
 	spec := policySpec{Name: "Baseline protection", Description: "Included OWASP CRS request protection: Block, paranoia level 1, anomaly threshold 5, 1 MiB request-body limit. Bot and flood controls are off until tuned for the application. Assign explicitly; existing applications are not changed.", Mode: "block", ManagedSignatures: managedSignatureOptions{SetID: set.ID, Mode: "block", Paranoia: 1, Threshold: 5, BodyLimit: 1 << 20, Exclusions: []int{}}, RequestsPerSecond: 20, Burst: 60, SiteRequestsPerSecond: 1000, SiteBurst: 2000, Groups: []policyGroup{}}
+	spec.BotChallenge, e = normalizeBotChallenge(spec.BotChallenge)
+	if e != nil {
+		return e
+	}
 	spec.ManagedSignatures, e = normalizeManagedSignatures(spec.ManagedSignatures)
 	if e != nil {
 		return e

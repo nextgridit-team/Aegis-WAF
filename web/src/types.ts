@@ -1,3 +1,4 @@
+import type { BotDecision } from "./bot-challenge";
 import type { NetworkDecision } from "./network-access";
 import type { ManagedSignatureResult } from "./signature-sets";
 import type { PolicySummary } from "./policy-page";
@@ -70,6 +71,7 @@ export type Access = {
   region_code?: string;
   region_name?: string;
   managed_signatures?: ManagedSignatureResult;
+  bot?: BotDecision;
   id: number;
   at: string;
   site_id: number;

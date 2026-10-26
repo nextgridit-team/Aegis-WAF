@@ -1,3 +1,4 @@
+import { botChallengeMarkup, readBotChallenge } from "./bot-challenge";
 import { makeLiveMap } from "./live-map";
 import { clientAddress } from "./response-status";
 import {
@@ -539,7 +540,7 @@ function closeEditor() {
 function siteProtectionMarkup(p: Protection, policies: PolicySummary[] = []) {
   const mode = (name: string, label: string, value: string) =>
     `<label class="field" for="site-${name}">${label}</label><select id="site-${name}" name="${name}">${["off", "observe", "block"].map((m) => `<option value="${m}" ${m === value ? "selected" : ""}>${m === "off" ? "Off" : m === "observe" ? "Observe · log and allow" : "Block · reject matching requests"}</option>`).join("")}</select>`;
-  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Basic scanner/headless-browser user-agent signals. Matching signals can also come from legitimate clients.</small></div><details class="advanced"><summary>Client identity, trusted proxies and exemptions</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p, addressInventory)}</details>`;
+  return `<div class="form-divider"></div><h3>Application protection</h3>${policySummary(policies, esc)}<div ${policies.length ? "hidden" : ""}><p class="muted">Choose protection for this application. Observe helps you check impact before blocking.</p>${mode("flood_mode", "HTTP flood protection", p.mode)}<div id="site-flood-rates" ${p.mode === "off" ? "hidden" : ""}>${field("client_rate", "Requests / second per client", String(p.requests_per_second), "number", 'required min="1" max="100000"')}${field("client_burst", "Client burst allowance", String(p.burst), "number", 'required min="1" max="1000000"')}${field("application_rate", "Requests / second per application", String(p.site_requests_per_second), "number", 'required min="1" max="1000000"')}${field("application_burst", "Application burst allowance", String(p.site_burst), "number", 'required min="1" max="2000000"')}<small>Rate and burst budgets apply per replica. Burst must be at least the configured requests per second.</small></div>${mode("bot_mode", "Anti-bot protection", p.bot_mode)}<small>Observe first and tune for your application; legitimate tools can look automated.</small>${botChallengeMarkup(p.bot_challenge)}</div><details class="advanced"><summary>Client identity, trusted proxies and exemptions</summary><div ${policies.length ? "hidden" : ""}>${check("empty_user_agent", "Flag requests without a User-Agent header", p.block_empty_user_agent)}</div>${protectionOptions(p, addressInventory)}</details>`;
 }
 async function siteForm(site?: Site, certificate?: Certificate) {
   const initialPolicies = site
@@ -599,6 +600,7 @@ async function siteForm(site?: Site, certificate?: Certificate) {
       protection: {
         mode: String(f.get("flood_mode")),
         bot_mode: String(f.get("bot_mode")),
+        bot_challenge: readBotChallenge(f),
         requests_per_second: Number(f.get("client_rate")),
         burst: Number(f.get("client_burst")),
         site_requests_per_second: Number(f.get("application_rate")),

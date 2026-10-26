@@ -19,7 +19,7 @@ const { execFileSync } = require("node:child_process");
   const browser = await chromium.launch({
     executablePath: process.env.BROWSER_EXECUTABLE,
     headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    args: ["--no-sandbox", "--disable-dev-shm-usage", "--host-resolver-rules=MAP manual.example.test 127.0.0.1"],
   });
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
@@ -1365,6 +1365,43 @@ const { execFileSync } = require("node:child_process");
       const response=await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"text/html"}});
       assert.equal(response.status(),403);
     });
+    // Fully self-hosted selective CAPTCHA: no provider keys or test bypass route.
+    if (process.env.BROWSER_CAPTCHA_DATABASE_CONTAINER) {
+      await nav("Policies").click();
+      await page.locator("tbody tr").filter({hasText:"External test policy"}).getByRole("button",{name:"Edit",exact:true}).click();
+      await dialog().getByLabel("Signature mode",{exact:true}).selectOption("off");
+      await dialog().getByText("Selective bot verification",{exact:true}).click();
+      await dialog().getByLabel("Challenge suspected bots with self-hosted CAPTCHA",{exact:true}).check();
+      await dialog().getByRole("button",{name:"Save policy",exact:true}).click();
+      await dialog().waitFor({state:"detached"});
+      await page.waitForTimeout(2500);
+      const captchaURL=`https://manual.example.test:${process.env.BROWSER_HTTPS_PORT}/captcha-browser`;
+      const ordinary=await browser.newContext({ignoreHTTPSErrors:true,userAgent:"Mozilla/5.0 Chrome/144.0 ordinary",extraHTTPHeaders:{"X-Real-IP":"198.51.100.58"}});
+      const normalPage=await ordinary.newPage();
+      assert.equal((await normalPage.goto(captchaURL)).status(),200);
+      assert.equal((await ordinary.cookies()).filter(c=>c.name.startsWith("__Host-aegis_")).length,0);
+      await ordinary.close();
+      const suspect=await browser.newContext({ignoreHTTPSErrors:true,userAgent:"Mozilla/5.0 HeadlessChrome/144.0 suspicious",extraHTTPHeaders:{"X-Real-IP":"198.51.100.58"}});
+      const challenge=await suspect.newPage();
+      assert.equal((await challenge.goto(captchaURL)).status(),403);
+      await challenge.getByRole("heading",{name:"Verify your request",exact:true}).waitFor();
+      const image=challenge.locator("img");await image.waitFor();await challenge.waitForFunction(el=>el.complete&&el.naturalWidth===240,await image.elementHandle());
+      for(const width of [390,1440]) {await challenge.setViewportSize({width,height:1000});assert.ok(await challenge.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await challenge.screenshot({path:path.join(out,`captcha-${width}.png`)});}
+      const pending=(await suspect.cookies()).find(c=>c.name==="__Host-aegis_challenge");assert.ok(pending.secure&&pending.httpOnly);
+      const key=Buffer.from(fs.readFileSync(process.env.BROWSER_TEST_ENCRYPTION_KEY_FILE,"utf8").trim(),"base64");
+      const decrypt=(encoded,aad)=>{const raw=Buffer.from(encoded,"base64url");const d=require("node:crypto").createDecipheriv("aes-256-gcm",key,raw.subarray(0,12));d.setAAD(Buffer.from(aad));d.setAuthTag(raw.subarray(-16));return Buffer.concat([d.update(raw.subarray(12,-16)),d.final()]);};
+      const claims=JSON.parse(decrypt(pending.value,"primary:bot-cookie-v1"));assert.match(claims.i,/^[A-Za-z0-9_-]{43}$/);
+      // Fixture-only DB access reads the encrypted solution; production has no
+      // answer-reading endpoint and no hard-coded passing CAPTCHA answer.
+      const row=execFileSync("docker",["exec",process.env.BROWSER_CAPTCHA_DATABASE_CONTAINER,"psql","-XAt","-U","aegis_waf","-d","aegis_waf","-c",`SELECT key_id,encode(answer_cipher,'base64') FROM bot_challenges WHERE id='${claims.i}'`],{encoding:"utf8"}).trim();
+      const split=row.indexOf("|");const answer=decrypt(row.slice(split+1).replace(/\s/g,""),row.slice(0,split)+":bot-answer:"+claims.i+":"+claims.s).map(d=>d+48).toString();
+      await challenge.getByLabel("Enter the six digits",{exact:true}).fill(answer);
+      await Promise.all([challenge.waitForURL(captchaURL),challenge.getByRole("button",{name:"Verify and continue",exact:true}).click()]);
+      assert.equal(await challenge.locator("body").innerText(),"ACME verified application");
+      assert.ok((await suspect.cookies()).some(c=>c.name==="__Host-aegis_clearance"&&c.httpOnly&&c.secure));
+      assert.equal((await challenge.goto(`https://manual.example.test:${process.env.BROWSER_ALT_HTTPS_PORT}/captcha-browser`)).status(),200);
+      await suspect.close();
+    }
     // A mutation failure keeps the form editable and does not claim success.
     await nav("Proxy hosts").click();
     const manualSite = page

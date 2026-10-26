@@ -16,24 +16,26 @@ import (
 
 // Limits are local to each replica. No database round trip occurs on the request path.
 type ProtectionSettings struct {
-	TrustedAddresses      addressSelection `json:"trusted_addresses"`
-	FloodExemptAddresses  addressSelection `json:"flood_exempt_addresses"`
-	BotExemptAddresses    addressSelection `json:"bot_exempt_addresses"`
-	Mode                  string           `json:"mode"`
-	RequestsPerSecond     int              `json:"requests_per_second"`
-	Burst                 int              `json:"burst"`
-	SiteRequestsPerSecond int              `json:"site_requests_per_second"`
-	SiteBurst             int              `json:"site_burst"`
-	BotMode               string           `json:"bot_mode"`
-	BlockEmptyUA          bool             `json:"block_empty_user_agent"`
-	TrustedProxies        []string         `json:"trusted_proxies"`
-	ClientIPHeader        string           `json:"client_ip_header"`
-	FloodExemptCIDRs      []string         `json:"flood_exempt_cidrs"`
-	BotExemptCIDRs        []string         `json:"bot_exempt_cidrs"`
+	BotChallenge          botChallengeSettings `json:"bot_challenge"`
+	TrustedAddresses      addressSelection     `json:"trusted_addresses"`
+	FloodExemptAddresses  addressSelection     `json:"flood_exempt_addresses"`
+	BotExemptAddresses    addressSelection     `json:"bot_exempt_addresses"`
+	Mode                  string               `json:"mode"`
+	RequestsPerSecond     int                  `json:"requests_per_second"`
+	Burst                 int                  `json:"burst"`
+	SiteRequestsPerSecond int                  `json:"site_requests_per_second"`
+	SiteBurst             int                  `json:"site_burst"`
+	BotMode               string               `json:"bot_mode"`
+	BlockEmptyUA          bool                 `json:"block_empty_user_agent"`
+	TrustedProxies        []string             `json:"trusted_proxies"`
+	ClientIPHeader        string               `json:"client_ip_header"`
+	FloodExemptCIDRs      []string             `json:"flood_exempt_cidrs"`
+	BotExemptCIDRs        []string             `json:"bot_exempt_cidrs"`
 }
 type protectionPolicy struct {
-	network     *networkAccessPolicy
-	budgetScope int64
+	network        *networkAccessPolicy
+	budgetScope    int64
+	botFingerprint string
 	ProtectionSettings
 	trusted                []netip.Prefix
 	floodExempt, botExempt []netip.Prefix
@@ -59,7 +61,14 @@ func compileProtection(s ProtectionSettings) (*protectionPolicy, error) {
 	default:
 		return nil, invalid("client_ip_header must be x-forwarded-for, x-real-ip or cf-connecting-ip")
 	}
+	var err error
+	s.BotChallenge, err = normalizeBotChallenge(s.BotChallenge)
+	if err != nil {
+		return nil, err
+	}
 	p := &protectionPolicy{ProtectionSettings: s}
+	raw, _ := json.Marshal(s)
+	p.botFingerprint = hash(string(raw))
 	for _, list := range []struct {
 		raw        []string
 		target     *[]netip.Prefix
@@ -265,7 +274,7 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 			status = http.StatusTooManyRequests
 		}
 	}
-	if p.BotMode != "off" && (!reliable || !matchesCIDRs(p.botExempt, ip)) {
+	if p.BotMode != "off" && !p.BotChallenge.Enabled && (!reliable || !matchesCIDRs(p.botExempt, ip)) {
 		ua := strings.ToLower(r.UserAgent())
 		bot := ""
 		for _, v := range []string{"sqlmap", "nikto", "nuclei", "masscan", "zgrab", "headlesschrome", "phantomjs"} {

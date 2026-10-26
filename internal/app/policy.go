@@ -23,6 +23,7 @@ type policyGroup struct {
 	Rules      []policyRule `json:"rules"`
 }
 type policySpec struct {
+	BotChallenge          botChallengeSettings    `json:"bot_challenge"`
 	NetworkAccess         networkAccessSettings   `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
 	Name                  string                  `json:"name"`
@@ -44,6 +45,7 @@ type policyGroupInput struct {
 	RuleIDs    []int64  `json:"rule_ids"`
 }
 type policySpecInput struct {
+	BotChallenge          botChallengeSettings    `json:"bot_challenge"`
 	NetworkAccess         networkAccessSettings   `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
 	Name                  string                  `json:"name"`
@@ -113,6 +115,7 @@ func policyProtection(base *protectionPolicy, s policySpec, id int64) (*protecti
 	p.SiteRequestsPerSecond = s.SiteRequestsPerSecond
 	p.SiteBurst = s.SiteBurst
 	p.BlockEmptyUA = s.BlockEmptyUA
+	p.BotChallenge = s.BotChallenge
 	compiled, e := compileProtection(p)
 	if e == nil {
 		compiled.budgetScope = id
@@ -202,7 +205,11 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 			return policySpec{}, invalid("download a country database before enabling Geo blocking")
 		}
 	}
-	s := policySpec{NetworkAccess: network.Settings, ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
+	challenge, e := normalizeBotChallenge(in.BotChallenge)
+	if e != nil {
+		return policySpec{}, e
+	}
+	s := policySpec{BotChallenge: challenge, NetworkAccess: network.Settings, ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
 	if len(in.Groups) > 10 {
 		return s, invalid("at most 10 groups per policy")
 	}
