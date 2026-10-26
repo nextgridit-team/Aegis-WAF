@@ -37,4 +37,10 @@ Update all replicas before using `community_mitigations`. The baseline gains eve
 
 ## Single shipped community feed
 
-The old official starter subscription is retired once on upgrade and its dashboard shortcut is removed. Previously imported native rules, their history/activation and policy assignments are retained. Custom feeds are untouched. The old version 1 fixture URL remains for compatibility; new subscriptions should use the community manifest.
+The old official starter subscription is retired once on upgrade and its dashboard shortcut is removed. Previously imported native rules, their history/activation and policy assignments are retained. Custom feeds are untouched. The old version 1 fixture URL remains for compatibility; new subscriptions should use the community release URL.
+
+## Packaged community releases
+
+Upgrade all replicas before relying on schema 3 feeds. The exact official workspace URL migrates to `rules/community/release.json`; source identity, administrator name and frozen policy selections are retained. The descriptor points to one checksummed ZIP of individual JSON rules, so a changed sync uses two requests regardless of rule count. Custom version 2 sources remain supported. The official old manifest is a frozen compatibility snapshot rather than the update channel. Deleted subscriptions are not recreated.
+
+The merged 95-rule corpus is bundled for fresh installations; broad endpoint-containment rules can reject legitimate product operations. Existing policy copies are not automatically expanded by sync. Review coverage in Policies before changing selections or refreshing. This transport change does not raise the 100-rule policy or 1000-assigned-rule budgets and does not require another database schema migration. [Distribution and bounds](rule-feed-distribution.md).

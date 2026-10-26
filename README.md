@@ -56,7 +56,7 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 ## What Aegis does
 
 - **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
-- **Choose targeted mitigation rules.** The [community catalogue](docs/rule-feeds.md) syncs independently versioned CVE rules every 12 hours. Enable them inside each policy, select all or individual rules, and explicitly refresh pinned updates. The shipped baseline includes all bundled community mitigations.
+- **Choose targeted mitigation rules.** The [community catalogue](docs/rule-feeds.md) syncs independently versioned CVE rules every 12 hours through a compact release descriptor and package. Enable them inside each policy, select all or individual rules, and explicitly refresh pinned updates. The shipped baseline includes all bundled community mitigations.
 - **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
 - **See what happened.** Inspect recorded requests and matched rules, follow live traffic maps, and collect structured JSON events or authenticated Prometheus metrics. Configure [alerts](docs/alerts.md) with notification destinations or a signed webhook to your own AI agent. Filter the dashboard by application or view the whole gateway.
 - **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions and HTTP flood rates. Selective self-hosted image/audio CAPTCHA challenges suspicious traffic and grants bounded clearance after a successful solve.
@@ -109,15 +109,15 @@ Open **Dashboard → Live traffic map** to follow recorded traffic on the world 
 
 Start with the **[documentation index](docs/README.md)**, or go directly to:
 
-| Task                                       | Guide                                                                                                                                                                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                                                                 |
-| Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                                                                      |
-| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Rule catalogues](docs/rule-feeds.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md)             |
-| Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Prometheus metrics](docs/observability.md) · [Evidence privacy](docs/evidence-privacy.md) |
-| Scale shared rate budgets                  | [Redis/Dragonfly setup and failure behavior](docs/shared-rate-state.md)                                                                                                               |
-| Configure country restrictions             | [Geo blocking in a policy](docs/geolocation.md#apply-geo-blocking-to-an-application)                                                                                                  |
-| Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                                                                             |
+| Task                                       | Guide                                                                                                                                                                                                             |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy, update and recover                 | [Deployment](docs/deployment.md) · [Updates](docs/updating.md) · [Architecture](docs/architecture.md)                                                                                                             |
+| Understand certificate and secret storage  | [Certificate lifecycle](docs/certificates.md) · [Encryption at rest](docs/encryption-at-rest.md)                                                                                                                  |
+| Apply signatures and tune protection       | [Policies](docs/policies.md) · [Managed signatures](docs/managed-signatures.md) · [Rule catalogues](docs/rule-feeds.md) · [Body inspection](docs/body-inspection.md) · [Security tuning](docs/security-tuning.md) |
+| Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Prometheus metrics](docs/observability.md) · [Evidence privacy](docs/evidence-privacy.md)                             |
+| Scale shared rate budgets                  | [Redis/Dragonfly setup and failure behavior](docs/shared-rate-state.md)                                                                                                                                           |
+| Configure country restrictions             | [Geo blocking in a policy](docs/geolocation.md#apply-geo-blocking-to-an-application)                                                                                                                              |
+| Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                                                                                                         |
 
 ## Current limits
 

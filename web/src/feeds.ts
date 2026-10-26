@@ -50,7 +50,7 @@ type Context = {
   notice: (message: string, error?: boolean) => void;
 };
 const community =
-  "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json";
+  "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/release.json";
 export function makeFeedsUI(c: Context) {
   const { api, esc } = c;
   let sources: Source[] = [];
@@ -86,20 +86,20 @@ export function makeFeedsUI(c: Context) {
             "Rule sources",
           )
         : '<section class="empty-state"><h2>No rule sources yet</h2><p>Add a public HTTPS manifest to share independently versioned rules across policies.</p></section>') +
-      `<section class="section"><h2>Aegis community mitigation feed</h2><p class="muted">Independent CVE-labelled rules with checksums, revisions, regression cases and explicit partial-mitigation limits. Select only rules compatible with each application.</p>${button("community-feed", "Use Aegis community feed")}<p><a href="${community}" target="_blank" rel="noreferrer">View the manifest</a></p></section>`
+      `<section class="section"><h2>Aegis community mitigation feed</h2><p class="muted">Independent CVE-labelled rules with checksums, revisions, regression cases and explicit partial-mitigation limits. Select only rules compatible with each application.</p>${button("community-feed", "Use Aegis community feed")}<p><a href="${community}" target="_blank" rel="noreferrer">View release metadata</a></p></section>`
     );
   }
   function add(communityFeed = false) {
     c.openEditor(
       "Add rule source",
-      `<form id="feed-form"><label class="field">Name<input name="name" maxlength="120" required value="${communityFeed ? "Aegis community mitigations" : ""}" placeholder="My rule source"></label><label class="field">Feed URL<input name="url" type="url" required maxlength="2048" value="${communityFeed ? community : ""}" placeholder="https://example.com/aegis-rules.json"></label><label class="field" for="feed-site">Application</label><select id="feed-site" name="site_id"><option value="0" selected>Workspace catalogue · all policies (manifest v2)</option>${c
+      `<form id="feed-form"><label class="field">Name<input name="name" maxlength="120" required value="${communityFeed ? "Aegis community mitigations" : ""}" placeholder="My rule source"></label><label class="field">Feed URL<input name="url" type="url" required maxlength="2048" value="${communityFeed ? community : ""}" placeholder="https://example.com/aegis-rules.json"></label><label class="field" for="feed-site">Application</label><select id="feed-site" name="site_id"><option value="0" selected>Workspace catalogue · all policies (release v3 / legacy v2)</option>${c
         .sites()
         .map(
           (s) => `<option value="${s.id}" >${esc(s.name)} · legacy v1</option>`,
         )
         .join(
           "",
-        )}</select><p class="muted">Public HTTPS only. Workspace catalogues use a version 2 manifest pointing to individual checksummed rule files. Application-bound sources retain legacy version 1 JSON imports. ModSecurity and vendor formats need conversion. Sync is coordinated across replicas and checks every 12 hours. The first check runs within 30 seconds, or use Sync now.</p><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Add source">Add source</button></div></form>`,
+        )}</select><p class="muted">Public HTTPS only. Workspace catalogues use a small version 3 release descriptor and one verified package of individual rule files. Legacy version 2 manifests remain supported. Application-bound sources retain legacy version 1 JSON imports. ModSecurity and vendor formats need conversion. Sync is coordinated across replicas and checks every 12 hours. The first check runs within 30 seconds, or use Sync now.</p><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Add source">Add source</button></div></form>`,
     );
     c.formHandler("feed-form", async (f) => {
       await api("/rule-feeds", "POST", {

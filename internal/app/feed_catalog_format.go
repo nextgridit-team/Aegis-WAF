@@ -16,10 +16,11 @@ import (
 )
 
 type ruleManifest struct {
-	SchemaVersion int             `json:"schema_version"`
-	Name          string          `json:"name"`
-	Revision      int             `json:"revision"`
-	Rules         []manifestEntry `json:"rules"`
+	SchemaVersion int               `json:"schema_version"`
+	Name          string            `json:"name"`
+	Revision      int               `json:"revision"`
+	Rules         []manifestEntry   `json:"rules"`
+	Package       *cataloguePackage `json:"package,omitempty"`
 }
 type manifestEntry struct {
 	ID     string `json:"id"`
@@ -70,8 +71,11 @@ func strictFeedJSON(raw []byte, target any) error {
 	return nil
 }
 func resolveRuleFile(base *url.URL, path string) (string, error) {
-	if len(path) == 0 || len(path) > 240 || !strings.HasSuffix(path, ".json") {
-		return "", invalid("rule path must be a relative JSON filename")
+	return resolveFeedFile(base, path, ".json")
+}
+func resolveFeedFile(base *url.URL, path, extension string) (string, error) {
+	if len(path) == 0 || len(path) > 240 || !strings.HasSuffix(path, extension) {
+		return "", invalid("feed path must be a relative filename with the expected extension")
 	}
 	for _, part := range strings.Split(path, "/") {
 		if part == "" || part == "." || part == ".." || !namedKey.MatchString(part) {
@@ -97,8 +101,21 @@ func parseRuleManifest(raw []byte, base *url.URL) (ruleManifest, error) {
 	if e := strictFeedJSON(raw, &m); e != nil {
 		return m, e
 	}
-	if m.SchemaVersion != 2 || strings.TrimSpace(m.Name) == "" || len(m.Name) > 120 || m.Revision < 1 || m.Revision > 1000000 || m.Rules == nil || len(m.Rules) > 100 {
-		return m, invalid("manifest requires schema_version 2, name, positive revision and at most 100 entries")
+	if strings.TrimSpace(m.Name) == "" || len(m.Name) > 120 || m.Revision < 1 || m.Revision > 1000000 {
+		return m, invalid("release requires name and positive revision")
+	}
+	if m.SchemaVersion == 3 {
+		pkg := m.Package
+		if len(raw) > 4096 || m.Rules != nil || pkg == nil || !fileDigest.MatchString(pkg.SHA256) || pkg.RuleCount < 0 || pkg.RuleCount > maxPackedCatalogueRules || pkg.SizeBytes < 22 || pkg.SizeBytes > maxCataloguePackageBytes {
+			return m, invalid("version 3 requires a small release descriptor and bounded ZIP package")
+		}
+		if _, e := resolveFeedFile(base, pkg.Path, ".zip"); e != nil {
+			return m, e
+		}
+		return m, nil
+	}
+	if m.SchemaVersion != 2 || m.Package != nil || m.Rules == nil || len(m.Rules) > 100 {
+		return m, invalid("use a version 3 release or a version 2 manifest with at most 100 entries")
 	}
 	seen, paths := map[string]bool{}, map[string]bool{}
 	for _, entry := range m.Rules {
@@ -247,6 +264,15 @@ func (a *App) fetchCatalogue(ctx context.Context, rawURL, etag string) (ruleMani
 	m, e = parseRuleManifest(raw, base)
 	if e != nil {
 		return m, nil, "", false, e
+	}
+	if m.SchemaVersion == 3 {
+		target, _ := resolveFeedFile(base, m.Package.Path, ".zip")
+		raw, _, _, e = a.fetchFeedBytes(ctx, target, "", maxCataloguePackageBytes)
+		if e != nil {
+			return m, nil, "", false, e
+		}
+		items, e := parseCataloguePackage(ctx, m, raw)
+		return m, items, tag, false, e
 	}
 	result := []catalogueCandidate{}
 	var total int

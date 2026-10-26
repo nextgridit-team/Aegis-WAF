@@ -1,6 +1,6 @@
 # Rule catalogues and source subscriptions
 
-Workspace catalogues share independently versioned rules across policies. A small manifest lists **one file per rule**, with a revision and SHA-256 checksum. Administrators choose individual rules or packs; downloading updates never changes published protection automatically.
+Workspace catalogues share independently versioned rules across policies. Each rule remains an independently versioned JSON file. A small release descriptor points to a checksummed ZIP containing those files; there is no growing hand-maintained rule index. Administrators choose individual rules or packs; downloading updates never changes published protection automatically.
 
 ## Enable mitigations in a policy
 
@@ -11,23 +11,16 @@ Workspace catalogues share independently versioned rules across policies. A smal
 
 The shipped **Baseline protection** policy enables every shipped community mitigation, alongside CRS. The reviewed initial rules are bundled into the application, so this does not depend on a successful first network sync. On upgrade, the baseline receives this field once if absent; its other settings and assignments are preserved. Subsequent administrator selections or disabling are never overwritten on restart. Custom policies start with community mitigations off.
 
-**Review upload compatibility before assigning the baseline:** it blocks declared multipart forms/uploads and Brotli-encoded requests. Disable incompatible rules or use a custom policy for applications that need these request types.
+**Review compatibility before assigning the baseline:** the current 95 rules include broad endpoint-containment guards that disable legitimate operations, plus multipart and Brotli upload guards. Select only compatible mitigations for each application. The [100-CVE research inventory](research/kev-20261026/README.md) distinguishes request patterns from containment options and records coverage limits. Existing policies retain their previously selected snapshots when new rules are downloaded.
 
 **Rules → Rule feeds** manages subscription URLs, sync and read-only catalogue review. It does not apply rules to policies. The Aegis community subscription is provisioned once; deletion persists, and **Use Aegis community feed** can add it again. Removing the source retains published copies, including the baseline's copies.
 
-The current feed includes two **partial delivery-path mitigations**:
-
-| Rule / pack | Advisory | What it matches | Compatibility cost |
-| --- | --- | --- | --- |
-| Node.js Brotli request guard | CVE-2026-111497 | Requests declaring `Content-Encoding: br`, including encoding lists | Blocks legitimate Brotli-compressed uploads; `Accept-Encoding: br` response negotiation is unaffected |
-| PHP multipart request guard | CVE-2026-109618, CVE-2026-109619 | Requests declaring `Content-Type: multipart/form-data` | Blocks legitimate multipart forms and uploads |
-
-These are header guards, **not exploit detectors or substitutes for patched runtimes**. They do not cover direct-origin access, unlabelled payloads or application-specific decoding. The Node guard does not cover outbound downloads, including PHP Windows cURL's Brotli path. The PHP guard does not cover every triggering path or existing corrupted worker state. Review each rule's metadata and linked upstream advisories before applying it.
+The catalogue contains 93 KEV-researched rules covering request patterns or endpoint containment for 100 distinct CVEs, alongside the original Node.js Brotli and PHP multipart guards. These are **partial mitigations, not substitutes for vendor fixes**. Review coverage and false-positive notes in the policy picker; inclusion in KEV does not prove that a WAF can prevent every exploitation path.
 
 Public subscription URL:
 
 ```text
-https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json
+https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/release.json
 ```
 
 ![Community catalogue showing individual rule revisions, CVEs and compatibility risks](screenshots/rule-catalogue.png)
@@ -42,28 +35,35 @@ A changed catalogue increments the configuration version to invalidate stale MCP
 
 ## Publish your own per-rule feed
 
-Choose **Add source**, a name and public HTTPS URL, and **Workspace catalogue · all policies (manifest v2)**. Host the manifest and rule files in the same directory. See the [community authoring guide](../rules/community/README.md) for a complete rule file and reproducible tooling.
+Choose **Add source**, a name and public HTTPS URL, and **Workspace catalogue · all policies**. Publish `release.json` and its ZIP in the same directory. Authors keep separate rule JSON files in the repository; the generated archive carries them to clients. See the [authoring guide](../rules/community/README.md) and [distribution design](rule-feed-distribution.md).
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "name": "Example application guards",
   "revision": 1,
-  "rules": [
-    {
-      "id": "my-rule",
-      "path": "my-rule.json",
-      "sha256": "<64 lowercase hexadecimal characters: SHA-256 of the exact file bytes>"
-    }
-  ]
+  "package": {
+    "path": "community-rules.zip",
+    "sha256": "<64 lowercase hexadecimal SHA-256 characters>",
+    "rule_count": 95,
+    "size_bytes": 126093
+  }
 }
 ```
 
+The package has individual `rules/<id>.json` files, optionally organized into subdirectories. Supported license notices are `LICENSE` and `LICENSES/nuclei-templates.txt`. Aegis reads the archive in memory without extracting files or running scripts. IDs must be unique across directories. A changed release costs two HTTP requests: descriptor plus package. An unchanged ETag costs one.
+
 Every rule file contains `schema_version: 1`, stable `id`, increasing `revision`, `pack`, `technology`, `cves`, `description`, `affected_versions`, `coverage`, `limitations`, `false_positive_risk`, public HTTPS `references`, a native declarative `rule`, and `tests`. Tests include at least one matching and one nonmatching case, with bounded method/path/headers/body and `expected_match`. All cases must pass before a sync commits. The download normalizes action to Observe, clears external evidence IDs and replaces the placeholder application scope when compiling into assigned policies. Policy mode determines enforcement.
 
-Increment a rule's revision whenever its bytes change; regenerate the manifest checksums and increase its revision too. Lower revisions and changed bytes reusing an existing revision are rejected. IDs use 1–64 letters, digits, dots, underscores or hyphens. Paths must be relative JSON paths beneath the manifest directory, without traversal or query parameters. Unknown fields and malformed documents are rejected. Limits: 20 sources, 100 rules/manifest, 1 MiB manifest, 64 KiB/rule file, 8 MiB total download, 2000 stored catalogue entries, 2–16 regression cases/rule, 30-second overall download and 20-second individual requests. Removed entries still consume catalogue capacity until their source is removed.
+Increment a rule's revision whenever its bytes change; run `python3 scripts/build-rule-feed.py` and commit the rule, generated ZIP and descriptor together. Lower revisions and changed bytes reusing an existing revision are rejected. IDs use 1–64 letters, digits, dots, underscores or hyphens. Package paths must be relative ZIP paths beneath the descriptor directory, without traversal or query parameters. Unknown fields and malformed documents are rejected.
 
-Checksums verify file bytes against the downloaded manifest. **They are not publisher signatures**: trust the publisher and HTTPS source. This format carries bounded declarative signatures, never executable plugins or remote scripts. ModSecurity/CRS, Suricata, YARA and arbitrary vendor feeds need an explicit converter.
+Limits: 20 sources, 4 KiB descriptor, 2000 rules/package, 8 MiB compressed and expanded package, 64 KiB/member, 2000 stored catalogue entries, 2–16 regression cases/rule, 30-second overall download and 20-second individual requests. Removed entries still consume catalogue capacity until their source is removed. Policy execution remains separately bounded at 100 effective rules/policy and 1000 assigned rules globally; a larger catalogue does not raise those execution budgets. Full packages are downloaded when changed; delta updates are not implemented.
+
+Checksums verify package bytes against the downloaded descriptor. **They are not publisher signatures**: trust the publisher and HTTPS source. This format carries bounded declarative signatures, never executable plugins or remote scripts. NASL, Nuclei, ModSecurity/CRS, Suricata, YARA and arbitrary vendor feeds need an explicit converter.
+
+## Upgrade compatibility
+
+Upgrade the application before using a schema 3 URL. The exact official workspace subscription is migrated from `manifest.json` to `release.json`, preserving its ID, name and pinned policy copies. Custom URLs and deleted subscriptions are preserved. New binaries retain custom version 2 manifest support (100 entries, 1 MiB manifest, one request/file). The official version 2 manifest is a frozen compatibility snapshot, not the ongoing update channel; older clients should upgrade. Runtime last-good configuration remains available if an older replica cannot read a new feed format.
 
 ## Legacy application feeds
 

@@ -1,6 +1,6 @@
-# 100-CVE mitigation proposal
+# 100-CVE mitigation research inventory
 
-**Draft: requires maintainer review before publication.** The live main-branch feed is unchanged.
+Merged by the repository owner in [PR #1](https://github.com/nextgridit-team/Aegis-WAF/pull/1). This records source research and synthetic validation; merge does not establish complete exploit prevention.
 
 100 most recently KEV-added CVEs among the inspected research set with authored HTTP guards. This is an actionable, source-constrained subset, not a universal top-100 severity ranking or a claim that these are the 100 newest web CVEs.
 
@@ -8,15 +8,15 @@ Sources: [CISA official KEV mirror](https://github.com/cisagov/kev-data), catalo
 
 Targets: **100 distinct KEV CVEs** in **93 new rule files**: **40 request-pattern guards** and **53 endpoint-containment options**, alongside the two existing community rules. Related CVEs with the same observed request mechanism share a file.
 
-## Required review before promotion
+## Compatibility and coverage
 
-**This draft is not approved for the default baseline.** Endpoint containment disables a legitimate operation; it is not exploit detection. The shipped baseline enables every bundled community mitigation, so maintainers must resolve product scoping and compatibility before merging this expansion. The current main feed and Nexus deployment keep their existing two reviewed guards.
+**Endpoint containment disables a legitimate operation; it is not exploit detection.** Fresh baselines enable every bundled community mitigation. Review per-product compatibility and disable unsuitable entries before assigning it. Existing policies remain pinned until explicitly refreshed; a catalogue update does not activate new entries in them.
 
 Request-pattern rules are also partial. Some match only a documented query route, JSON slot, encoding or gadget marker. Their per-file limitations are essential. No vulnerable-product reproduction, exploit coverage rate or production false-positive rate is claimed. Synthetic fixtures prove matcher behavior only. Apply vendor fixes.
 
 The research inspected 160 CNA/HTTP-source pairs. Version-only probes, non-HTTP mechanisms, protected fields and unsuitable broad route blocks were not labelled as covered just to meet a count. The [machine-readable index](review-index.json) records every assessed candidate, source hashes, author credits, classification and exclusions. Latest KEV entries without a reviewed request source are not presumed safe or automatically included.
 
-Each policy has a 100-rule budget and the gateway has a 1000-assigned-rule budget; the accompanying capacity fix counts community rules consistently and rejects oversized assignments. Fresh installations would receive the expanded bundled baseline if this were promoted; existing policy copies remain pinned until explicit refresh.
+Each policy has a 100-rule budget and the gateway has a 1000-assigned-rule budget; the accompanying capacity fix counts community rules consistently and rejects oversized assignments. Fresh installations receive the expanded bundled baseline; existing policy copies remain pinned until explicit refresh.
 
 | CVE | KEV added | Product | Proposal | Kind |
 | --- | --- | --- | --- | --- |
@@ -133,4 +133,4 @@ The complete isolated browser/Pebble acceptance also passed with all 95 entries 
 
 ![Policy selector in the isolated 95-entry review build; synthetic data, not production](policy-selector-review.png)
 
-The GitHub integration returned HTTP 403 when creating the draft PR, so the branch is published for an operator to open through the [comparison page](https://github.com/nextgridit-team/Aegis-WAF/compare/main...feat/kev-100-mitigations?expand=1). Choose **Create draft pull request** and keep it unmerged until the required review.
+The owner created and merged the expansion PR after the integration could not create it. Future changes follow the [reviewed contribution workflow](../../rule-contributions.md).

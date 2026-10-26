@@ -2,6 +2,13 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Packaged community distribution
+
+- Replace the growing official index with a compact schema 3 release descriptor and one checksummed ZIP of separate rule files. Authors still edit one JSON per rule; tooling generates delivery artifacts. Unchanged ETags avoid the package download.
+- Bound archive size, member count and expansion; reject unsafe paths, duplicate IDs, links, corrupt members and non-rule files. Preserve the complete last-good catalogue on failure.
+- Upgrade only the exact official subscription URL, preserving IDs, names and pinned policy selections. Keep custom legacy formats supported; freeze the old official v2 manifest.
+- Record the owner-merged 100-CVE research expansion: 93 partial guards plus the original two, including 53 endpoint-containment options with explicit compatibility costs. Fresh baselines include all bundled rules; existing selections stay pinned.
+
 ## 2026-10-26 — Community capacity safety
 
 - Count enabled community rules consistently with snapshot compilation when checking assignment capacity; oversized writes roll back. Baseline upgrades preserve working protection when policy/global capacity would be exceeded.

@@ -19,7 +19,7 @@ unapproved third-party targets.
 - [ ] One rule per JSON file, with a stable ID and increasing revision.
 - [ ] Metadata distinguishes partial mitigation from exploit detection.
 - [ ] At least one matching and one legitimate nonmatching test; regression cases pass.
-- [ ] Manifest regenerated; checksums and revision checks pass.
-- [ ] Changes are limited to the rule and necessary manifest/docs/tests.
+- [ ] Package and release descriptor regenerated; checksums and revision checks pass.
+- [ ] Changes are limited to the rule and necessary package/release descriptor/docs/tests.
 - [ ] I have the right to contribute this under the repository's MIT license; any adapted work is attributed and license-compatible.
 - [ ] I understand this requires maintainer review and is not automatically published or enabled for operators.

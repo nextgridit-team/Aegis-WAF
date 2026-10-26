@@ -14,6 +14,8 @@ class RuleRevisionTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         shutil.copytree(ROOT / 'rules/community', self.root / 'rules/community')
+        shutil.copy(ROOT / 'LICENSE', self.root / 'LICENSE')
+        shutil.copytree(ROOT / 'third_party_licenses', self.root / 'third_party_licenses')
         (self.root / 'scripts').mkdir()
         for name in ('build-rule-feed.py', 'check-rule-revisions.py'):
             shutil.copy(ROOT / 'scripts' / name, self.root / 'scripts' / name)
@@ -36,10 +38,10 @@ class RuleRevisionTests(unittest.TestCase):
         self.update(description='Changed applicability without review revision')
         self.generate()
         self.assertNotEqual(self.check(), 0)
-    def test_revision_without_manifest_bump_fails(self):
+    def test_revision_without_release_bump_fails(self):
         self.update(revision=2)
         self.assertNotEqual(self.check(), 0)
-    def test_revision_with_manifest_passes(self):
+    def test_revision_with_release_passes(self):
         self.update(revision=2, description='Updated applicability')
         self.generate()
         self.assertEqual(self.check(), 0)

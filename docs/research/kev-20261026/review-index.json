@@ -1,5 +1,5 @@
 {
-  "status": "DRAFT: maintainer review required; not published to the main feed",
+  "status": "Merged by repository owner in PR #1; source research and synthetic matcher validation, not complete exploit prevention",
   "selection": "100 most recently KEV-added CVEs among the inspected research set with authored HTTP guards. This is an actionable, source-constrained subset, not a universal top-100 severity ranking or a claim that these are the 100 newest web CVEs.",
   "source": "https://github.com/cisagov/kev-data",
   "catalog_version": "2026.10.23",

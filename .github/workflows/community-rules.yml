@@ -19,7 +19,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Verify manifest and independent rule revisions
+      - name: Verify release package and independent rule revisions
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |

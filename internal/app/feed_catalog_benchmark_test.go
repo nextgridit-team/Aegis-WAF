@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	community "github.com/nextgridit-team/Aegis-WAF/rules/community"
 	"net/http/httptest"
@@ -10,7 +11,7 @@ import (
 // Measures this actual catalogue's bounded matcher path, including fresh fact
 // caches. It excludes TLS, upstream I/O, CRS, logging and network round trips.
 func BenchmarkCommunityCatalogue(b *testing.B) {
-	raw, e := community.Files.ReadFile("manifest.json")
+	raw, e := community.Files.ReadFile("release.json")
 	if e != nil {
 		b.Fatal(e)
 	}
@@ -18,17 +19,17 @@ func BenchmarkCommunityCatalogue(b *testing.B) {
 	if e = json.Unmarshal(raw, &manifest); e != nil {
 		b.Fatal(e)
 	}
+	raw, e = community.Files.ReadFile(manifest.Package.Path)
+	if e != nil {
+		b.Fatal(e)
+	}
+	candidates, e := parseCataloguePackage(context.Background(), manifest, raw)
+	if e != nil {
+		b.Fatal(e)
+	}
 	rules := []compiledRule{}
-	for _, entry := range manifest.Rules {
-		raw, e = community.Files.ReadFile(entry.Path)
-		if e != nil {
-			b.Fatal(e)
-		}
-		file, e := parseCatalogueRule(raw, entry)
-		if e != nil {
-			b.Fatal(e)
-		}
-		rule, e := compileRule(file.Rule)
+	for _, candidate := range candidates {
+		rule, e := compileRule(candidate.File.Rule)
 		if e != nil {
 			b.Fatal(e)
 		}

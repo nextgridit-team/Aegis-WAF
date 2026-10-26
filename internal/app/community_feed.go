@@ -6,7 +6,8 @@ import (
 	"strconv"
 )
 
-const communityFeedURL = "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json"
+const legacyCommunityFeedURL = "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json"
+const communityFeedURL = "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/release.json"
 
 func seedCommunityFeed(ctx context.Context, tx pgx.Tx) error {
 	var exists bool
@@ -70,4 +71,33 @@ func retireStarterFeed(ctx context.Context, tx pgx.Tx) error {
 	}
 	_, e = tx.Exec(ctx, "INSERT INTO built_in_rule_feeds(key,feed_id) VALUES('starter-retired',NULL)")
 	return e
+}
+
+// Preserve the source ID and pinned policy provenance while upgrading the
+// official URL. A custom URL or removed subscription is never recreated here.
+func upgradeCommunityFeedSource(ctx context.Context, tx pgx.Tx) error {
+	rows, e := tx.Query(ctx, "UPDATE rule_feeds SET url=$2,etag='',error='',next_sync=now() WHERE site_id IS NULL AND url=$1 AND NOT EXISTS(SELECT 1 FROM rule_feeds WHERE site_id IS NULL AND url=$2) RETURNING id", legacyCommunityFeedURL, communityFeedURL)
+	if e != nil {
+		return e
+	}
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if e = rows.Scan(&id); e != nil {
+			rows.Close()
+			return e
+		}
+		ids = append(ids, id)
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return e
+	}
+	for _, id := range ids {
+		if e = audit(ctx, tx, "system", "feed.packaged_source_upgraded", strconv.FormatInt(id, 10)); e != nil {
+			return e
+		}
+	}
+	return nil
 }

@@ -174,6 +174,12 @@ func (a *App) initialize(ctx context.Context) error {
 	if _, e = tx.Exec(ctx, schema); e != nil {
 		return e
 	}
+	if _, e = tx.Exec(ctx, "SELECT version FROM config_version WHERE id FOR UPDATE"); e != nil {
+		return e
+	}
+	if e = upgradeCommunityFeedSource(ctx, tx); e != nil {
+		return e
+	}
 	if e = retireStarterFeed(ctx, tx); e != nil {
 		return e
 	}

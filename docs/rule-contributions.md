@@ -17,7 +17,7 @@ Aegis uses declarative WAF matchers, not executable Nuclei templates.
 4. Add matching, legitimate nonmatching and useful near-match/case/encoding
    regression fixtures. Use harmless synthetic requests, not live exploit tests
    against third parties. Preserve attribution and license compatibility.
-5. Run the checks below, commit the individual rule and regenerated manifest,
+5. Run the checks below, commit the individual rule, regenerated package and release descriptor,
    then open a PR using the [community-rule template](../.github/PULL_REQUEST_TEMPLATE/community-rule.md).
    Include the command output and explain compatibility tradeoffs. CI runs
    isolated validation without production credentials or external target scans.
@@ -33,8 +33,8 @@ go test ./internal/app -run 'TestCommunityCatalogue|TestCatalogue'
 
 For a new file, start revision 1. For any edit to an existing rule's bytes,
 including formatting or metadata, increment its revision. The generator updates
-checksums and increases the manifest revision. Rebase competing feed PRs and
-regenerate the manifest when necessary. Existing entries keep their stable IDs.
+package checksum and increases the release revision. Rebase competing feed PRs and
+regenerate the package and descriptor when necessary. Existing entries keep their stable IDs.
 Checks cover bounded rules, required metadata, SHA-256, revisions and positive /
 negative regression cases. They do not prove exploit coverage or low false-positive
 rates for every application.
@@ -49,7 +49,7 @@ exceeds the matcher or a broad block is not adequately explained.
 
 A maintainer approval is separate from green CI. Merge accepted rules through a
 pull request; do not auto-merge submissions solely because tests pass. Merged
-individual JSON files and their manifest become available at the main-branch
+individual JSON files, generated package and release descriptor become available at the main-branch
 community URL. Image publication also depends on community validation. Rejected,
 open and unmerged PRs never enter that feed. Fork owners can publish a separate
 feed, but that is not the reviewed Aegis community source.

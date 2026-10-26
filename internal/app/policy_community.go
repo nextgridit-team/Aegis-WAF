@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	community "github.com/nextgridit-team/Aegis-WAF/rules/community"
 )
@@ -125,25 +124,25 @@ func seedCommunityCatalogue(ctx context.Context, tx pgx.Tx) error {
 	if id == nil || revision != 0 {
 		return nil
 	}
-	raw, e := community.Files.ReadFile("manifest.json")
+	raw, e := community.Files.ReadFile("release.json")
 	if e != nil {
 		return e
 	}
-	var manifest ruleManifest
-	if e = json.Unmarshal(raw, &manifest); e != nil {
+	base, e := feedURL(communityFeedURL)
+	if e != nil {
 		return e
 	}
-	candidates := []catalogueCandidate{}
-	for _, entry := range manifest.Rules {
-		raw, e = community.Files.ReadFile(entry.Path)
-		if e != nil {
-			return e
-		}
-		file, e := parseCatalogueRule(raw, entry)
-		if e != nil {
-			return e
-		}
-		candidates = append(candidates, catalogueCandidate{File: file, Digest: entry.SHA256})
+	manifest, e := parseRuleManifest(raw, base)
+	if e != nil {
+		return e
+	}
+	raw, e = community.Files.ReadFile(manifest.Package.Path)
+	if e != nil {
+		return e
+	}
+	candidates, e := parseCataloguePackage(ctx, manifest, raw)
+	if e != nil {
+		return e
 	}
 	if _, e = tx.Exec(ctx, "SELECT version FROM config_version WHERE id FOR UPDATE"); e != nil {
 		return e

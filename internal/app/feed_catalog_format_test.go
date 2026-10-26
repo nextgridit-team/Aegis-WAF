@@ -1,6 +1,8 @@
 package app
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,24 +18,46 @@ import (
 
 func communityFixture(t *testing.T) (ruleManifest, map[string][]byte) {
 	t.Helper()
-	raw, e := os.ReadFile("../../rules/community/manifest.json")
+	raw, e := os.ReadFile("../../rules/community/release.json")
 	if e != nil {
 		t.Fatal(e)
 	}
-	base, _ := url.Parse("https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json")
-	m, e := parseRuleManifest(raw, base)
+	base, _ := url.Parse(communityFeedURL)
+	release, e := parseRuleManifest(raw, base)
 	if e != nil {
 		t.Fatal(e)
 	}
+	raw, e = os.ReadFile("../../rules/community/" + release.Package.Path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = parseCataloguePackage(context.Background(), release, raw); e != nil {
+		t.Fatal(e)
+	}
+	archive, e := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if e != nil {
+		t.Fatal(e)
+	}
+	// Keep legacy manifest coverage independent of package directory layout.
+	m := ruleManifest{SchemaVersion: 2, Name: release.Name, Revision: release.Revision, Rules: []manifestEntry{}}
 	files := map[string][]byte{}
-	for _, entry := range m.Rules {
-		raw, e := os.ReadFile(filepath.Join("../../rules/community", entry.Path))
+	for _, member := range archive.File {
+		if !strings.HasPrefix(member.Name, "rules/") {
+			continue
+		}
+		reader, e := member.Open()
 		if e != nil {
 			t.Fatal(e)
 		}
-		if _, e = parseCatalogueRule(raw, entry); e != nil {
-			t.Fatalf("%s: %v", entry.ID, e)
+		raw, e = io.ReadAll(reader)
+		reader.Close()
+		if e != nil {
+			t.Fatal(e)
 		}
+		id := strings.TrimSuffix(filepath.Base(member.Name), ".json")
+		sum := sha256.Sum256(raw)
+		entry := manifestEntry{ID: id, Path: id + ".json", SHA256: hex.EncodeToString(sum[:])}
+		m.Rules = append(m.Rules, entry)
 		files[entry.Path] = raw
 	}
 	return m, files
