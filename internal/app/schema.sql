@@ -155,3 +155,6 @@ CREATE INDEX IF NOT EXISTS rule_catalog_feed ON rule_catalog(feed_id);
 INSERT INTO schema_version VALUES(20) ON CONFLICT DO NOTHING;
 CREATE UNIQUE INDEX IF NOT EXISTS workspace_rule_feed_url ON rule_feeds(url) WHERE site_id IS NULL;
 CREATE TABLE IF NOT EXISTS built_in_rule_feeds(key text PRIMARY KEY,feed_id integer REFERENCES rule_feeds ON DELETE SET NULL);
+
+ALTER TABLE signature_sets ADD COLUMN IF NOT EXISTS curation jsonb;
+INSERT INTO schema_version VALUES(21) ON CONFLICT DO NOTHING;

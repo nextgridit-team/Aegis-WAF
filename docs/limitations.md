@@ -1,6 +1,6 @@
 # Current limitations
 
-Updated on 2026-10-26, including the merged KEV corpus and packaged feeds. Several earlier gaps are now implemented: CRS request/response inspection, selective CAPTCHA, shared rate counters, atomic reloads, MCP simulation, Prometheus metrics, alerts and individually versioned rule feeds. [Completed improvements and verification](limitations-review.md).
+Updated on 2026-10-26, including curated managed sets, sensitivity presets, the merged KEV corpus and packaged feeds. Several earlier gaps are now implemented: CRS request/response inspection, selective CAPTCHA, shared rate counters, atomic reloads, MCP simulation, Prometheus metrics, alerts and individually versioned rule feeds. [Completed improvements and verification](limitations-review.md).
 
 This page describes the remaining boundaries. An optional feature needs configuration before it provides its protection.
 
@@ -10,6 +10,8 @@ This page describes the remaining boundaries. An optional feature needs configur
 - **Custom rules have defined semantics.** Missing, redacted, truncated or unsupported facts can be unknown and do not themselves block. Regex uses Go/RE2; paths are not repeatedly decoded, case-folded or normalized like every upstream framework. Native rules use deterministic matching; CRS has separate anomaly scoring. [Rule format and limits](rules.md).
 - **Bot identity is not proven by CAPTCHA.** Selective self-hosted image/audio verification and expiring clearance are available. Header signals remain spoofable, and capable bots or solver services can pass challenges. Verified crawler identity and adaptive behavioral learning are not implemented. Network-layer DDoS protection still requires infrastructure outside Aegis. [Bot controls](bot-protection.md).
 - **Community guards are partial mitigations.** Individual rules can be selected for policies, but request-pattern guards cover only documented mechanisms, and endpoint-containment guards can disable legitimate operations. PHP multipart and Node.js Brotli guards also reject legitimate uses. They do not detect every exploit path or replace runtime updates. Feed sync preserves pinned policy copies until explicitly refreshed. Package checksums are not independent publisher signatures; only public unauthenticated HTTPS sources are supported. Changed releases download a complete bounded package; signed releases and delta updates remain future work. [Catalogue coverage and compatibility](rule-feeds.md).
+
+- **Curated sets trade coverage for selection.** One installed original CRS source per artifact; arbitrary remote SecLang imports, nested sources and multi-set composition are unsupported. At most 64 curated artifacts and eight active managed configurations per replica are supported. Source files remain stored; removal overlays reduce evaluated detectors rather than the stored corpus. Upstream review is conservative at file/shared-helper level, not a semantic per-rule diff. Sparse sets may not reach full-bundle thresholds, and sensitivity presets are not a latency control or a guarantee against false positives. [Managed-set bounds](managed-signatures.md#sensitivity-and-curated-sets).
 
 ## Operations and data
 

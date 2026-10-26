@@ -824,6 +824,8 @@ const aiPage = makeAgentAccess({
   closeEditor,
 });
 const signatureSetsUI = makeSignatureSetsUI({
+  closeEditor,
+  formHandler,
   api,
   esc,
   heading,

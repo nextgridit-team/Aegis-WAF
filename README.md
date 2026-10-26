@@ -56,6 +56,7 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 ## What Aegis does
 
 - **Give each application its own protection.** Apply reusable policies with OWASP CRS request signatures, optional response inspection, custom rule groups, synchronized rule feeds and targeted exclusions. Use different policies for internal and external sources.
+- **Tune signatures to the application.** Start custom policies in Observe with a 1–5 Sensitivity control. Build reusable curated sets from installed CRS detections, then select them per policy. Published selections stay pinned while you review source updates. [Sensitivity and curated sets](docs/managed-signatures.md#sensitivity-and-curated-sets).
 - **Choose targeted mitigation rules.** The [community catalogue](docs/rule-feeds.md) syncs independently versioned CVE rules every 12 hours through a compact release descriptor and package. Enable them inside each policy, select all or individual rules, and explicitly refresh pinned updates. The shipped baseline includes all bundled community mitigations.
 - **Manage certificates in the browser.** Request and renew ACME certificates through Cloudflare DNS-01, including wildcards, or HTTP-01. Upload existing PEM certificates and request an early ACME renewal without restarting.
 - **See what happened.** Inspect recorded requests and matched rules, follow live traffic maps, and collect structured JSON events or authenticated Prometheus metrics. Configure [alerts](docs/alerts.md) with notification destinations or a signed webhook to your own AI agent. Filter the dashboard by application or view the whole gateway.
@@ -68,9 +69,9 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 
 1. **Get a certificate.** In **Certificates**, request one using your domains, email and a scoped Cloudflare API token, or upload a PEM certificate and key. DNS-01 does not require inbound port 80. [Certificate setup](docs/certificates.md).
 2. **Connect your application.** Add its exact hostnames, reachable HTTP(S) upstream, endpoint type and certificate in **Proxy hosts**. Point client DNS and public traffic at Aegis. Configure trusted proxies first if another proxy sits in front.
-3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or customize one in **Policies**. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit, with all shipped community mitigations enabled. It takes effect only when assigned; review application compatibility and use Observe while tuning.
+3. **Assign a policy.** Select the included **Baseline protection** policy for CRS protection, or create a custom policy in **Policies** with Standard sensitivity and Observe mode. The baseline uses Block mode, paranoia level 1, threshold 5 and a 1 MiB body limit, with all shipped community mitigations enabled. It takes effect only when assigned; review application compatibility and use Observe while tuning.
 
-Configure targeted PHP/Node.js delivery-path guards under **Policies → Edit → Community mitigations**, with enable/disable and all/individual selection. The baseline enables both guards; review multipart/Brotli upload compatibility before assigning it. These opt-in guards have explicit limitations and do not replace runtime updates. [Catalogue workflow](docs/rule-feeds.md).
+Configure community rules under **Policies → Edit → Community mitigations**, with enable/disable and all/individual selection. The baseline selects every bundled community mitigation, including broad endpoint-containment and multipart/Brotli guards. Review coverage and legitimate application operations before assigning it; these partial mitigations do not replace vendor fixes. [Catalogue workflow](docs/rule-feeds.md).
 
 See the [guided setup and investigation workflow](docs/getting-started.md) for signature browsing, exclusions and internal/external assignments. Bot/flood controls and request-content evidence require explicit configuration.
 
@@ -101,6 +102,10 @@ _Actual application screens with isolated test traffic and example domains. [Scr
 ![Live flow diagram connecting Aegis directly to protected proxy hosts](docs/screenshots/local-traffic-flow.png)
 
 Open **Dashboard → Live traffic map** to follow recorded traffic on the world map and the Aegis-to-application diagram. The dashboard supports light and dark themes. See more screens for [certificates](docs/screenshots/certificates-current.png), [signature sets](docs/screenshots/signature-sets.png), [community rule catalogue](docs/screenshots/rule-catalogue.png), [policies](docs/screenshots/policies.png), [agent access](docs/screenshots/agent-access.png), [System and metrics](docs/screenshots/system.png), and [self-hosted verification](docs/screenshots/bot-challenge.png), and [alerts](docs/screenshots/alerts.png).
+
+![Curated signature set builder with a selected CRS SQL detection rule](docs/screenshots/curated-set-builder.png)
+
+Choose the detection rules your application needs, then tune their sensitivity in its policy. [See the policy sensitivity control](docs/screenshots/policy-sensitivity.png) and [the full workflow](docs/managed-signatures.md#sensitivity-and-curated-sets).
 
 <a id="structured-security-logs"></a>
 <a id="update-and-recover"></a>

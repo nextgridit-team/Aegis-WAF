@@ -1,5 +1,11 @@
 # Inspection bounds, exclusions and security telemetry
 
+## Sensitivity and selection
+
+In the policy editor, choose an original or curated managed set, start in Observe, then use the 1–5 **Sensitivity** slider. Standard preserves paranoia 1, inbound 5 and outbound 4. Advanced edits switch the label to Custom when no preset matches; selecting a preset overwrites those three fields only. Modes, response inspection, body limits and exclusions are independent. Aggressive and Maximum explicitly warn about legitimate traffic being blocked. See the [full preset table and curated-set workflow](managed-signatures.md#sensitivity-and-curated-sets).
+
+A curated set removes unselected detection rules through Coraza's existing removal directives while retaining scoring and enforcement helpers. Sparse sets may never reach full-bundle anomaly thresholds; tune in Observe and test legitimate traffic before enforcing. Sensitivity does not shrink the compiled corpus and is not a latency guarantee. Source/version/digest and selected IDs stay frozen; upstream review creates another artifact rather than changing published policies.
+
 ## Request-body inspection
 
 Body inspection uses bounded prefixes, not an unbounded `io.ReadAll` of visitor data. Custom JSON fact extraction reads at most 64 KiB + one sentinel byte, bounds nesting and token counts, and replays consumed bytes upstream. Managed signatures inspect 4 KiB–1 MiB per policy with 64 concurrent reservations per replica. Block defaults to rejecting oversized request bodies (413); an explicit **Inspect prefix and forward full body** action permits larger requests while leaving the tail uninspected. Parser errors and matched rules can still reject truncated JSON/multipart bodies. Observe forwards oversized requests with capped metadata. Saturated enforcing inspection returns 503; Observe marks busy and allows.
@@ -10,7 +16,7 @@ A bounded prefix is buffered before forwarding so Block can decide before sendin
 
 ## False-positive tuning
 
-Policy Signature tuning supports global rule-ID exclusions and **Scoped signature exclusions (JSON)**. Settings persist through the dashboard/API in PostgreSQL; no configuration files need editing. For example:
+Policy **Advanced signature tuning** supports global rule-ID exclusions and **Scoped signature exclusions (JSON)**. Settings persist through the dashboard/API in PostgreSQL; no configuration files need editing. For example:
 
 ```json
 [

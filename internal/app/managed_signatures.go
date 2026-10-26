@@ -42,12 +42,13 @@ type managedSignatureOptions struct {
 	Exclusions              []int                `json:"excluded_rule_ids"`
 }
 type signatureSet struct {
-	ID        string      `json:"id"`
-	Name      string      `json:"name"`
-	Version   string      `json:"version"`
-	Digest    string      `json:"digest"`
-	RuleCount int         `json:"rule_count"`
-	Files     signatureFS `json:"files,omitempty"`
+	Curation  *signatureCuration `json:"curation,omitempty"`
+	ID        string             `json:"id"`
+	Name      string             `json:"name"`
+	Version   string             `json:"version"`
+	Digest    string             `json:"digest"`
+	RuleCount int                `json:"rule_count"`
+	Files     signatureFS        `json:"files,omitempty"`
 }
 type managedSignatureRuntime struct {
 	Options    managedSignatureOptions
@@ -234,8 +235,8 @@ func bundledSignatureSet() (signatureSet, error) {
 }
 func readSignatureSet(ctx context.Context, tx pgx.Tx, id string) (signatureSet, error) {
 	var set signatureSet
-	var raw []byte
-	e := tx.QueryRow(ctx, "SELECT id,name,version,digest,rule_count,files FROM signature_sets WHERE id=$1", id).Scan(&set.ID, &set.Name, &set.Version, &set.Digest, &set.RuleCount, &raw)
+	var raw, provenance []byte
+	e := tx.QueryRow(ctx, "SELECT id,name,version,digest,rule_count,files,curation FROM signature_sets WHERE id=$1", id).Scan(&set.ID, &set.Name, &set.Version, &set.Digest, &set.RuleCount, &raw, &provenance)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return set, invalid("managed signature set is not loaded")
 	}
@@ -244,6 +245,11 @@ func readSignatureSet(ctx context.Context, tx pgx.Tx, id string) (signatureSet, 
 	}
 	if e = json.Unmarshal(raw, &set.Files); e != nil {
 		return set, e
+	}
+	if len(provenance) > 0 {
+		if e = json.Unmarshal(provenance, &set.Curation); e != nil {
+			return set, e
+		}
 	}
 	digest, count, e := validateSignatureFiles(set.Files)
 	if e != nil {
@@ -392,9 +398,10 @@ func (a *App) loadManagedSignatures(ctx context.Context, tx pgx.Tx, next *snapsh
 	return nil
 }
 func signatureAPI(a *App, m *http.ServeMux) {
+	m.HandleFunc("GET /api/signature-sets/{id}/updates", a.wrap(true, a.signatureSetUpdates))
 	m.HandleFunc("GET /api/signature-sets/{id}/rules", a.wrap(true, a.signatureInventory))
 	m.HandleFunc("GET /api/signature-sets", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		return a.list(w, r, "SELECT id,name,version,digest,rule_count,created_at FROM signature_sets ORDER BY created_at,id")
+		return a.list(w, r, "SELECT id,name,version,digest,rule_count,curation,created_at FROM signature_sets ORDER BY created_at,id")
 	}))
 	m.HandleFunc("GET /api/signature-sets/catalogue", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		set, e := bundledSignatureSet()
@@ -411,11 +418,24 @@ func signatureAPI(a *App, m *http.ServeMux) {
 	}))
 	m.HandleFunc("POST /api/signature-sets", a.wrap(true, func(w http.ResponseWriter, r *http.Request, i identity) error {
 		var input struct {
-			ID string `json:"id"`
+			ID       string `json:"id"`
+			Name     string `json:"name"`
+			SourceID string `json:"source_set_id"`
+			Selected []int  `json:"selected_rule_ids"`
 		}
 		if e := decode(w, r, &input); e != nil {
 			return e
 		}
+		if input.SourceID != "" {
+			if input.ID != "" {
+				return invalid("choose either a bundled ID or a curated source")
+			}
+			return a.createCuratedSet(w, r, i, input.Name, input.SourceID, input.Selected)
+		}
+		if input.Name != "" || input.Selected != nil {
+			return invalid("curation requires an installed source set")
+		}
+
 		set, e := bundledSignatureSet()
 		if e != nil {
 			return e

@@ -1,6 +1,13 @@
+import { openSignatureBuilder } from "./signature-set-builder";
 import { mountSignatureBrowser } from "./signature-browser";
 import { ruleTabs } from "./rule-tabs";
 export type SignatureSet = {
+  curation?: {
+    source_set_id: string;
+    source_version: string;
+    source_digest: string;
+    selected_rule_ids: number[];
+  };
   id: string;
   name: string;
   version: string;
@@ -47,10 +54,13 @@ type Context = {
   refresh: () => Promise<void>;
   notice: (message: string, error?: boolean) => void;
   openEditor: (title: string, html: string) => void;
+  closeEditor: () => void;
+  formHandler: (id: string, submit: (data: FormData) => Promise<void>) => void;
   applyToPolicy: (set: SignatureSet) => Promise<void>;
 };
 export function makeSignatureSetsUI(c: Context) {
   let knownSets: SignatureSet[] = [];
+  let loadedSets: SignatureSet[] = [];
   let catalogue: {
     set: SignatureSet;
     loaded: boolean;
@@ -62,11 +72,13 @@ export function makeSignatureSetsUI(c: Context) {
       c.api<SignatureSet[]>("/signature-sets"),
     ]);
     catalogue = available;
+    loadedSets = loaded;
     knownSets = [...loaded, ...available.map((item) => item.set)];
     return (
       c.heading(
         "Rules",
-        "Load a versioned signature set, then select it in a protection policy.",
+        "Load a source or craft a reusable detection set, then choose its sensitivity in a policy.",
+        `<button type="button" class="secondary" data-action="create-curated-set">Create curated set</button>`,
       ) +
       ruleTabs("sets") +
       `<div class="info-panel"><h3>Start in Observe</h3><p>OWASP CRS provides request signatures and optional response inspection through Coraza. Loading a set does not enable it. Policies choose its mode, body limit and targeted rule exclusions. Loaded versions stay unchanged until you explicitly select another version.</p></div>` +
@@ -85,10 +97,10 @@ export function makeSignatureSetsUI(c: Context) {
           ? c.table(
               ["Set", "Version", "Checksum", ""],
               loaded.map((set) => [
-                `<strong>${c.esc(set.name)}</strong>`,
+                `<strong>${c.esc(set.name)}</strong>${set.curation ? `${available.some((item) => item.set.id !== set.curation!.source_set_id) ? '<small class="badge warning">Bundled source differs · review upstream</small>' : ""}<small>${set.curation.selected_rule_ids.length} selected detection rules · support retained</small><details><summary>Source provenance</summary><small>${c.esc(set.curation.source_set_id)} · ${c.esc(set.curation.source_version)}</small><code>${c.esc(set.curation.source_digest)}</code></details>` : ""}`,
                 c.esc(set.version),
                 `<code>${c.esc(set.digest.slice(0, 12))}</code>`,
-                `<div class="row-actions"><button type="button" class="secondary compact" data-action="view-signature-set" data-id="${c.esc(set.id)}">View signatures</button><button type="button" class="secondary compact" data-action="apply-signature-set" data-id="${c.esc(set.id)}">Apply to policy</button></div>`,
+                `<div class="row-actions"><button type="button" class="secondary compact" data-action="view-signature-set" data-id="${c.esc(set.id)}">View signatures</button><button type="button" class="secondary compact" data-action="apply-signature-set" data-id="${c.esc(set.id)}">Apply to policy</button>${set.curation ? `<button type="button" class="secondary compact" data-action="review-curated-set" data-id="${c.esc(set.id)}">Review upstream</button>` : ""}</div>`,
               ]),
               "Loaded signature sets",
             )
@@ -97,6 +109,41 @@ export function makeSignatureSetsUI(c: Context) {
     );
   }
   async function handle(action: string | undefined, id: string) {
+    if (action === "create-curated-set") {
+      await openSignatureBuilder(c, loadedSets);
+      return true;
+    }
+    if (action === "review-curated-set") {
+      const frozen = loadedSets.find((s) => s.id === id);
+      if (!frozen?.curation) throw new Error("Choose a curated set.");
+      const update = await c.api<{
+        available: boolean;
+        source: SignatureSet;
+        changed_rule_ids: number[];
+        removed_rule_ids: number[];
+      }>(`/signature-sets/${encodeURIComponent(id)}/updates`);
+      if (!update.available) {
+        c.notice(
+          "This curated set is pinned to the current bundled source. No newer source is available.",
+        );
+        return true;
+      }
+      if (!loadedSets.some((s) => s.id === update.source.id))
+        loadedSets.push(
+          await c.api<SignatureSet>("/signature-sets", "POST", {
+            id: update.source.id,
+          }),
+        );
+      await openSignatureBuilder(c, loadedSets, {
+        source: update.source.id,
+        name: frozen.name,
+        selected: frozen.curation.selected_rule_ids.filter(
+          (id) => !update.removed_rule_ids.includes(id),
+        ),
+        note: `Source changed: ${update.changed_rule_ids.length} selected rules are in changed files or depend on changed shared data; ${update.removed_rule_ids.length} were removed. Review all source changes before saving a new immutable set. Published policies remain pinned.`,
+      });
+      return true;
+    }
     if (
       ![
         "load-signature-set",

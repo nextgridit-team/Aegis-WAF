@@ -99,6 +99,7 @@ func agentOperations() []agentOperation {
 		"GET /api/signature-sets",
 		"GET /api/signature-sets/catalogue",
 		"GET /api/signature-sets/{id}/rules",
+		"GET /api/signature-sets/{id}/updates",
 		"GET /api/sites",
 		"GET /api/status",
 		"GET /api/traffic-events",

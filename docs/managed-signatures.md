@@ -27,3 +27,37 @@ Actual browser captures from the isolated acceptance fixture, with test-only con
 ![Searchable CRS inventory with rule metadata and scope filters](screenshots/signature-inventory.png)
 
 ![Policy signature browser with an individual CRS exclusion selected before saving](screenshots/signature-exclusions.png)
+
+## Sensitivity and curated sets
+
+New dashboard policies select the latest loaded original set in Observe, with Standard sensitivity. Existing policy values and the explicitly assigned baseline are preserved. Sensitivity is a form macro over existing paranoia, inbound threshold and outbound threshold fields; no slider value is stored. The advanced values update visibly, and edits that do not match a preset display **Custom**. Moving the slider replaces those three values only. Mode, response-inspection enablement, exclusions and body limits remain independent.
+
+| Sensitivity  | Paranoia | Inbound | Outbound | Expected tuning                                          |
+| ------------ | -------- | ------- | -------- | -------------------------------------------------------- |
+| 1 Relaxed    | 1        | 10      | 10       | Fewer blocks; subtle attacks may not reach the threshold |
+| 2 Standard   | 1        | 5       | 4        | Occasional tuning; recommended Observe starting point    |
+| 3 Elevated   | 2        | 5       | 4        | More sensitive patterns; review false positives          |
+| 4 Aggressive | 3        | 3       | 3        | High false-positive risk                                 |
+| 5 Maximum    | 4        | 2       | 2        | Expect legitimate traffic blocked without careful tuning |
+
+The slider is not a throughput or latency control. Paranoia uses runtime gating and does not shrink the compiled corpus; actual work depends on traffic and enabled rules. No equal-throughput claim is made across levels.
+
+Use **Rules → Signature sets → Create curated set** to select detection rules from one installed original set. Search/filter and **Select matching** / **Clear matching** apply to the current filters across pages; individual choices persist across searches. Engine initialization, non-detection helpers, anomaly scoring and enforcement rules are retained automatically. Request and optional response detections can be selected independently. A sparse selection may never accumulate thresholds calibrated to the full CRS bundle: start in Observe, consider lower thresholds, and test both attacks and legitimate traffic.
+
+Saving creates an immutable artifact with source set ID, version, SHA-256 and sorted selected IDs. It copies the frozen source files, retains their notices, and appends generated `SecRuleRemoveById` overlays for unselected detectors. The existing Coraza compile path is unchanged. This reduces the detection rules evaluated per transaction, without promising a particular latency gain or reducing the stored source footprint. The legacy `rule_count` describes IDs in the stored source files; `curation.selected_rule_ids` and the filtered inventory describe the chosen detection subset. Setup/support rules remain in that inventory.
+
+Curated sets appear alongside original sets in policy selection. Applying a different set preserves the policy's sensitivity, limits, response settings and exclusions, and opens the changed selection in signature Observe; any incompatible exclusion IDs must be reviewed before saving. Each policy still references one immutable set. Creating another set or loading a source version does not replace published policy references. Publishing a changed policy remains an explicit authenticated save, with the existing simulation requirement for MCP callers. Curation uses the existing administrator/CSRF-protected set-creation endpoint and MCP `enforce` scope; it does not activate protection by itself.
+
+**Review upstream** compares the pinned source with the current bundled CRS source. Selected IDs in changed rule files or affected by changed retained helpers/shared data are flagged conservatively; this is not a semantic proof that every flagged rule changed. Removed IDs are identified. Reviewing opens a builder for a new artifact, retaining surviving selections and leaving new upstream detections unselected. Review, save, then explicitly select that new artifact in affected policies. Older bundled versions do not prompt a downgrade. Currently the source catalogue is the bundled versioned CRS corpus; arbitrary remote SecLang feeds, cross-source merging and nested curated sources are unsupported.
+
+Schema 21 adds nullable curation metadata. At most 64 curated artifacts are stored; the existing eight-active-managed-configurations-per-replica budget remains. All serving replicas must support curated artifacts and their overlays before using them. Older binaries must not be used to edit or enforce these sets; use a compatible rollback image and retain the database/external-key backup.
+
+### Screenshots and measurements
+
+These screenshots were captured from the tested policy UX build in the isolated browser/Pebble fixture, using synthetic policy names and test traffic. They do not show production configuration.
+
+![Curated set builder selecting one CRS SQL detection rule](screenshots/curated-set-builder.png)
+
+![Standard sensitivity and synchronized advanced policy settings](screenshots/policy-sensitivity.png)
+
+The [before/after benchmark record](benchmarks/policy-ux-20261026.md) includes native rule evaluation at 100/1000 rules, identity/protection, forwarding, and a separate full-source versus single-detector managed-inspection example. The examples differ in protection coverage and do not establish production latency or capacity.

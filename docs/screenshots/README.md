@@ -61,3 +61,7 @@ Update the source revision/date above when refreshing them. Older screenshots in
 ## Policy-owned community mitigations — 2026-10-26
 
 `rule-catalogue.png` is the unedited artifact from the passing `/tmp/aegis-policy-community-browser` acceptance run, captured on the policy-owned control implementation based on `68304f0`. It shows enable/disable, all/individual selection and per-rule coverage/compatibility in the actual policy editor with synthetic test data. The suite verifies selection persistence, existing groups/assignments and independent on/off enforcement on two replicas. It does not demonstrate complete CVE coverage or exploit prevention.
+
+## Policy sensitivity and curated managed sets — 2026-10-26
+
+`curated-set-builder.png`, `policy-sensitivity.png` and `policy-sensitivity-custom.png` are unedited captures from the passing `/tmp/aegis-policy-ux-review` browser/Pebble fixture, using tested local image `aegis-waf:policy-ux` (`123a691a0952`) built on base `307e336` with the accompanying policy UX changes before commit. Names, policies and traffic are synthetic. The suite verifies selection persistence, source provenance, Observe defaults, Custom/preset round-tripping, preservation of policy tuning and enforcement through two replicas. The builder selects SQL detector 942100 for demonstration; it is not a recommended full-protection baseline or proof of complete SQL injection coverage. These screenshots show the actual interface, not a mockup or production traffic.

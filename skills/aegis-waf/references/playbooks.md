@@ -88,3 +88,12 @@ The operator configures how a signed Aegis automation webhook wakes this agent. 
 ## Apply a community catalogue mitigation
 
 Read `/api/rule-feeds` and `/api/rule-catalog`; sync the intended workspace source if needed. Inspect `/api/rule-feeds/{id}/items` for individual coverage, compatibility, advisories and policy update status. Set the policy's `community_mitigations` input to `{enabled:true,rule_ids:[...]}` using stable catalogue IDs. Disable while retaining IDs to preserve the selection. Preserve any legacy scoped groups. Read the complete current policy and assignments, preserve unrelated settings, and stage the exact policy input with its current revision. Use `refresh_rule_ids:[id]` only when intentionally updating selected pinned definitions. Run `simulate_rule_impact` for that exact write, review observed impacts and telemetry gaps, then execute with the fresh simulation receipt and permitted key. A feed sync alone never activates a mitigation; catalogue changes invalidate older receipts. These rules are partial guards and do not replace runtime patching.
+
+## Craft a curated managed signature set
+
+1. Discover the current contract and list installed signature sets. Choose one original source; nested curated sources and cross-source composition are unsupported.
+2. Read that source's inventory. Select only entries marked `selectable`; initialization, scoring and enforcement helpers are retained automatically. Review legitimate traffic and what protections the reduced selection omits.
+3. With authorized Enforce permission, create an immutable artifact using `POST /api/signature-sets` with `name`, `source_set_id` and `selected_rule_ids`. Read back its source/version/digest provenance. Creation alone does not apply protection.
+4. Read the complete target policy, revision and assignments. Propose its new set in Observe and retain all unrelated fields. A sparse set may need lower anomaly thresholds; there is no guaranteed safe score. Sensitivity is a dashboard macro, not an API field; Standard uses paranoia 1, inbound 5 and outbound 4.
+5. Simulate the exact policy mutation, review known and unknown effects, and use the resulting single-use receipt to apply it. Confirm readback and approved application checks before enforcement.
+6. Use the curated set's updates endpoint to review a newer bundled source. Change reporting is conservative at rule-file/shared-data level. Save a new artifact, then explicitly simulate and update policies; source refresh must not silently replace published references.

@@ -2,6 +2,12 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Policy sensitivity and curated managed sets
+
+- Add a 1–5 sensitivity macro with synchronized advanced values, explicit Custom state and false-positive guidance. Standard/Elevated preserve outbound threshold 4. New dashboard policies choose an installed original set in Observe.
+- Create immutable, one-source detection selections with source provenance and existing Coraza removal directives. Retain scoring/enforcement support, preserve policy pins, and review changed upstream files before creating replacement artifacts.
+- Schema 21 stores curation metadata. Existing administrator/CSRF, MCP scope/simulation and compiled-configuration budgets remain enforced.
+
 ## 2026-10-26 — Independent rule publication
 
 - Rule-only main pushes run community validation without rebuilding the application image. Application/build inputs, nightly schedules and manual runs retain image publication.

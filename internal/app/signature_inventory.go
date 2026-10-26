@@ -29,6 +29,7 @@ type signatureEntry struct {
 	Tags       []string `json:"tags"`
 	Source     string   `json:"source"`
 	Scope      string   `json:"scope"`
+	Selectable bool     `json:"selectable"`
 }
 
 // Only static corpus metadata is retained. Raw directives, request data and WAF
@@ -95,6 +96,22 @@ func inventoryForSignatures(set signatureSet) ([]signatureEntry, error) {
 	}
 	if len(entries) == 0 || len(entries) > 4096 {
 		return nil, errors.New("managed signature inventory exceeds supported bounds")
+	}
+	for index := range entries {
+		entries[index].Selectable = selectableSignature(entries[index])
+	}
+	if set.Curation != nil {
+		chosen := map[int]bool{}
+		for _, id := range set.Curation.Selected {
+			chosen[id] = true
+		}
+		kept := entries[:0]
+		for _, entry := range entries {
+			if !entry.Selectable || chosen[entry.ID] {
+				kept = append(kept, entry)
+			}
+		}
+		entries = kept
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].ID < entries[j].ID })
 	if len(signatureInventories.order) >= 8 {

@@ -1999,3 +1999,34 @@ input[type="checkbox"][role="switch"]:focus-visible{outline:2px solid var(--acce
 .request-detail { min-width: 0; overflow-wrap: anywhere; }
 
 :root[data-theme="dark"] .local-flow-search input { background:transparent; }
+
+.signature-sensitivity {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.signature-sensitivity output {
+  margin-left: 0.5rem;
+  font-weight: 600;
+}
+.signature-sensitivity input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.signature-sensitivity small {
+  display: block;
+  margin-top: 0.5rem;
+}
+.sensitivity-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+}
+[data-source-provenance] {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: var(--muted);
+}
