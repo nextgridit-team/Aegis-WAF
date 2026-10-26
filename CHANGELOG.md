@@ -2,11 +2,15 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
-## 2026-10-26 — Configurable alerts and external-agent wake-up
+## 2026-10-26 — Alerts and dashboard improvements
 
 ### Added
 
 - Configurable alert inbox, scoped trigger rules and asynchronous notification delivery: signed automation/generic webhooks, Slack, Discord, Gotify, ntfy and an optional existing Apprise bridge. PostgreSQL coordinates replicas, encrypted destination settings, cooldowns, retry leases and acknowledgement. MCP exposes investigation/acknowledgement; a configured external receiver wakes the operator’s agent. [Alert setup and guarantees](docs/alerts.md).
+
+### Improved
+
+- Local live traffic flow now uses compact proxy-host pills, stable alphabetical order, name/domain search and paging (12 hosts on wide screens, 6 on narrow screens). Selected-host filtering preserves navigation to other hosts and labels their counts outside the filter; bounded pulses, direct links, disabled states and reduced motion remain supported. [Local map](docs/dashboard.md#local-traffic-flow).
 
 ### Operational boundaries
 

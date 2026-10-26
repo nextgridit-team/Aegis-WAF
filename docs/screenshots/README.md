@@ -53,3 +53,7 @@ Update the source revision/date above when refreshing them. Older screenshots in
 ## Configurable alerts — 2026-10-26
 
 `alerts.png` is `alerts-1440.png` from `/tmp/aegis-alerts-browser-final`, the passing isolated browser/Pebble fixture for the configurable-alerting change. It shows a real recorded fixture CRS block producing an application-scoped alert and an administrator acknowledgement. The fixture also created a signed automation destination, sent its explicit test and verified 390px/1440px layouts. Receiver URLs, signing secrets and production traffic are not shown. This verifies the Aegis workflow against an isolated HTTP receiver, not delivery to live Slack/Discord/other third-party accounts or execution by an external AI agent.
+
+## Compact local traffic flow — 2026-10-26
+
+`local-traffic-flow.png` was refreshed from `animated-local-flow.png` in `/tmp/aegis-local-flow-browser`, the passing isolated browser/Pebble fixture using `aegis-waf:local-flow-ux`. It shows the compact proxy-host pills and real fixture allowed/blocked pulses, replacing the earlier large-card capture. Search, pagination and 0/1/4/60/500-host extremes are separately tested with explicitly synthetic fixtures in `tests/local-flow-ui.cjs`, including light/dark themes, 320–1440px widths and 200% zoom. The published screenshot uses disposable example hosts and traffic, not production data.
