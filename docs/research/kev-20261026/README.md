@@ -128,3 +128,9 @@ All proposed files pass the native parser, bounded matcher compilation and their
 The final 95-rule matcher microbenchmark on an AMD Ryzen 9 7950X3D, Linux/amd64, Go 1.26 measured approximately **7.03 microseconds/GET** and **10.41 microseconds/POST**, including a fresh fact cache for an ordinary `/api/v1/models` request. It excludes CRS, TLS, upstream I/O, logging and network latency; it is not end-to-end proxy latency. [Raw output](matcher-benchmark.txt). No ordinary control request matched in this benchmark; that single control does not establish compatibility for other endpoints.
 
 The initial requested bulk corpus is an exception to the normal preference for one rule per PR. Review it per file/product and split promotion into smaller reviewed changes as needed. [Attribution and upstream MIT notice](ATTRIBUTION.md).
+
+The complete isolated browser/Pebble acceptance also passed with all 95 entries (`/tmp/aegis-kev-review-browser`): bulk selection, individual selection, saved choices, disabling and two-replica enforcement, alongside certificate/routing/MCP/alert flows. This tests catalogue/UI integration, not vulnerable-product exploit prevention.
+
+![Policy selector in the isolated 95-entry review build; synthetic data, not production](policy-selector-review.png)
+
+The GitHub integration returned HTTP 403 when creating the draft PR, so the branch is published for an operator to open through the [comparison page](https://github.com/nextgridit-team/Aegis-WAF/compare/main...feat/kev-100-mitigations?expand=1). Choose **Create draft pull request** and keep it unmerged until the required review.
