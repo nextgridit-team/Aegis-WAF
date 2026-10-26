@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-cisco-ise-deployment-rpc-containment",
+  "pack": "Identity Services Engine request guards",
+  "technology": [
+    "cisco",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-20281"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /deployment-rpc/enableStrongSwanTunnel.",
+  "affected_versions": "Cisco Cisco Identity Services Engine Software: 3.3.0, 3.3 Patch 2, 3.3 Patch 1, 3.3 Patch 3, 3.4.0, 3.3 Patch 4, 3.4 Patch 1, 3.3 Patch 5, 3.3 Patch 6; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /deployment-rpc/enableStrongSwanTunnel.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-20281",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-20281.yaml",
+    "https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-ise-unauth-rce-ZAd2GnJ6",
+    "https://www.zerodayinitiative.com/blog/2025/7/24/cve-2025-20281-cisco-ise-api-unauthenticated-remote-code-execution-vulnerability"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Cisco ISE deployment RPC containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/deployment-rpc/enableStrongSwanTunnel/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/deployment-rpc/enableStrongSwanTunnel",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/deployment-rpc/enableStrongSwanTunnel",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

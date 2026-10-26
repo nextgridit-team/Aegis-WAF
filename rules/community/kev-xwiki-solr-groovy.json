@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-xwiki-solr-groovy",
+  "pack": "Platform request guards",
+  "technology": [
+    "xwiki",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-24893"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects selected executable macro markers in the SolrSearch text query.",
+  "affected_versions": "xwiki xwiki-platform: >= 5.3-milestone-2, < 15.10.11, >= 16.0.0-rc-1, < 16.4.1; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects selected executable macro markers in the SolrSearch text query.",
+  "limitations": "Other macro languages and injection contexts are not covered. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Searching for literal Groovy/async macro examples is blocked.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-24893",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-24893.yaml",
+    "https://github.com/advisories/GHSA-rr6p-3pfg-562j"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "XWiki Solr Groovy macro guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/(?:xwiki/)?bin/get/Main/SolrSearch/?$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?i)\\{\\{(?:groovy|async)\\b",
+        "key": "text"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/bin/get/Main/SolrSearch?media=rss&text=%7D%7D%7D%7B%7Basync+async%3Dfalse%7D%7D%7B%7Bgroovy%7D%7Dmarker%7B%7B%2Fgroovy%7D%7D",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/bin/get/Main/SolrSearch?media=rss&text=documentation",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

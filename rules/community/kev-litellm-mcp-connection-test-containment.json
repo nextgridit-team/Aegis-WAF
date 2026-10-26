@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-litellm-mcp-connection-test-containment",
+  "pack": "LiteLLM request guards",
+  "technology": [
+    "berriai",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-42271"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /mcp-rest/test/connection.",
+  "affected_versions": "BerriAI litellm: >= 1.74.2, < 1.83.7; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /mcp-rest/test/connection.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-42271",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-42271.yaml",
+    "https://horizon3.ai/attack-research/vulnerabilities/cve-2026-42271-chained-with-cve-2026-48710/",
+    "https://github.com/BerriAI/litellm/security/advisories/GHSA-v4p8-mg3p-g94g",
+    "https://github.com/BerriAI/litellm/pull/25343"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "LiteLLM MCP connection-test containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/mcp-rest/test/connection/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/mcp-rest/test/connection",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/mcp-rest/test/connection",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

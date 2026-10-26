@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-meteobridge-template-shell",
+  "pack": "Meteobridge request guards",
+  "technology": [
+    "smartbedded",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-4008"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects shell-substitution/metacharacter syntax in the templatefile query argument.",
+  "affected_versions": "Smartbedded MeteoBridge: 0 through 6.1; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects shell-substitution/metacharacter syntax in the templatefile query argument.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate file names containing shell punctuation are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-4008",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-4008.yaml",
+    "https://forum.meteohub.de/viewtopic.php?t=18687",
+    "https://www.onekey.com/resource/security-advisory-remote-command-execution-on-smartbedded-meteobridge-cve-2025-4008"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Meteobridge template shell-marker guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/public/template\\.cgi$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "\\$\\(|[`;|]",
+        "key": "templatefile"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/public/template.cgi?templatefile=%24%28marker%29",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/public/template.cgi?templatefile=weather.html",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-ivanti-dscgi-header",
+  "pack": "Connect Secure request guards",
+  "technology": [
+    "ivanti",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-104935"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects client-supplied nonempty X-DSCGI-PATH CGI-dispatch headers.",
+  "affected_versions": "Ivanti Connect Secure: consult linked CNA affected configuration; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects client-supplied nonempty X-DSCGI-PATH CGI-dispatch headers.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate frontends relying on this private dispatch header need a separate trusted policy.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-104935",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-104935.yaml",
+    "https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/",
+    "https://forums.ivanti.com"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Ivanti privileged CGI-header guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "header",
+        "op": "regex",
+        "value": ".+",
+        "key": "X-DSCGI-PATH"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/dana-na/auth/url_default/welcome.cgi",
+      "headers": {
+        "X-DSCGI-PATH": "/home/webserver/htdocs/dana/fb/smb/wu.cgi"
+      },
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/dana-na/auth/url_default/welcome.cgi",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-coldfusion-rds-fileio-containment",
+  "pack": "ColdFusion request guards",
+  "technology": [
+    "adobe",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-48282"
+  ],
+  "description": "Temporary endpoint containment. Blocks the identified ColdFusion RDS FILEIO request route.",
+  "affected_versions": "Adobe ColdFusion 2025: 0 through 9; Adobe ColdFusion 2023: 0 through 20; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks the identified ColdFusion RDS FILEIO request route.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate remote IDE file operations are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-48282",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-48282.yaml",
+    "https://helpx.adobe.com/security/products/coldfusion/apsb26-68.html",
+    "https://labs.watchtowr.com/its-37oc-and-all-we-can-think-about-is-coldfusion-adobe-coldfusion-security-bulletin-apsb26-68-cve-bonanza/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "ColdFusion RDS file-operation containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/CFIDE/main/ide\\.cfm$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?i)^FILEIO$",
+        "key": "ACTION"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/CFIDE/main/ide.cfm?ACTION=FILEIO",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/CFIDE/main/ide.cfm?ACTION=ABOUT",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

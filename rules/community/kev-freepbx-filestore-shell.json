@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-freepbx-filestore-shell",
+  "pack": "FreePBX  request guards",
+  "technology": [
+    "sangoma",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-64328"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects shell metacharacters in the filestore test-connection key query field.",
+  "affected_versions": "FreePBX filestore: >= 17.0.2.36, < 17.0.3; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects shell metacharacters in the filestore test-connection key query field.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate key strings containing shell punctuation are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-64328",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-64328.yaml",
+    "https://github.com/FreePBX/security-reporting/security/advisories/GHSA-vm9p-46mv-5xvw",
+    "https://theyhack.me/CVE-2025-64328-FreePBX-Authenticated-Command-Injection/",
+    "https://www.cisa.gov/news-events/alerts/2026/02/03/cisa-adds-four-known-exploited-vulnerabilities-catalog"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "FreePBX filestore key shell-marker guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/admin/ajax\\.php$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^filestore$",
+        "key": "module"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^testconnection$",
+        "key": "command"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "[`;|]|\\$\\(",
+        "key": "key"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/admin/ajax.php?module=filestore&command=testconnection&key=example%60marker%60",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin/ajax.php?module=filestore&command=testconnection&key=example-key",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

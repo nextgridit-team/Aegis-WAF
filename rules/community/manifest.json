@@ -1,8 +1,473 @@
 {
   "schema_version": 2,
   "name": "Aegis community mitigation rules",
-  "revision": 2,
+  "revision": 6,
   "rules": [
+    {
+      "id": "kev-activemq-jolokia-network-containment",
+      "path": "kev-activemq-jolokia-network-containment.json",
+      "sha256": "83e1ef6e8d3d6cd6b800b1e107a7eb9a0042a25ecf6da31e44dd1d41c36dbb47"
+    },
+    {
+      "id": "kev-ahsay-fromservlet-bypass",
+      "path": "kev-ahsay-fromservlet-bypass.json",
+      "sha256": "f2c0c674e1616309d96553c1459f5e171d07160358c7812c689596e67fa40e29"
+    },
+    {
+      "id": "kev-apriso-async-message-containment",
+      "path": "kev-apriso-async-message-containment.json",
+      "sha256": "d64857f5f99db50f79c36f0904c9155486abc96f14d154b16718a13eedd0471d"
+    },
+    {
+      "id": "kev-apriso-invoke-containment",
+      "path": "kev-apriso-invoke-containment.json",
+      "sha256": "80a952d5e7cca11ca6fe01a54b294282b5d4f36bea01e6af171fa5fb61a292d2"
+    },
+    {
+      "id": "kev-artifactory-aws-token-slash",
+      "path": "kev-artifactory-aws-token-slash.json",
+      "sha256": "6b134d478fe1beafc20bc6912c98d1d6ae223148b630a5adf8a34a5a17e2d51a"
+    },
+    {
+      "id": "kev-artifactory-registry-join-containment",
+      "path": "kev-artifactory-registry-join-containment.json",
+      "sha256": "ebf3f2d832538188867661f39e5f9544f8497acc368ea98b319ea4f1075d999e"
+    },
+    {
+      "id": "kev-atlassian-double-colon-traversal",
+      "path": "kev-atlassian-double-colon-traversal.json",
+      "sha256": "5b8b417890e79b9019d86442923092198e040e92b119ed596510300be95dd01a"
+    },
+    {
+      "id": "kev-balbooa-upload-containment",
+      "path": "kev-balbooa-upload-containment.json",
+      "sha256": "f428d05c799fc4b20bb8d54b6e1722ab31a62c819ddd1b96db56feb7eee06994"
+    },
+    {
+      "id": "kev-biotime-file-traversal",
+      "path": "kev-biotime-file-traversal.json",
+      "sha256": "cc1be65980b5ae216ac2967832a2d11084242d9825e973dc378e5b81c34f6410"
+    },
+    {
+      "id": "kev-checkpoint-upgradesvc-containment",
+      "path": "kev-checkpoint-upgradesvc-containment.json",
+      "sha256": "32c67995d386c9d1ab6b3967e5e0b5def52db599811a58c3d6563375df2f7e02"
+    },
+    {
+      "id": "kev-cisco-ise-deployment-rpc-containment",
+      "path": "kev-cisco-ise-deployment-rpc-containment.json",
+      "sha256": "d948cc0a20698b177bb5dcb2253b3b43ea06ce79da289611c9a2d29c3cf88be8"
+    },
+    {
+      "id": "kev-cisco-ise-mnt-containment",
+      "path": "kev-cisco-ise-mnt-containment.json",
+      "sha256": "778c37c62ffc745e271ba6e50cb5bc446926aec90e6dbb195623b748aacd5c0d"
+    },
+    {
+      "id": "kev-cisco-webvpn-traversal",
+      "path": "kev-cisco-webvpn-traversal.json",
+      "sha256": "9c17edfb7d24c51e2117b83c500306a939b70219f5c552f91db5b476e6d8a2e5"
+    },
+    {
+      "id": "kev-coldfusion-rds-fileio-containment",
+      "path": "kev-coldfusion-rds-fileio-containment.json",
+      "sha256": "f9eb2393c6ae1b2fc665af362d450ff6dd5a6993bd79ebf85f67a6c4c28c9c61"
+    },
+    {
+      "id": "kev-craft-configpath-directive",
+      "path": "kev-craft-configpath-directive.json",
+      "sha256": "3e096b819212cb597f4b9e99ba5901eb46eb5f661db02ab2823cba67eb5ecc9a"
+    },
+    {
+      "id": "kev-cwp-permission-operation-containment",
+      "path": "kev-cwp-permission-operation-containment.json",
+      "sha256": "114dd278ca4e319f63cc8574439854065411ff2d17c301c1c9ee163dedf93dc9"
+    },
+    {
+      "id": "kev-digiever-cgi-containment",
+      "path": "kev-digiever-cgi-containment.json",
+      "sha256": "6c4245355d0e6a262566dc244360de5a42449a6de3103325229e6b1cca7d1322"
+    },
+    {
+      "id": "kev-dlink-user-config-containment",
+      "path": "kev-dlink-user-config-containment.json",
+      "sha256": "caca69473a8b7b1b1d484285d694eab07563175e79d6bd851a67a964a4c2689e"
+    },
+    {
+      "id": "kev-draytek-apm-upload-containment",
+      "path": "kev-draytek-apm-upload-containment.json",
+      "sha256": "f723843bcdd08ce03d5de42d8cbbf83677e09b2470fbeed85817a4012b057f17"
+    },
+    {
+      "id": "kev-forticlient-client-verify-bypass",
+      "path": "kev-forticlient-client-verify-bypass.json",
+      "sha256": "8f96ad5dd0bfa81f28f3d07c3cba5183c32eef07ecd96afe0c8d905f25825b41"
+    },
+    {
+      "id": "kev-forticlient-site-sql",
+      "path": "kev-forticlient-site-sql.json",
+      "sha256": "c18013ab39fbc34c10c8013e799be7a5bcafe3013058f31fecb7bd733d3734f3"
+    },
+    {
+      "id": "kev-fortisandbox-tracer-shell",
+      "path": "kev-fortisandbox-tracer-shell.json",
+      "sha256": "39b456692a39e4982736dfb3a675e6728c9bc9e59235325e9cc903553b59e80f"
+    },
+    {
+      "id": "kev-fortiweb-admin-traversal",
+      "path": "kev-fortiweb-admin-traversal.json",
+      "sha256": "7467412ec5b7807a240a05fa48eec445950c488aa2514fcfee25073afff5bd43"
+    },
+    {
+      "id": "kev-freepbx-endpoint-brand-sql",
+      "path": "kev-freepbx-endpoint-brand-sql.json",
+      "sha256": "6d94636e9e5490a1d50e534bee3c2f8b3b19881a1eef6c11fde4e1b7301ac848"
+    },
+    {
+      "id": "kev-freepbx-filestore-shell",
+      "path": "kev-freepbx-filestore-shell.json",
+      "sha256": "b3930bc52d62bc5729baf4a39fff02c15026feaf845c5275fc1118a542516763"
+    },
+    {
+      "id": "kev-geoserver-xml-map-containment",
+      "path": "kev-geoserver-xml-map-containment.json",
+      "sha256": "c47975e8aec4eee8cc18a2ed8dd4579f0674852697e3f7aa5251a7870765d1ab"
+    },
+    {
+      "id": "kev-gitea-diffpatch-hooks",
+      "path": "kev-gitea-diffpatch-hooks.json",
+      "sha256": "c84827d32c2161d4bbee858506d7067ac8c1f992e2d26d599360ae23e43c9b79"
+    },
+    {
+      "id": "kev-gitlab-ci-lint-containment",
+      "path": "kev-gitlab-ci-lint-containment.json",
+      "sha256": "0fd8d9ac8b5ed0ac00fbc92d0b9b753e91c401bc66b1705480512825be2b76bf"
+    },
+    {
+      "id": "kev-gitlab-file-path-traversal",
+      "path": "kev-gitlab-file-path-traversal.json",
+      "sha256": "4ba7d5b2465da112c5771ece552e78d7afe184d4278e95101e915c265b8d8ec2"
+    },
+    {
+      "id": "kev-gladinet-filesvr-containment",
+      "path": "kev-gladinet-filesvr-containment.json",
+      "sha256": "41ef926d5bc684d184d47524e9ed79d33c9d1c4bd5a755ccb85ad9c9deffbec2"
+    },
+    {
+      "id": "kev-gladinet-storage-traversal",
+      "path": "kev-gladinet-storage-traversal.json",
+      "sha256": "7ad3abb645e9ddac756a061c9c65c00027e3fa483c412ac6b2cb7cc42fe2292a"
+    },
+    {
+      "id": "kev-goanywhere-license-containment",
+      "path": "kev-goanywhere-license-containment.json",
+      "sha256": "4bc900a474586e85d3c7f06433648d090d8d53ff5f03c58a2dbbd208825b5b80"
+    },
+    {
+      "id": "kev-grafana-plugin-traversal",
+      "path": "kev-grafana-plugin-traversal.json",
+      "sha256": "ac652f0a9b0f1c07f5eb293897d07229280844a1f181966a04f4a69169a86379"
+    },
+    {
+      "id": "kev-hikvision-auth-bypass-marker",
+      "path": "kev-hikvision-auth-bypass-marker.json",
+      "sha256": "74127bb3916fa8955982617fd69fa232e0b459fa8a1b511776c641b34c165ffe"
+    },
+    {
+      "id": "kev-hpe-oneview-command-containment",
+      "path": "kev-hpe-oneview-command-containment.json",
+      "sha256": "922277dd5fcada3608dc4a859eed5112101d517fa34d83eb96a6fbfbfc729487"
+    },
+    {
+      "id": "kev-icagenda-upload-containment",
+      "path": "kev-icagenda-upload-containment.json",
+      "sha256": "420c8e98bb6d56e93e87ec0db52a72c0a8135fd40949d0993043f26d4779a412"
+    },
+    {
+      "id": "kev-ivanti-dscgi-header",
+      "path": "kev-ivanti-dscgi-header.json",
+      "sha256": "b451527f0ae35142b05730be3a2ee6f760ba3aaafa8d9c11ddec9298f54c9a52"
+    },
+    {
+      "id": "kev-ivanti-featureusage-expression",
+      "path": "kev-ivanti-featureusage-expression.json",
+      "sha256": "4323472b56283639f1b7e1164cd4635b33e7e56a12c794df24b6b3a9ed186229"
+    },
+    {
+      "id": "kev-ivanti-remotecontrol-logintype",
+      "path": "kev-ivanti-remotecontrol-logintype.json",
+      "sha256": "b09c5f9c18aad7d2139f5c9107f89b5a1fe5f245883c39e541d2c33feb64ba08"
+    },
+    {
+      "id": "kev-ivanti-sentry-handlemessage-containment",
+      "path": "kev-ivanti-sentry-handlemessage-containment.json",
+      "sha256": "da5ca175f906116d8446c014c964137fde47bef2368e1109a7c05537c12bb68a"
+    },
+    {
+      "id": "kev-joomla-jce-import-containment",
+      "path": "kev-joomla-jce-import-containment.json",
+      "sha256": "81d1d02ce520de5fecfcbf72d61560b35a64bb943de5b373441edaf5da7778ac"
+    },
+    {
+      "id": "kev-kentico-staging-sync-containment",
+      "path": "kev-kentico-staging-sync-containment.json",
+      "sha256": "17d3cb0ac34d9f15f83b0e14585cf0fa5380975575ad27d81f29807cd61dec5d"
+    },
+    {
+      "id": "kev-langflow-code-execution-markers",
+      "path": "kev-langflow-code-execution-markers.json",
+      "sha256": "e1533dea196497d4e4b93273c69e1d5d981e9c35b18b1806650217f0139eb467"
+    },
+    {
+      "id": "kev-langflow-public-build-containment",
+      "path": "kev-langflow-public-build-containment.json",
+      "sha256": "950ef0a00d21b3473da8c260b2edf7507e508791945b3bbb255fc1d6b5911afe"
+    },
+    {
+      "id": "kev-litellm-mcp-connection-test-containment",
+      "path": "kev-litellm-mcp-connection-test-containment.json",
+      "sha256": "96d527312786973d5f5f76dacf2db5b5028f7753acc72a9fb660f532033e06a8"
+    },
+    {
+      "id": "kev-loadmaster-json-shell",
+      "path": "kev-loadmaster-json-shell.json",
+      "sha256": "789aff8f3fcd117cf34eb426a592b2550f6e2d03221e22b422f1e705ac0ae98d"
+    },
+    {
+      "id": "kev-magento-address-file-containment",
+      "path": "kev-magento-address-file-containment.json",
+      "sha256": "856a7ef8c24606161cdaec0c732519ea439db469e486d7d4343f70974bcde654"
+    },
+    {
+      "id": "kev-magento-editpost-containment",
+      "path": "kev-magento-editpost-containment.json",
+      "sha256": "4f8d73a6ceecfb63135996c35f7d54af725a6db8e26dfde7b9d9f5e14a628594"
+    },
+    {
+      "id": "kev-magicinfo-upload-traversal",
+      "path": "kev-magicinfo-upload-traversal.json",
+      "sha256": "e96f03223cc0639af49e4309d4181faa9b8ada238db3cd9bc603618bbb777ced"
+    },
+    {
+      "id": "kev-metabase-password-reset-containment",
+      "path": "kev-metabase-password-reset-containment.json",
+      "sha256": "bd1f528a1b3916fbe498d0883674d356819ace2e6babb4a476e37010bbdf013e"
+    },
+    {
+      "id": "kev-meteobridge-template-shell",
+      "path": "kev-meteobridge-template-shell.json",
+      "sha256": "655a75d20633b1e697a12c609fe975ed45234fc3b659161becb77578530d38c5"
+    },
+    {
+      "id": "kev-mlflow-webhook-test-containment",
+      "path": "kev-mlflow-webhook-test-containment.json",
+      "sha256": "3d908a4b9b01bcf575a9be943d2b2260ac049881b773ffb83bc90153ba3ebe22"
+    },
+    {
+      "id": "kev-n8n-workflow-process-expression",
+      "path": "kev-n8n-workflow-process-expression.json",
+      "sha256": "d901f97911a6e902eab4ab83e896f6815887339e33d5f42ecda3e22a5335bd59"
+    },
+    {
+      "id": "kev-netscaler-auth-containment",
+      "path": "kev-netscaler-auth-containment.json",
+      "sha256": "ef5b02f0d4fcb63f0434af4a3281c18e2f319ad386e342d3a07ee442cd1de31e"
+    },
+    {
+      "id": "kev-netscaler-saml-containment",
+      "path": "kev-netscaler-saml-containment.json",
+      "sha256": "3fbd6f7614b45b7f799732d4b940284385564ae9bfa1fe49afb57cac2fa12e15"
+    },
+    {
+      "id": "kev-oracle-ebs-configurator-containment",
+      "path": "kev-oracle-ebs-configurator-containment.json",
+      "sha256": "acdd677738c0933c0076d976fac9f13f48abff13a13e935dadf98472f42a8be3"
+    },
+    {
+      "id": "kev-oracle-ebs-sync-containment",
+      "path": "kev-oracle-ebs-sync-containment.json",
+      "sha256": "b17d45952f59d6b9d0afbacb7695242d1eb7073b0cea3b86c804beb3863cecb4"
+    },
+    {
+      "id": "kev-oracle-iam-semicolon-wadl",
+      "path": "kev-oracle-iam-semicolon-wadl.json",
+      "sha256": "a928e33d21c1503af8df6f933a9feb94d47332529bfab748d300142ae22e7cc0"
+    },
+    {
+      "id": "kev-pagebuilderck-upload-containment",
+      "path": "kev-pagebuilderck-upload-containment.json",
+      "sha256": "2e959d5911851600a4e6553ea90ce03d45a3a0a2fc4cf16f769cb3602aafa63c"
+    },
+    {
+      "id": "kev-papercut-configeditor-dispatch",
+      "path": "kev-papercut-configeditor-dispatch.json",
+      "sha256": "425fed1674dd841b17c4e0b0da3b862c0684458102a1d78cf13c9de7c1294f99"
+    },
+    {
+      "id": "kev-papercut-keepalive-suffix",
+      "path": "kev-papercut-keepalive-suffix.json",
+      "sha256": "833ea53259c046b9e2460dbbb1b8b33d15e761a2e3d0fc78319acc28c1219def"
+    },
+    {
+      "id": "kev-peoplesoft-psemhub-containment",
+      "path": "kev-peoplesoft-psemhub-containment.json",
+      "sha256": "56d449054595a8ea18a41e07e050c2783b6213f218c56c7a4b451301f28e5bf0"
+    },
+    {
+      "id": "kev-rails-accept-traversal",
+      "path": "kev-rails-accept-traversal.json",
+      "sha256": "1bb189bc8abe5efbcb7820c93a3d199b5d811193e71aa237afe1fced5ce6addd"
+    },
+    {
+      "id": "kev-ray-job-submission-containment",
+      "path": "kev-ray-job-submission-containment.json",
+      "sha256": "4e2787e43261d330f7a7bd711d3be7b7a4831412d407f4e44f1e19f1712e6de4"
+    },
+    {
+      "id": "kev-react-native-openurl-containment",
+      "path": "kev-react-native-openurl-containment.json",
+      "sha256": "346b1d60c9603df89907c54ae885de7e79761e9be899d3a645881512576a9c59"
+    },
+    {
+      "id": "kev-react-server-action-multipart-containment",
+      "path": "kev-react-server-action-multipart-containment.json",
+      "sha256": "ddc0ea60c0bc6b970eb0e2ac4ae841d0cad562301357e7e17c1a609928c9bdc2"
+    },
+    {
+      "id": "kev-roundcube-upload-serialization",
+      "path": "kev-roundcube-upload-serialization.json",
+      "sha256": "2225c178dbe6b019b5e1aea30c4c7388cc621e86b0ffc6412ebedc0744a61c83"
+    },
+    {
+      "id": "kev-sharepoint-toolpane-containment",
+      "path": "kev-sharepoint-toolpane-containment.json",
+      "sha256": "386ae536c1354c6236adbe83c18c4d4375ea07e97459bc1b33995197c452d273"
+    },
+    {
+      "id": "kev-sharepoint-wsfed-containment",
+      "path": "kev-sharepoint-wsfed-containment.json",
+      "sha256": "d72aeec7494d46efce8db70ae024411b155d31743a3909c638a4886e9f59e6a4"
+    },
+    {
+      "id": "kev-simplehelp-oidc-containment",
+      "path": "kev-simplehelp-oidc-containment.json",
+      "sha256": "258440f46351fb7549e3acfbab4459228c889029f5411ca3ea35c34f3bee3298"
+    },
+    {
+      "id": "kev-smartermail-admin-reset",
+      "path": "kev-smartermail-admin-reset.json",
+      "sha256": "bc43d352d96d8dd068a255c2ca9165f3a108f6207be231b82deb2084f3fab22c"
+    },
+    {
+      "id": "kev-smartermail-hub-connect-containment",
+      "path": "kev-smartermail-hub-connect-containment.json",
+      "sha256": "35597f105eb8394abd414547d99376bfdc736aa219c17a4e8c3e224f69b64b81"
+    },
+    {
+      "id": "kev-smartermail-upload-containment",
+      "path": "kev-smartermail-upload-containment.json",
+      "sha256": "176a02b03accef651bdd84032233f6fc1431205e5118ece8fdb45887f87fb6db"
+    },
+    {
+      "id": "kev-solarwinds-jsonrpc-jndi",
+      "path": "kev-solarwinds-jsonrpc-jndi.json",
+      "sha256": "d087f1d8422223530a56294106a52ca3790fb8672bd67149fa857b98a3a10ea2"
+    },
+    {
+      "id": "kev-splunk-recovery-backup-containment",
+      "path": "kev-splunk-recovery-backup-containment.json",
+      "sha256": "c56ae56da5dc4a2422fed9c3ad6545078cf7e094aa6c0852ec8f5cf60fee0a00"
+    },
+    {
+      "id": "kev-switchvox-pa-xml-containment",
+      "path": "kev-switchvox-pa-xml-containment.json",
+      "sha256": "50f28ed02759c830713713e9f9d8ee21801496458becfcf38a58bc6b7b78578a"
+    },
+    {
+      "id": "kev-sysaid-mdm-checkin-containment",
+      "path": "kev-sysaid-mdm-checkin-containment.json",
+      "sha256": "23a2af0850e7f0d49c9430de7c3c5c5b4497abea217ee78f67c08d279c85cd3a"
+    },
+    {
+      "id": "kev-sysaid-mdm-serverurl-containment",
+      "path": "kev-sysaid-mdm-serverurl-containment.json",
+      "sha256": "be27dcfc313cf965c3437cf2234a24f5251e98b92b232623583b7d9b9bb5e0de"
+    },
+    {
+      "id": "kev-teamcity-agent-register-containment",
+      "path": "kev-teamcity-agent-register-containment.json",
+      "sha256": "a6481ea9b8281c9ae082725cfe61a41ff09c9636035c06cd06859f077513c098"
+    },
+    {
+      "id": "kev-teamcity-public-prefix-traversal",
+      "path": "kev-teamcity-public-prefix-traversal.json",
+      "sha256": "545f676b37d777b34e71b81603c0f46127d30cbd3848305836ecc8a1b4271212"
+    },
+    {
+      "id": "kev-unifi-sso-path-traversal",
+      "path": "kev-unifi-sso-path-traversal.json",
+      "sha256": "53b8cda7a3a4f252b832aa3e193b69fe2d40a4f2bc1edcaa10fe8ab694dbb442"
+    },
+    {
+      "id": "kev-versa-hop-header-bypass",
+      "path": "kev-versa-hop-header-bypass.json",
+      "sha256": "88a4ac17f9b145b4cbc4445000df360446930e5d46b30c95ea39f2c6226be2d8"
+    },
+    {
+      "id": "kev-vite-filesystem-probe",
+      "path": "kev-vite-filesystem-probe.json",
+      "sha256": "1944fd86c0083d16aad27ad399c449a3e5f49eb5d96c1d50a72d70346763cec5"
+    },
+    {
+      "id": "kev-wazuh-runas-containment",
+      "path": "kev-wazuh-runas-containment.json",
+      "sha256": "0d424c5bb24c0e2acfbcdb36fd6130c35e17a30f97b1cd247d88ff93a12fdb46"
+    },
+    {
+      "id": "kev-wingftp-login-containment",
+      "path": "kev-wingftp-login-containment.json",
+      "sha256": "feb2bf7277c3351335c6d6c381f3e075dbc5c94333602aa2d661709ae5b11ee7"
+    },
+    {
+      "id": "kev-wordpress-batch-route-confusion",
+      "path": "kev-wordpress-batch-route-confusion.json",
+      "sha256": "78aad6704ff4d594179ca5a6133ffd282156246c7973455455ab0c8472f806be"
+    },
+    {
+      "id": "kev-wordpress-template-traversal",
+      "path": "kev-wordpress-template-traversal.json",
+      "sha256": "2dc2b601a2d50ee3cfa99684525e15a6cca3d7c64dd7204da43871b291e777f7"
+    },
+    {
+      "id": "kev-workspaceone-blobhandler-containment",
+      "path": "kev-workspaceone-blobhandler-containment.json",
+      "sha256": "aecfe2c202c364915fb59e21731877f1696556aa3e655be3b660629da1653bc9"
+    },
+    {
+      "id": "kev-wsus-reporting-rollup-containment",
+      "path": "kev-wsus-reporting-rollup-containment.json",
+      "sha256": "e6ea82a35bd02e647302dc3dae5ba9b1eaf69e2c81287dbb43e4ddfa3c61cc4f"
+    },
+    {
+      "id": "kev-xwiki-solr-groovy",
+      "path": "kev-xwiki-solr-groovy.json",
+      "sha256": "264ac812995b3dca2322630a80f03bcccfc23cfad91d206fb9d6fa14c907e98e"
+    },
+    {
+      "id": "kev-zimbra-autodiscover-xml-containment",
+      "path": "kev-zimbra-autodiscover-xml-containment.json",
+      "sha256": "391ca24775143460210f48684bf33b2e63bfd22638afbd56e42b54c82ca6e2d2"
+    },
+    {
+      "id": "kev-zimbra-servlet-include",
+      "path": "kev-zimbra-servlet-include.json",
+      "sha256": "4ca079a850e3c070faeb0a4f82a143a5283e0b3304c1526e94fd1e92315446c6"
+    },
+    {
+      "id": "kev-zimbra-webex-ssrf-url",
+      "path": "kev-zimbra-webex-ssrf-url.json",
+      "sha256": "f9da951e0608acd136507a7f0bfbb50bfad9eb45201e0fd2d0f927078f933b70"
+    },
     {
       "id": "node-brotli-request-guard",
       "path": "node-brotli-request-guard.json",

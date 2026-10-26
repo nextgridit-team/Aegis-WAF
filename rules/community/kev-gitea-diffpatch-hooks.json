@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-gitea-diffpatch-hooks",
+  "pack": "Gitea request guards",
+  "technology": [
+    "gitea",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-60004"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects JSON diff patches declaring hook-directory files on Gitea diffpatch routes.",
+  "affected_versions": "Gitea Gitea: 1.17 to <1.27.1; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects JSON diff patches declaring hook-directory files on Gitea diffpatch routes.",
+  "limitations": "Alternate patch paths, encodings or repository mechanisms are outside this matcher. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate versioned files under hooks/ are blocked.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-60004",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-60004.yaml",
+    "https://github.com/go-gitea/gitea/security/advisories/GHSA-rcr6-4jqh-j84m",
+    "https://github.com/EQSTLab/CVE-2026-60004"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Gitea patch hook-file guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/v1/repos/[^/]+/[^/]+/diffpatch/?$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "(?m)(?:^diff --git a/hooks/|^\\+\\+\\+ b/hooks/)",
+        "key": "/content"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/api/v1/repos/user/repo/diffpatch",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"content\": \"diff --git a/hooks/post-index-change b/hooks/post-index-change\\n\"}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/repos/user/repo/diffpatch",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"content\": \"diff --git a/docs/readme b/docs/readme\\n\"}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-papercut-configeditor-dispatch",
+  "pack": "NG/MF request guards",
+  "technology": [
+    "papercut",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-81578"
+  ],
+  "description": "Temporary endpoint containment. Rejects direct-dispatch requests into ConfigEditor under the documented Tapestry route.",
+  "affected_versions": "PaperCut PaperCut MF/NG: 0 to <24.1.10, 25.0.0 to <25.0.13, 26.0.0 to <26.0.5; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects direct-dispatch requests into ConfigEditor under the documented Tapestry route.",
+  "limitations": "This contains the selected administrative route, not all authentication-bypass paths. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate ConfigEditor direct operations are blocked.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-81578",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-81578.yaml",
+    "https://www.papercut.com/kb/Main/security-bulletin-27-aug-2026-urgent-security-advisory/",
+    "https://www.rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "PaperCut ConfigEditor dispatch guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/app/?$"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?i)^direct/[^/]+/Home/ConfigEditor/",
+        "key": "service"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/app?service=direct%2Fexample%2FHome%2FConfigEditor%2FquickFindForm",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/app?service=direct%2Fexample%2FHome%2FDashboard%2Fview",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

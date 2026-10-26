@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-ahsay-fromservlet-bypass",
+  "pack": "AhsayCBS request guards",
+  "technology": [
+    "ahsay",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-105133"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects the FromServlet=Y JSON bypass flag on the documented Ahsay JSON API family.",
+  "affected_versions": "Ahsay AhsayCBS: 9.15.2.0, 9.15.2.1, 9.15.2.2, 9.15.2.3, 9.15.2.4, 9.15.2.5, 9.15.2.6, 9.15.2.7, 9.15.2.8, 9.15.2.9, 9.15.2.10, 9.15.2.11, 9.15.2.12, 9.15.2.13, 9.15.2.14, 9.15.2.15, 9.15.2.16, 9.15.2.17, 9.15.2.18, 9.15.2.19, 9.15.2.20, 9.15.2.21, 9.15.2.22, 9.15.2.23, 9.15.2.24, 9.15.2.25, 9.15.2.26, 9.15.2.27, 9.15.2.28, 9.15.2.29, 9.15.2.30, 9.15.2.31, 9.15.2.32, 9.15.2.33, 9.15.2.34, 9.15.2.35, 9.15.2.36, 9.15.2.37, 9.15.2.38, 9.15.2.39, 9.15.2.40, 9.15.2.41, 9.15.2.42, 9.15.2.43, 9.15.2.44, 9.15.2.45, 9.15.2.46, 9.15.2.47, 9.15.2.48, 9.15.2.49, 9.15.2.50, 9.15.2.51, 9.15.2.52, 9.15.2.53, 9.15.2.54, 9.15.2.55, 9.15.2.56, 9.15.2.57, 9.15.2.58, 9.15.2.59, 9.15.2.60, 9.15.2.61, 9.15.2.62, 9.15.2.63, 9.15.2.64, 9.15.2.65, 9.15.2.66, 9.15.2.67, 9.15.2.68, 9.15.2.69, 10.3.4.0, 10.3.4.1, 10.3.4.2, 10.3.4.3, 10.3.4.4, 10.3.4.5, 10.3.4.6, 10.3.4.7, 10.3.4.8, 10.3.4.9, 10.3.4.10, 10.3.4.11, 10.3.4.12, 10.3.4.13, 10.3.4.14, 10.3.4.15, 10.3.4.16, 10.3.4.17, 10.3.4.18, 10.3.4.19, 10.3.4.20, 10.3.4.21, 10.3.4.22, 10.3.4.23, 10.3.4.24, 10.3.4.25, 10.3.4.26, 10.3.4.27, 10.3.4.28, 10.3.4.29, 10.3.4.30, 10.3.4.31, 10.3.4.32, 10.3.4.33, 10.3.4.34, 10.3.4.35, 10.3.4.36, 10.3.4.37, 10.3.4.38, 10.3.4.39, 10.3.4.40, 10.3.4.41, 10.3.4.42, 10.3.4.43, 10.3.4.44; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects the FromServlet=Y JSON bypass flag on the documented Ahsay JSON API family.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate internal API calls using this flag are blocked; assign an internal policy when needed.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-105133",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-105133.yaml",
+    "https://www.ahsay.com/en/company/announcements",
+    "https://horizon3.ai/attack-research/attack-blogs/ahsaycbs-cve-2026-105133-cve-2026-105134-technical-analysis/",
+    "https://github.com/horizon3ai/AhsayCBS-Auth-Bypass-RCE"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Ahsay servlet-flag bypass guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/obs/api/json/[^/]+\\.do$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "^Y$",
+        "key": "/FromServlet"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/obs/api/json/ListSystemUsers.do",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"FromServlet\": \"Y\"}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/obs/api/json/ListSystemUsers.do",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-checkpoint-upgradesvc-containment",
+  "pack": "Multiple Products request guards",
+  "technology": [
+    "check-point",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-93616"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /cpmws/UpgradeSvcRemote.",
+  "affected_versions": "checkpoint Quantum Security Management: R82.20 with no Jumbo Hotfix, R82.10 with Jumbo Hotfix Take 44 or below, R82 with Jumbo Hotfix Take 126 or below, R81.20 with Jumbo Hotfix Take 166 or below, R81.10 (EOS) with Jumbo Hotfix Take 190 or below, R81 (EOS), R80.40 (EOS), R80.30 (EOS), R80.20 (EOS), R80.10 (EOS), R80 (EOS); verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /cpmws/UpgradeSvcRemote.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-93616",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-93616.yaml",
+    "https://support.checkpoint.com/results/sk/sk1000171",
+    "https://blog.checkpoint.com/security/security-advisory-action-required-active-exploitation-of-cve-2026-85102-and-a-management-pre-authentication-vulnerability-cve-2026-93616/",
+    "https://github.com/BishopFox/CVE-2026-93616-check",
+    "https://github.com/WadesWeaponShed/CVE-2026-93616_Checks"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Check Point UpgradeSvc containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/cpmws/UpgradeSvcRemote/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/cpmws/UpgradeSvcRemote",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/cpmws/UpgradeSvcRemote",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

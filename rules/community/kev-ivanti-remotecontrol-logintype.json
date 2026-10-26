@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-ivanti-remotecontrol-logintype",
+  "pack": " Endpoint Manager (EPM) request guards",
+  "technology": [
+    "ivanti",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-1603"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects the documented logintype 64 JSON authentication path.",
+  "affected_versions": "Ivanti Endpoint Manager: consult linked CNA affected configuration; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects the documented logintype 64 JSON authentication path.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate remote-control clients using this login type are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-1603",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-1603.yaml",
+    "https://x.com/watchtowrcyber/status/2022305033086235108/photo/1",
+    "https://hub.ivanti.com/s/article/Security-Advisory-EPM-February-2026-for-EPM-2024"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Ivanti RemoteControl login-type guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/RemoteControlAuth/api/Auth/?$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "^64$",
+        "key": "/logintype"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/RemoteControlAuth/api/Auth",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"logintype\": \"64\", \"username\": \"administrator\"}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/RemoteControlAuth/api/Auth",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"logintype\": \"1\", \"username\": \"operator\"}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

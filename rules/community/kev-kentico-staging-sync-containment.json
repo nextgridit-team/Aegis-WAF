@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-kentico-staging-sync-containment",
+  "pack": "Xperience CMS request guards",
+  "technology": [
+    "kentico",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-2747",
+    "CVE-2025-2746"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /CMSPages/Staging/SyncServer.asmx.",
+  "affected_versions": "Kentico Xperience: 0 through 13.0.178; Kentico Xperience: 0 through 13.0.172; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /CMSPages/Staging/SyncServer.asmx.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-2747",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-2747.yaml",
+    "https://www.cve.org/CVERecord?id=CVE-2025-2746",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-2746.yaml",
+    "https://github.com/watchtowrlabs/kentico-xperience13-AuthBypass-wt-2025-0006",
+    "https://devnet.kentico.com/download/hotfixes",
+    "https://github.com/watchtowrlabs/kentico-xperience13-AuthBypass-wt-2025-0011",
+    "https://labs.watchtowr.com/bypassing-authentication-like-its-the-90s-pre-auth-rce-chain-s-in-kentico-xperience-cms/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Kentico staging synchronization containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/CMSPages/Staging/SyncServer\\.asmx$"
+      },
+      {
+        "field": "header",
+        "op": "regex",
+        "value": "/ProcessSynchronizationTaskData\"?$",
+        "key": "SOAPAction"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/CMSPages/Staging/SyncServer.asmx",
+      "headers": {
+        "SOAPAction": "http://localhost/SyncWebService/SyncServer/ProcessSynchronizationTaskData"
+      },
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/CMSPages/Staging/SyncServer.asmx",
+      "headers": {
+        "SOAPAction": "http://localhost/SyncWebService/SyncServer/ProcessSynchronizationTaskData"
+      },
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

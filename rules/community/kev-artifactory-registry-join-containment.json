@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-artifactory-registry-join-containment",
+  "pack": "Artifactory request guards",
+  "technology": [
+    "jfrog",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-82329"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /access/api/v1/registry/join.",
+  "affected_versions": "jfrog artifactory: 0 to <7.111.21, 7.117.0 to <7.117.28, 7.125.0 to <7.125.20, 7.133.0 to <7.133.29, 7.146.0 to <7.146.38, 7.161.0 to <7.161.20; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /access/api/v1/registry/join.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-82329",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-82329.yaml",
+    "https://jfrog.com/help/r/jfrog-release-information/artifactory-security-fixes",
+    "https://www.pruva.dev/reproductions/REPRO-2026-00341"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Artifactory registry-join containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/access/api/v1/registry/join/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/access/api/v1/registry/join",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/access/api/v1/registry/join",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

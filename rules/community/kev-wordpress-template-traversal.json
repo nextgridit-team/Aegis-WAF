@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-wordpress-template-traversal",
+  "pack": "Core request guards",
+  "technology": [
+    "wordpress",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-87902"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects traversal markers in the query-routed WordPress pagename template selector.",
+  "affected_versions": "WordPress WordPress: 0 to <7.1.2; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects traversal markers in the query-routed WordPress pagename template selector.",
+  "limitations": "Only the query-routed pagename form is matched. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Page slugs containing literal or percent-encoded double dots are blocked.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-87902",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-87902.yaml",
+    "https://github.com/WordPress/wordpress-develop/security/advisories/GHSA-7hp8-65ch-5whp",
+    "https://github.com/WordPress/WordPress/commit/fdeab470f4b4062462cf8ccdc788f258683c2d6f",
+    "https://hadrian.io/vulnerability-alerts/cve-2026-87902-working-poc-wordpress-critical-path-traversal"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "WordPress template traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "(?i)(?:\\.\\.|%2e%2e)",
+        "key": "pagename"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/?page_id=1&pagename=templates%252F%252E%252E%252Fwp-links-opml",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/?page_id=1&pagename=templates%2Ffooter",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

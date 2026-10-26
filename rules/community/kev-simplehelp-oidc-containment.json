@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-simplehelp-oidc-containment",
+  "pack": "SimpleHelp request guards",
+  "technology": [
+    "simplehelp",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-48558"
+  ],
+  "description": "Temporary endpoint containment. Blocks GET requests to the documented vulnerable operation at /auth/v1/account/oidc_get.",
+  "affected_versions": "SimpleHelp SimpleHelp: 5.5.0 to <5.5.16, 6.0 to <6.0 RC2; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks GET requests to the documented vulnerable operation at /auth/v1/account/oidc_get.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-48558",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-48558.yaml",
+    "https://horizon3.ai/attack-research/disclosures/cve-2026-48558-simplehelp-authentication-bypass-iocs/",
+    "https://simple-help.com/security/simplehelp-security-update-2026-05",
+    "https://github.com/rapid7/metasploit-framework/blob/master/modules/exploits/multi/http/simplehelp_oidc_auth_bypass_rce.rb",
+    "https://github.com/J4ck3LSyN-Gen2/CVE-2026-48558",
+    "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-48558"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "SimpleHelp OIDC callback containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "GET"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/auth/v1/account/oidc_get/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/auth/v1/account/oidc_get",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/auth/v1/account/oidc_get",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

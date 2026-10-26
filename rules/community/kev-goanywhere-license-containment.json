@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-goanywhere-license-containment",
+  "pack": "GoAnywhere MFT request guards",
+  "technology": [
+    "fortra",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-10035"
+  ],
+  "description": "Temporary endpoint containment. Blocks the documented suffixed license-activation route.",
+  "affected_versions": "Fortra GoAnywhere MFT: 0 through 7.8.3; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks the documented suffixed license-activation route.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate license activation using this path/query operation is denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-10035",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-10035.yaml",
+    "https://labs.watchtowr.com/is-this-bad-this-feels-bad-goanywhere-cve-2025-10035/",
+    "https://attackerkb.com/topics/LbA9ANjcdz/cve-2025-10035/rapid7-analysis",
+    "https://www.fortra.com/security/advisories/product-security/fi-2025-011"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "GoAnywhere license activation containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/(?:goanywhere/)?license/Unlicensed\\.xhtml/"
+      },
+      {
+        "field": "query",
+        "op": "regex",
+        "value": "^activate$",
+        "key": "GARequestAction"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/goanywhere/license/Unlicensed.xhtml/example?GARequestAction=activate",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/goanywhere/license/Unlicensed.xhtml",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

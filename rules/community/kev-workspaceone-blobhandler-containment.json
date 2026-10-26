@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-workspaceone-blobhandler-containment",
+  "pack": "Workspace One UEM request guards",
+  "technology": [
+    "omnissa",
+    "http"
+  ],
+  "cves": [
+    "CVE-2021-22054"
+  ],
+  "description": "Temporary endpoint containment. Blocks GET requests to the documented vulnerable operation at /Catalog/BlobHandler.ashx.",
+  "affected_versions": "n/a VMware Workspace ONE UEM console: VMware Workspace ONE UEM console 20.0.8 prior to 20.0.8.37, 20.11.0 prior to 20.11.0.40, 21.2.0 prior to 21.2.0.27, and 21.5.0 prior to 21.5.0.37.; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks GET requests to the documented vulnerable operation at /Catalog/BlobHandler.ashx.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2021-22054",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2021/CVE-2021-22054.yaml",
+    "https://blog.assetnote.io/2022/04/27/vmware-workspace-one-uem-ssrf/",
+    "https://www.vmware.com/security/advisories/VMSA-2021-0029.html",
+    "https://github.com/fardeen-ahmed/Bug-bounty-Writeups",
+    "https://github.com/nomi-sec/PoC-in-GitHub"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Workspace ONE BlobHandler containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "GET"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)^/Catalog/BlobHandler\\.ashx$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/Catalog/BlobHandler.ashx",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/Catalog/BlobHandler.ashx",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-craft-configpath-directive",
+  "pack": "Craft CMS request guards",
+  "technology": [
+    "craft-cms",
+    "http"
+  ],
+  "cves": [
+    "CVE-2024-56145"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects a nonempty externally supplied --configPath query directive.",
+  "affected_versions": "craftcms cms: >= 4.0.0-RC1, < 4.13.2, >= 5.0.0-RC1, < 5.5.2, >= 3.0.0, < 3.9.14; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects a nonempty externally supplied --configPath query directive.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Applications intentionally accepting this reserved configuration directive from clients are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2024-56145",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-56145.yaml",
+    "https://github.com/advisories/GHSA-2p6p-9rc9-62j9",
+    "https://www.assetnote.io/resources/research/how-an-obscure-php-footgun-led-to-rce-in-craft-cms",
+    "https://github.com/Chocapikk/CVE-2024-56145",
+    "https://github.com/craftcms/cms/commit/82e893fb794d30563da296bca31379c0df0079b3",
+    "https://github.com/craftcms/cms/security/advisories/GHSA-2p6p-9rc9-62j9"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Craft config-path query directive guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "query",
+        "op": "regex",
+        "value": ".+",
+        "key": "--configPath"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/?--configPath=%2Fexample",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/?page=example",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

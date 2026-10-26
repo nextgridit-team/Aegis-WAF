@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-wazuh-runas-containment",
+  "pack": "Wazuh Server request guards",
+  "technology": [
+    "wazuh",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-24016"
+  ],
+  "description": "Temporary endpoint containment. Blocks POST requests to the documented vulnerable operation at /security/user/authenticate/run_as.",
+  "affected_versions": "wazuh wazuh: >= 4.4.0, < 4.9.1; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Blocks POST requests to the documented vulnerable operation at /security/user/authenticate/run_as.",
+  "limitations": "The body or authentication mechanism is not inspected; disabling this delivery endpoint is not exploit detection. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Blocks legitimate uses of this operation too. This is a temporary containment option for policies that can disable the operation; review application compatibility before enabling.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-24016",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-24016.yaml",
+    "https://github.com/MuhammadWaseem29/CVE-2025-24016",
+    "https://github.com/wazuh/wazuh/security/advisories/GHSA-hcrc-79hj-m3qh"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Wazuh run-as authentication containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/security/user/authenticate/run_as/?$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/security/user/authenticate/run_as",
+      "headers": {},
+      "body": "",
+      "name": "operation blocked including legitimate uses",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/security/user/authenticate/run_as",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

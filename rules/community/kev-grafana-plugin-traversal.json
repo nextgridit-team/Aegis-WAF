@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-grafana-plugin-traversal",
+  "pack": "Grafana request guards",
+  "technology": [
+    "grafana-labs",
+    "http"
+  ],
+  "cves": [
+    "CVE-2021-43798"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects parent-directory markers on Grafana plugin asset routes.",
+  "affected_versions": "grafana grafana: >= 8.0.0, < 8.0.7, >= 8.1.0, < 8.1.8, >= 8.2.0, < 8.2.7, = 8.3.0; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects parent-directory markers on Grafana plugin asset routes.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Literal traversal-like plugin asset names are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2021-43798",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2021/CVE-2021-43798.yaml",
+    "https://github.com/grafana/grafana/security/advisories/GHSA-8pjx-jj86-j47p",
+    "https://nosec.org/home/detail/4914.html",
+    "https://github.com/jas502n/Grafana-VulnTips"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Grafana plugin traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/public/plugins/"
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:\\.\\.[/\\\\]|%2e)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/public/plugins/alertlist/../../etc/passwd",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/public/plugins/alertlist/module.js",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

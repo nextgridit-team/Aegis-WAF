@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-langflow-code-execution-markers",
+  "pack": "Langflow request guards",
+  "technology": [
+    "ibm",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-9198",
+    "CVE-2026-0770",
+    "CVE-2025-3248"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects selected dynamic-execution/import constructs in the code JSON field on Langflow validation.",
+  "affected_versions": "IBM Langflow OSS: 1.0.0 through 1.10.0; Langflow Langflow: 1.4.2; langflow-ai langflow: 0 to <1.3.0; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects selected dynamic-execution/import constructs in the code JSON field on Langflow validation.",
+  "limitations": "This is a heuristic source-text pattern; alternate Python execution constructs can bypass it. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Legitimate validation code using imports, exec/eval or subprocess is blocked; trusted development needs a different policy.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2026-9198",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-9198.yaml",
+    "https://www.cve.org/CVERecord?id=CVE-2026-0770",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-0770.yaml",
+    "https://www.cve.org/CVERecord?id=CVE-2025-3248",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-3248.yaml",
+    "https://www.ibm.com/support/pages/node/7278927",
+    "https://github.com/ywh-jfellus/CVE-2026-9198"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Langflow code-execution marker guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "method",
+        "op": "in",
+        "value": [
+          "POST"
+        ]
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/api/v1/validate/code/?$"
+      },
+      {
+        "field": "json_body",
+        "op": "regex",
+        "value": "(?i)(?:__import__|\\bexec\\s*\\(|\\beval\\s*\\(|\\bsubprocess\\.)",
+        "key": "/code"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/api/v1/validate/code",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"code\": \"def check(_=__import__('math')):\\n    pass\"}",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/validate/code",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"code\": \"def add(a, b):\\n    return a + b\"}",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

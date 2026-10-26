@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-vite-filesystem-probe",
+  "pack": "Vitejs request guards",
+  "technology": [
+    "vite",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-31125"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects selected operating-system file targets under Vite filesystem routes.",
+  "affected_versions": "vitejs vite: >= 6.2.0, < 6.2.4, >= 6.1.0, < 6.1.3, >= 6.0.0, < 6.0.13, >= 5.0.0, < 5.4.16, < 4.5.11; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects selected operating-system file targets under Vite filesystem routes.",
+  "limitations": "This matches two known targets only, not arbitrary file disclosure; never publicly expose a vulnerable development server. Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Development projects intentionally serving these operating-system file names are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-31125",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-31125.yaml",
+    "https://github.com/vitejs/vite/issues/8498",
+    "https://github.com/vitejs/vite/pull/8804",
+    "https://github.com/vitejs/vite/pull/8979"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Vite filesystem sensitive-path guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/@fs/"
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:/etc/passwd|/windows/win\\.ini)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "GET",
+      "path": "/@fs/etc/passwd?import=",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/@fs/src/main.ts?import=",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}

@@ -1,0 +1,3607 @@
+{
+  "status": "DRAFT: maintainer review required; not published to the main feed",
+  "selection": "100 most recently KEV-added CVEs among the inspected research set with authored HTTP guards. This is an actionable, source-constrained subset, not a universal top-100 severity ranking or a claim that these are the 100 newest web CVEs.",
+  "source": "https://github.com/cisagov/kev-data",
+  "catalog_version": "2026.10.23",
+  "catalog_sha256": "97a6e54bc74c651ab3c55657191db9adec6c63b05ca54e4205327cfd97a8fb70",
+  "retrieved_at": "2026-10-26",
+  "target_count": 100,
+  "rule_count": 93,
+  "proposals": [
+    {
+      "id": "kev-atlassian-double-colon-traversal",
+      "cves": [
+        "CVE-2026-21589"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-10-15"
+      ],
+      "source_candidates": [
+        1
+      ],
+      "sha256": "5b8b417890e79b9019d86442923092198e040e92b119ed596510300be95dd01a",
+      "sources": [
+        {
+          "cve": "CVE-2026-21589",
+          "cna_sha256": "d4f4c87c10ae44997beaa051f6af435840b8a962f9303c42ced0a4e743991c16",
+          "template_sha256": "fced13591d75c87475b2cf95ce2428105f31bcbb5e343cd40f05e0bb7af2bb03",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-21589.yaml",
+          "template_authors": "Kazgangap,DhiyaneshDk,watchtowr"
+        }
+      ]
+    },
+    {
+      "id": "kev-ahsay-fromservlet-bypass",
+      "cves": [
+        "CVE-2026-105133"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-10-14"
+      ],
+      "source_candidates": [
+        2
+      ],
+      "sha256": "f2c0c674e1616309d96553c1459f5e171d07160358c7812c689596e67fa40e29",
+      "sources": [
+        {
+          "cve": "CVE-2026-105133",
+          "cna_sha256": "b1b438abafa7ecce896c028bd345262d9321720f5c11d772ad010372184f40be",
+          "template_sha256": "70e9cded08fee46a4f0f3453c94321519be959b640af90425c731b342401386c",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-105133.yaml",
+          "template_authors": "alex"
+        }
+      ]
+    },
+    {
+      "id": "kev-ivanti-dscgi-header",
+      "cves": [
+        "CVE-2026-104935"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-10-13"
+      ],
+      "source_candidates": [
+        3
+      ],
+      "sha256": "b451527f0ae35142b05730be3a2ee6f760ba3aaafa8d9c11ddec9298f54c9a52",
+      "sources": [
+        {
+          "cve": "CVE-2026-104935",
+          "cna_sha256": "3ea3901cd1371613692cfea61b2de0f1ca1dddc3aafba6e192473ec6bc2a01cd",
+          "template_sha256": "dcfdde58ff23ce597479a037a70fe77db47a184b8272bb0044458511c545ae46",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-104935.yaml",
+          "template_authors": "volexity,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-wordpress-template-traversal",
+      "cves": [
+        "CVE-2026-87902"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-09-25"
+      ],
+      "source_candidates": [
+        5
+      ],
+      "sha256": "2dc2b601a2d50ee3cfa99684525e15a6cca3d7c64dd7204da43871b291e777f7",
+      "sources": [
+        {
+          "cve": "CVE-2026-87902",
+          "cna_sha256": "729d6179192835be690672e01e6a6237dc3c441b3422241200b279e09ab1e481",
+          "template_sha256": "6f1b002c1b126898974e2774b6103ea7819e2c436f67687ed9143dd744b0eced",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-87902.yaml",
+          "template_authors": "Hadrian,FLX"
+        }
+      ]
+    },
+    {
+      "id": "kev-magento-editpost-containment",
+      "cves": [
+        "CVE-2026-71362"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-09-24"
+      ],
+      "source_candidates": [
+        6
+      ],
+      "sha256": "4f8d73a6ceecfb63135996c35f7d54af725a6db8e26dfde7b9d9f5e14a628594",
+      "sources": [
+        {
+          "cve": "CVE-2026-71362",
+          "cna_sha256": "150c3a3df2cd1b1e7db5571a88d5bbf92a951775460b24526756c7e271bd3ccd",
+          "template_sha256": "4f330824ffed3e8bfa338b3c65fe44acfe7e8cc7001b9f6b5054aae749dbf963",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-71362.yaml",
+          "template_authors": "0x_Akoko,dinosn"
+        }
+      ]
+    },
+    {
+      "id": "kev-checkpoint-upgradesvc-containment",
+      "cves": [
+        "CVE-2026-93616"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-09-22"
+      ],
+      "source_candidates": [
+        7
+      ],
+      "sha256": "32c67995d386c9d1ab6b3967e5e0b5def52db599811a58c3d6563375df2f7e02",
+      "sources": [
+        {
+          "cve": "CVE-2026-93616",
+          "cna_sha256": "95deeefdeb1cbc389bba43a92b4c9a55832c53a5c57bc44175a124b139d399dd",
+          "template_sha256": "79e2e4d55a02520dde9602989d847237e231b39d398ef70b2e8e72d389163086",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-93616.yaml",
+          "template_authors": "0x_Akoko,pdteam"
+        }
+      ]
+    },
+    {
+      "id": "kev-cisco-ise-mnt-containment",
+      "cves": [
+        "CVE-2026-76460"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-09-16"
+      ],
+      "source_candidates": [
+        8
+      ],
+      "sha256": "778c37c62ffc745e271ba6e50cb5bc446926aec90e6dbb195623b748aacd5c0d",
+      "sources": [
+        {
+          "cve": "CVE-2026-76460",
+          "cna_sha256": "56ad33c89f006ea184c21f2b819d971fb394b94f6a0fbc38ee5adcd35c9bdb3c",
+          "template_sha256": "56de03ef886a7b5ab4dc4f2e2782affc0917df23e7a530f34f8b94c8cc2c323e",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-76460.yaml",
+          "template_authors": "0x_Akoko"
+        }
+      ]
+    },
+    {
+      "id": "kev-gitlab-file-path-traversal",
+      "cves": [
+        "CVE-2026-85706"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-09-11"
+      ],
+      "source_candidates": [
+        9
+      ],
+      "sha256": "4ba7d5b2465da112c5771ece552e78d7afe184d4278e95101e915c265b8d8ec2",
+      "sources": [
+        {
+          "cve": "CVE-2026-85706",
+          "cna_sha256": "ff7dd8512392618705f7c2ef78f592fab94db3fdce1be22e4faa9533e08a1f62",
+          "template_sha256": "41f56d726064f3443d1d73ad1bbef216de087cb2b9519c0e65444c7e8f3406f8",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-85706.yaml",
+          "template_authors": "FLX"
+        }
+      ]
+    },
+    {
+      "id": "kev-artifactory-aws-token-slash",
+      "cves": [
+        "CVE-2026-42018"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-09-11"
+      ],
+      "source_candidates": [
+        10
+      ],
+      "sha256": "6b134d478fe1beafc20bc6912c98d1d6ae223148b630a5adf8a34a5a17e2d51a",
+      "sources": [
+        {
+          "cve": "CVE-2026-42018",
+          "cna_sha256": "df2e57db35e824200ee70f1f93c585707631586ea96dea7c17e5978cbdace803",
+          "template_sha256": "12a1f25d8eaed98ffb1da3cde6703bc8c1cc747b17132f91bc8a030d789357ca",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-42018.yaml",
+          "template_authors": "theamanrawat"
+        }
+      ]
+    },
+    {
+      "id": "kev-switchvox-pa-xml-containment",
+      "cves": [
+        "CVE-2026-9586"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-09-02"
+      ],
+      "source_candidates": [
+        13
+      ],
+      "sha256": "50f28ed02759c830713713e9f9d8ee21801496458becfcf38a58bc6b7b78578a",
+      "sources": [
+        {
+          "cve": "CVE-2026-9586",
+          "cna_sha256": "20218fda2f4c200c558e711b6a279af2695233d995855d1cd62d195c4f644e57",
+          "template_sha256": "de6d4d2e2568101c93c76c82b71acf9016f215409e2417e46a3c041368f25bb1",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-9586.yaml",
+          "template_authors": "DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-artifactory-registry-join-containment",
+      "cves": [
+        "CVE-2026-82329"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-09-02"
+      ],
+      "source_candidates": [
+        14
+      ],
+      "sha256": "ebf3f2d832538188867661f39e5f9544f8497acc368ea98b319ea4f1075d999e",
+      "sources": [
+        {
+          "cve": "CVE-2026-82329",
+          "cna_sha256": "7779cc1045c8cfe25d6244dec46e6c2d6920382dc625331773ec31d756423b55",
+          "template_sha256": "de463a9824ecca463918d3d73f27b385ed9311fd2ad40bc72828bdaf9640c815",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-82329.yaml",
+          "template_authors": "johnk3r,pruva"
+        }
+      ]
+    },
+    {
+      "id": "kev-papercut-configeditor-dispatch",
+      "cves": [
+        "CVE-2026-81578"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-08-31"
+      ],
+      "source_candidates": [
+        16
+      ],
+      "sha256": "425fed1674dd841b17c4e0b0da3b862c0684458102a1d78cf13c9de7c1294f99",
+      "sources": [
+        {
+          "cve": "CVE-2026-81578",
+          "cna_sha256": "9d52dd611e8e6adbb56d601b96a212eae18315fdb5e64bb0671efb7912b178cd",
+          "template_sha256": "9619ee522c7ec83a8d7cb3a766c8ba66c3635281d3d55c5357482cbe4838fb13",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-81578.yaml",
+          "template_authors": "darses,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-gitea-diffpatch-hooks",
+      "cves": [
+        "CVE-2026-60004"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-08-25"
+      ],
+      "source_candidates": [
+        17
+      ],
+      "sha256": "c84827d32c2161d4bbee858506d7067ac8c1f992e2d26d599360ae23e43c9b79",
+      "sources": [
+        {
+          "cve": "CVE-2026-60004",
+          "cna_sha256": "21c83f30902ea57e124086d1ca3d97174a2752f81abfc5cc9110c0864f84ed5b",
+          "template_sha256": "6ea77040033c880685db37ceffe9287d7a650a7279ca6da66e9ea78be78d9cfd",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-60004.yaml",
+          "template_authors": "0x_Akoko"
+        }
+      ]
+    },
+    {
+      "id": "kev-mlflow-webhook-test-containment",
+      "cves": [
+        "CVE-2026-64849"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-08-19"
+      ],
+      "source_candidates": [
+        18
+      ],
+      "sha256": "3d908a4b9b01bcf575a9be943d2b2260ac049881b773ffb83bc90153ba3ebe22",
+      "sources": [
+        {
+          "cve": "CVE-2026-64849",
+          "cna_sha256": "fa49e2787999324225f2bdcf23816dc627a8f15c5e06637459855b37730dffc7",
+          "template_sha256": "d3cad28471a0b9c12bf1a1aceef21421b440e07a969ff587731d8790f47858ad",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-64849.yaml",
+          "template_authors": "DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-ray-job-submission-containment",
+      "cves": [
+        "CVE-2025-62593"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-08-17"
+      ],
+      "source_candidates": [
+        19
+      ],
+      "sha256": "4e2787e43261d330f7a7bd711d3be7b7a4831412d407f4e44f1e19f1712e6de4",
+      "sources": [
+        {
+          "cve": "CVE-2025-62593",
+          "cna_sha256": "edecab251b4eb803401265c2408e6798d4d3aad7a8b70c9372c415e460803dbe",
+          "template_sha256": "ead5f2180ce4c6933991fdbc96ab8315a5ad49db938112936528bc127d615cbd",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-62593.yaml",
+          "template_authors": "Veraptos VaaS Alpha"
+        }
+      ]
+    },
+    {
+      "id": "kev-metabase-password-reset-containment",
+      "cves": [
+        "CVE-2026-72898"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-08-11"
+      ],
+      "source_candidates": [
+        20
+      ],
+      "sha256": "bd1f528a1b3916fbe498d0883674d356819ace2e6babb4a476e37010bbdf013e",
+      "sources": [
+        {
+          "cve": "CVE-2026-72898",
+          "cna_sha256": "0caeed2aedbb6685a19836090fd91885f1ee5e3d132cb0cfb097c1e70360cb3c",
+          "template_sha256": "8cffc4797eaf078d2a8552f0858eb9d606fcfa11a07b3c33e5d4d0283b8edea0",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-72898.yaml",
+          "template_authors": "0x_Akoko,pdteam"
+        }
+      ]
+    },
+    {
+      "id": "kev-loadmaster-json-shell",
+      "cves": [
+        "CVE-2026-8037"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-08-07"
+      ],
+      "source_candidates": [
+        21
+      ],
+      "sha256": "789aff8f3fcd117cf34eb426a592b2550f6e2d03221e22b422f1e705ac0ae98d",
+      "sources": [
+        {
+          "cve": "CVE-2026-8037",
+          "cna_sha256": "e0fe82f088ba795459e0fa631d340ce1185def92b19072f8fed8c17560fed064",
+          "template_sha256": "1852744bc976b2665cb1e88d57143ac0441055d224e9a4f917ac240b23db45cd",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-8037.yaml",
+          "template_authors": "watchtowr,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-teamcity-agent-register-containment",
+      "cves": [
+        "CVE-2026-63077"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-08-05"
+      ],
+      "source_candidates": [
+        22
+      ],
+      "sha256": "a6481ea9b8281c9ae082725cfe61a41ff09c9636035c06cd06859f077513c098",
+      "sources": [
+        {
+          "cve": "CVE-2026-63077",
+          "cna_sha256": "329b29ea604912fe0b71019ae1d2b3c3c36f47e120d5ec0d0da2af5d19c59dc0",
+          "template_sha256": "bf2e2e37e2cd3b8a3bb7129896608e6440ab4eca1ceb36b9cdb4921e0ffdcbeb",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-63077.yaml",
+          "template_authors": "0x_Akoko,pdteam"
+        }
+      ]
+    },
+    {
+      "id": "kev-langflow-code-execution-markers",
+      "cves": [
+        "CVE-2026-9198",
+        "CVE-2026-0770",
+        "CVE-2025-3248"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-08-04",
+        "2026-07-21",
+        "2025-05-05"
+      ],
+      "source_candidates": [
+        23,
+        27,
+        131
+      ],
+      "sha256": "e1533dea196497d4e4b93273c69e1d5d981e9c35b18b1806650217f0139eb467",
+      "sources": [
+        {
+          "cve": "CVE-2026-9198",
+          "cna_sha256": "16e89ae496df51ce4e9e71058f9dc2dbe2ef307dd2af3135e60c5f9a4fe3077a",
+          "template_sha256": "995b0464a4c772831bee485fa0dcce777d5fbdbe97c96c858ca7f5c8ca3695fa",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-9198.yaml",
+          "template_authors": "YesWeHack"
+        },
+        {
+          "cve": "CVE-2026-0770",
+          "cna_sha256": "cf6d4e5138013f6210b1413caa6fdeb223ed388fd4934ead6445a459c3a8ba8f",
+          "template_sha256": "4eb8b6862097eb5835b8f32c3a24e3522d69f6bd9f4c93b68f41c4ed74ab12df",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-0770.yaml",
+          "template_authors": "affix"
+        },
+        {
+          "cve": "CVE-2025-3248",
+          "cna_sha256": "1d9bcac631b8da5f21df7728af1ae59c10bb3b0569b3960bd49b5bbac87880b1",
+          "template_sha256": "f9d046312380b4ffb9066bee2e3a980fb01a150ac168e3ff1a1f1ef3f11ae89e",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-3248.yaml",
+          "template_authors": "nvn1729"
+        }
+      ]
+    },
+    {
+      "id": "kev-wordpress-batch-route-confusion",
+      "cves": [
+        "CVE-2026-63030"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-07-21"
+      ],
+      "source_candidates": [
+        26
+      ],
+      "sha256": "78aad6704ff4d594179ca5a6133ffd282156246c7973455455ab0c8472f806be",
+      "sources": [
+        {
+          "cve": "CVE-2026-63030",
+          "cna_sha256": "9a384f57bfa28a3443ea250dfa765f7c025c902b2bb9e5fc40d768ccdad6c630",
+          "template_sha256": "3ac1a0810c4ce6fe84c2d72f050a4b41d98a6c1055b9cadb15032e545ba99e92",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-63030.yaml",
+          "template_authors": "slcyber,mielverkerken,pdteam,flx-0x00"
+        }
+      ]
+    },
+    {
+      "id": "kev-sharepoint-wsfed-containment",
+      "cves": [
+        "CVE-2026-58644"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-07-16"
+      ],
+      "source_candidates": [
+        28
+      ],
+      "sha256": "d72aeec7494d46efce8db70ae024411b155d31743a3909c638a4886e9f59e6a4",
+      "sources": [
+        {
+          "cve": "CVE-2026-58644",
+          "cna_sha256": "31a286dea819ead45e5a6427991f018556aad99acdcd60d938bc22c88dc75b0d",
+          "template_sha256": "34311a5408c7c46a66390b7ddd706314e8a4bd8b952f660fd51d6d53583b383d",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-58644.yaml",
+          "template_authors": "pdteam"
+        }
+      ]
+    },
+    {
+      "id": "kev-fortisandbox-tracer-shell",
+      "cves": [
+        "CVE-2026-39808"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-07-16"
+      ],
+      "source_candidates": [
+        29
+      ],
+      "sha256": "39b456692a39e4982736dfb3a675e6728c9bc9e59235325e9cc903553b59e80f",
+      "sources": [
+        {
+          "cve": "CVE-2026-39808",
+          "cna_sha256": "78e5d135b35e5bd6bc21fe4e7dfb30311010368f36584e4c366b1788fcc2d930",
+          "template_sha256": "1ca632787c69a48437816122f881626b2eedb72ca5a390dfd6ffc4e7d7bf9067",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-39808.yaml",
+          "template_authors": "DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-balbooa-upload-containment",
+      "cves": [
+        "CVE-2026-56291"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-07-10"
+      ],
+      "source_candidates": [
+        30
+      ],
+      "sha256": "f428d05c799fc4b20bb8d54b6e1722ab31a62c819ddd1b96db56feb7eee06994",
+      "sources": [
+        {
+          "cve": "CVE-2026-56291",
+          "cna_sha256": "43e575def26dada119d7ec95c3abe1f5f87896e847aa1493f61d79dd6a0e5711",
+          "template_sha256": "da8450f54d491cb5da870f60bca9664852ac472c2edb15c631308090f5554564",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-56291.yaml",
+          "template_authors": "Nick Vidovic,0x_Akoko"
+        }
+      ]
+    },
+    {
+      "id": "kev-icagenda-upload-containment",
+      "cves": [
+        "CVE-2026-48939"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-07-10"
+      ],
+      "source_candidates": [
+        31
+      ],
+      "sha256": "420c8e98bb6d56e93e87ec0db52a72c0a8135fd40949d0993043f26d4779a412",
+      "sources": [
+        {
+          "cve": "CVE-2026-48939",
+          "cna_sha256": "77a52bea29ffa2917168d16d3c57d0347e80d8e768020a3b19f9eaffb12be6d9",
+          "template_sha256": "819a8f8ecc620c5afd58c298c2a3bf65cd794f876a649f7e71deabd8f4103756",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-48939.yaml",
+          "template_authors": "0x_Akoko"
+        }
+      ]
+    },
+    {
+      "id": "kev-pagebuilderck-upload-containment",
+      "cves": [
+        "CVE-2026-56290"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-07-07"
+      ],
+      "source_candidates": [
+        32
+      ],
+      "sha256": "2e959d5911851600a4e6553ea90ce03d45a3a0a2fc4cf16f769cb3602aafa63c",
+      "sources": [
+        {
+          "cve": "CVE-2026-56290",
+          "cna_sha256": "6913b891d702fd04c33a7de6926aa9795a71d0bc9b99e1bc25e68d515371a849",
+          "template_sha256": "e115abb8a9eda682fa61e6b3970a3c0efadba020fca8dbe7d9b6831c7bf41d28",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-56290.yaml",
+          "template_authors": "panchiko-p,0x_Akoko"
+        }
+      ]
+    },
+    {
+      "id": "kev-coldfusion-rds-fileio-containment",
+      "cves": [
+        "CVE-2026-48282"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-07-07"
+      ],
+      "source_candidates": [
+        33
+      ],
+      "sha256": "f9eb2393c6ae1b2fc665af362d450ff6dd5a6993bd79ebf85f67a6c4c28c9c61",
+      "sources": [
+        {
+          "cve": "CVE-2026-48282",
+          "cna_sha256": "b3a827d26ff74f5fbcbd2969e164c90b8cf3b73c98ee4af708cfc0d3cf3f9aec",
+          "template_sha256": "534fc31f27833a022f92e5dfb62864f984ad0b8eb73938fae5da013be4017df5",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-48282.yaml",
+          "template_authors": "watchtowr,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-simplehelp-oidc-containment",
+      "cves": [
+        "CVE-2026-48558"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-06-29"
+      ],
+      "source_candidates": [
+        34
+      ],
+      "sha256": "258440f46351fb7549e3acfbab4459228c889029f5411ca3ea35c34f3bee3298",
+      "sources": [
+        {
+          "cve": "CVE-2026-48558",
+          "cna_sha256": "6a1f3037bd2c6e2f10309e5753bc3310aec32e375eef06ba25bdca138e78f838",
+          "template_sha256": "c219c0828674e2ec650f38858d596f6b751a1ba8ba5200865ca98211539e6262",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-48558.yaml",
+          "template_authors": "0x_Akoko,pdteam"
+        }
+      ]
+    },
+    {
+      "id": "kev-unifi-sso-path-traversal",
+      "cves": [
+        "CVE-2026-34910",
+        "CVE-2026-34908"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-06-23",
+        "2026-06-23"
+      ],
+      "source_candidates": [
+        35,
+        36
+      ],
+      "sha256": "53b8cda7a3a4f252b832aa3e193b69fe2d40a4f2bc1edcaa10fe8ab694dbb442",
+      "sources": [
+        {
+          "cve": "CVE-2026-34910",
+          "cna_sha256": "ae0f9e8671d44a62d8cdeffd7ce8ba150ff0be9bdb824c883447eaced52d37c1",
+          "template_sha256": "03500f4d76bce274115bbf2a5e938808407a64fcda6cb73a87edface43b56f9b",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-34910.yaml",
+          "template_authors": "Kazgangap"
+        },
+        {
+          "cve": "CVE-2026-34908",
+          "cna_sha256": "6a8a86e0a65c582e3f84dc6574ac42fcbdcc246cd5260d52237bf5dbb5d90246",
+          "template_sha256": "836073f7bf424c955e7f70f5c6db6c5f49fd8f7e19826ef0281d3cf427a75cd1",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-34908.yaml",
+          "template_authors": "Boreas37"
+        }
+      ]
+    },
+    {
+      "id": "kev-splunk-recovery-backup-containment",
+      "cves": [
+        "CVE-2026-20253"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-06-18"
+      ],
+      "source_candidates": [
+        37
+      ],
+      "sha256": "c56ae56da5dc4a2422fed9c3ad6545078cf7e094aa6c0852ec8f5cf60fee0a00",
+      "sources": [
+        {
+          "cve": "CVE-2026-20253",
+          "cna_sha256": "bc192e679d22b9f751022e2f249a0fe06d84b90b990efe266bd8586b8f7d6f6d",
+          "template_sha256": "a95f0e1d1dcd950b8d9d5c324ddbef6f264157245c84fd5346bbadf562fae50b",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-20253.yaml",
+          "template_authors": "watchtowrlabs,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-joomla-jce-import-containment",
+      "cves": [
+        "CVE-2026-48907"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-06-16"
+      ],
+      "source_candidates": [
+        38
+      ],
+      "sha256": "81d1d02ce520de5fecfcbf72d61560b35a64bb943de5b373441edaf5da7778ac",
+      "sources": [
+        {
+          "cve": "CVE-2026-48907",
+          "cna_sha256": "b419f74a0edfd4f05cbcca08841f5e4c661a5671dc4b92d23327d2dda7e40ffb",
+          "template_sha256": "252ce6323c38bdc55ff0568f28581e32ea11dcaf2cb63247ab3727c73bbbb6cd",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-48907.yaml",
+          "template_authors": "ywh-jfellus"
+        }
+      ]
+    },
+    {
+      "id": "kev-peoplesoft-psemhub-containment",
+      "cves": [
+        "CVE-2026-35273"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-06-12"
+      ],
+      "source_candidates": [
+        39
+      ],
+      "sha256": "56d449054595a8ea18a41e07e050c2783b6213f218c56c7a4b451301f28e5bf0",
+      "sources": [
+        {
+          "cve": "CVE-2026-35273",
+          "cna_sha256": "f998f64b907c350e46df2a9a4ce789fe0d5a65f98480c3146c9c59601d1df5b6",
+          "template_sha256": "f66cceb79c5c2ef409d58b3cd0c33dd5867911da5f2298470abf2116992f0732",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-35273.yaml",
+          "template_authors": "DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-ivanti-sentry-handlemessage-containment",
+      "cves": [
+        "CVE-2026-10520"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-06-11"
+      ],
+      "source_candidates": [
+        40
+      ],
+      "sha256": "da5ca175f906116d8446c014c964137fde47bef2368e1109a7c05537c12bb68a",
+      "sources": [
+        {
+          "cve": "CVE-2026-10520",
+          "cna_sha256": "2feb215e3039c60e96dc0996a58b0beba4836649a183b965d78f5e7b4056f41b",
+          "template_sha256": "b043ade13575b591d0d9e3bdddcf7f4e235e7bafe499f60366d8a71079965036",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-10520.yaml",
+          "template_authors": "DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-litellm-mcp-connection-test-containment",
+      "cves": [
+        "CVE-2026-42271"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-06-08"
+      ],
+      "source_candidates": [
+        42
+      ],
+      "sha256": "96d527312786973d5f5f76dacf2db5b5028f7753acc72a9fb660f532033e06a8",
+      "sources": [
+        {
+          "cve": "CVE-2026-42271",
+          "cna_sha256": "b3930f813baaddc7511bf9ea3c05030fa9ac32b77e0a35e9c3a0efb05cc72b9b",
+          "template_sha256": "33e8403e78f8ca029f2e89206a24fcb511fe1af6d198cf88710ec8214ec78820",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-42271.yaml",
+          "template_authors": "ritikchaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-activemq-jolokia-network-containment",
+      "cves": [
+        "CVE-2026-34197"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-04-16"
+      ],
+      "source_candidates": [
+        54
+      ],
+      "sha256": "83e1ef6e8d3d6cd6b800b1e107a7eb9a0042a25ecf6da31e44dd1d41c36dbb47",
+      "sources": [
+        {
+          "cve": "CVE-2026-34197",
+          "cna_sha256": "9ee8c8af428ed5688e6b34d7bebe79b674c571fd1d19ec4654d8cb45f9a63c97",
+          "template_sha256": "5d10a1ee88cf016d00eefb11d59366e342e4592776d33ac61d8a6d2db6ed9aaa",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-34197.yaml",
+          "template_authors": "DhiyaneshDk,horizon3"
+        }
+      ]
+    },
+    {
+      "id": "kev-forticlient-site-sql",
+      "cves": [
+        "CVE-2026-21643"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-04-13"
+      ],
+      "source_candidates": [
+        55
+      ],
+      "sha256": "c18013ab39fbc34c10c8013e799be7a5bcafe3013058f31fecb7bd733d3734f3",
+      "sources": [
+        {
+          "cve": "CVE-2026-21643",
+          "cna_sha256": "ff6ff84a2e1ed55e306d6216c0b4578608468bed7582f33f94be39515de3d10e",
+          "template_sha256": "41c5b51c0dbcfa853ef43f972206a35af8bbff20e04dd1680abf39f5fcbad19f",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-21643.yaml",
+          "template_authors": "ritikchaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-forticlient-client-verify-bypass",
+      "cves": [
+        "CVE-2026-35616"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-04-06"
+      ],
+      "source_candidates": [
+        57
+      ],
+      "sha256": "8f96ad5dd0bfa81f28f3d07c3cba5183c32eef07ecd96afe0c8d905f25825b41",
+      "sources": [
+        {
+          "cve": "CVE-2026-35616",
+          "cna_sha256": "937c52a2c57b93c785643d701f1969ed57521bda2dae6f76a6dad87fdc3691e8",
+          "template_sha256": "25337866df2f8a277cc641071143163fc22c018979b508d15ab0dc9970a4e4ab",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-35616.yaml",
+          "template_authors": "ritikchaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-netscaler-saml-containment",
+      "cves": [
+        "CVE-2026-3055"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-03-30"
+      ],
+      "source_candidates": [
+        58
+      ],
+      "sha256": "3fbd6f7614b45b7f799732d4b940284385564ae9bfa1fe49afb57cac2fa12e15",
+      "sources": [
+        {
+          "cve": "CVE-2026-3055",
+          "cna_sha256": "fd6cb971b51088b9a5b8069d402f7a90fa8843dee8ae5b84ad435851316b751e",
+          "template_sha256": "3ee9b1167ae6b04a7564dc601b6f21d51034698ef19e9c2401a825c1b5705354",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-3055.yaml",
+          "template_authors": "watchtowr,shaikhyaser,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-langflow-public-build-containment",
+      "cves": [
+        "CVE-2026-33017"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-03-25"
+      ],
+      "source_candidates": [
+        59
+      ],
+      "sha256": "950ef0a00d21b3473da8c260b2edf7507e508791945b3bbb255fc1d6b5911afe",
+      "sources": [
+        {
+          "cve": "CVE-2026-33017",
+          "cna_sha256": "b87c2b844f3e3f3a6785d84f6ff35a81c8158b65a20fb3e11453165d634f3ce2",
+          "template_sha256": "6128527d6654342fcf93975e5fae558378507f68b21e3cf724998ee526bf67d3",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-33017.yaml",
+          "template_authors": "himind"
+        }
+      ]
+    },
+    {
+      "id": "kev-n8n-workflow-process-expression",
+      "cves": [
+        "CVE-2025-68613"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-03-11"
+      ],
+      "source_candidates": [
+        63
+      ],
+      "sha256": "d901f97911a6e902eab4ab83e896f6815887339e33d5f42ecda3e22a5335bd59",
+      "sources": [
+        {
+          "cve": "CVE-2025-68613",
+          "cna_sha256": "93568cea2e0d01b998cb4d4e91c5001be6a8ee5d6abb30707037e4cbe2a6cb11",
+          "template_sha256": "7c807dcb8e25dc0c9b9bb1fc19ed4bc61b29e07b33f360134166bf1cd10d98f0",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-68613.yaml",
+          "template_authors": "rxerium,PentesterFlow,MuhamadJuwandi"
+        }
+      ]
+    },
+    {
+      "id": "kev-ivanti-remotecontrol-logintype",
+      "cves": [
+        "CVE-2026-1603"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-03-09"
+      ],
+      "source_candidates": [
+        64
+      ],
+      "sha256": "b09c5f9c18aad7d2139f5c9107f89b5a1fe5f245883c39e541d2c33feb64ba08",
+      "sources": [
+        {
+          "cve": "CVE-2026-1603",
+          "cna_sha256": "8f72cda501598154927901998bafd74bd96a726271ac99e3c4bbedaeb67be1d1",
+          "template_sha256": "e492ed185e85eb9657c637b4704562572b0108d73c0b1bcdd5b22afcf2ea1685",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-1603.yaml",
+          "template_authors": "DhiyaneshDk,watchtowrlabs"
+        }
+      ]
+    },
+    {
+      "id": "kev-workspaceone-blobhandler-containment",
+      "cves": [
+        "CVE-2021-22054"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-03-09"
+      ],
+      "source_candidates": [
+        66
+      ],
+      "sha256": "aecfe2c202c364915fb59e21731877f1696556aa3e655be3b660629da1653bc9",
+      "sources": [
+        {
+          "cve": "CVE-2021-22054",
+          "cna_sha256": "d84f7ef13a4cb37cd84dc3c9e4a66d09696e44f1c8a9524c45f38f3f8ddb1b88",
+          "template_sha256": "9f3c7905a161d6e5567f574a0f3d52cefb7a2f3a3d3373756bf11e2a45c5c100",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2021/CVE-2021-22054.yaml",
+          "template_authors": "h1ei1"
+        }
+      ]
+    },
+    {
+      "id": "kev-hikvision-auth-bypass-marker",
+      "cves": [
+        "CVE-2017-7921"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-03-05"
+      ],
+      "source_candidates": [
+        67
+      ],
+      "sha256": "74127bb3916fa8955982617fd69fa232e0b459fa8a1b511776c641b34c165ffe",
+      "sources": [
+        {
+          "cve": "CVE-2017-7921",
+          "cna_sha256": "ffafb4014be29ccf2d5bd34cf6b413cdaa062082c7c1fcc644087ca106faa3af",
+          "template_sha256": "8406609a17a03f028753468929ce25c51319ba0078acba3622f9b4209fb77de4",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2017/CVE-2017-7921.yaml",
+          "template_authors": "princechaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-roundcube-upload-serialization",
+      "cves": [
+        "CVE-2025-49113"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-02-20"
+      ],
+      "source_candidates": [
+        68
+      ],
+      "sha256": "2225c178dbe6b019b5e1aea30c4c7388cc621e86b0ffc6412ebedc0744a61c83",
+      "sources": [
+        {
+          "cve": "CVE-2025-49113",
+          "cna_sha256": "f1fbd0f04f1fcf16b423c29a4d010fffcdfee8b3214cfb85931b0d13823ef8d7",
+          "template_sha256": "ef3d61a267adafe71b2617b3bdfe7e4968139f4102cc468ece2b0e5f52aadb7a",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-49113.yaml",
+          "template_authors": "rootxharsh,iamnoooob,pdresearch,Ademking"
+        }
+      ]
+    },
+    {
+      "id": "kev-gitlab-ci-lint-containment",
+      "cves": [
+        "CVE-2021-22175"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-02-18"
+      ],
+      "source_candidates": [
+        69
+      ],
+      "sha256": "0fd8d9ac8b5ed0ac00fbc92d0b9b753e91c401bc66b1705480512825be2b76bf",
+      "sources": [
+        {
+          "cve": "CVE-2021-22175",
+          "cna_sha256": "db56caf5b991a7009b418bcefa357b65f7ff7fb03609f5522a3f4dd3e2a682be",
+          "template_sha256": "8741e4fc1901735d7511b0293dea728f3efd7320cc908c6b62f0ea2998de554f",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2021/CVE-2021-22175.yaml",
+          "template_authors": "0x_Akoko"
+        }
+      ]
+    },
+    {
+      "id": "kev-zimbra-webex-ssrf-url",
+      "cves": [
+        "CVE-2020-7796"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-02-17"
+      ],
+      "source_candidates": [
+        70
+      ],
+      "sha256": "f9da951e0608acd136507a7f0bfbb50bfad9eb45201e0fd2d0f927078f933b70",
+      "sources": [
+        {
+          "cve": "CVE-2020-7796",
+          "cna_sha256": "7048c93c223299e5f730758f298127b75d10b90f7748a29532da8a94b3a129cc",
+          "template_sha256": "c49763d1bc473a4fc683df6ef8236e585b4c1dfec122751415a88e852733f414",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2020/CVE-2020-7796.yaml",
+          "template_authors": "gy741"
+        }
+      ]
+    },
+    {
+      "id": "kev-smartermail-hub-connect-containment",
+      "cves": [
+        "CVE-2026-24423"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-02-05"
+      ],
+      "source_candidates": [
+        72
+      ],
+      "sha256": "35597f105eb8394abd414547d99376bfdc736aa219c17a4e8c3e224f69b64b81",
+      "sources": [
+        {
+          "cve": "CVE-2026-24423",
+          "cna_sha256": "be8849ccc2176561d04592f0688200a579a1b5729a6c610eb684c0f65c8254aa",
+          "template_sha256": "5b4b90df1d22ae0850b8182a4cf01f7890023065b2bfe3cf81d0a4e4bfcce452",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-24423.yaml",
+          "template_authors": "jyoti369"
+        }
+      ]
+    },
+    {
+      "id": "kev-react-native-openurl-containment",
+      "cves": [
+        "CVE-2025-11953"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-02-05"
+      ],
+      "source_candidates": [
+        73
+      ],
+      "sha256": "346b1d60c9603df89907c54ae885de7e79761e9be899d3a645881512576a9c59",
+      "sources": [
+        {
+          "cve": "CVE-2025-11953",
+          "cna_sha256": "59debd7d2c795722241a235210424cabe7470ad1623b9df59ad27f3f2a701f8d",
+          "template_sha256": "730aa8e72ba9551c25797d4c250b2d7b26e3572104cc099b431b9fe8de050eb3",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-11953.yaml",
+          "template_authors": "aryu-ru"
+        }
+      ]
+    },
+    {
+      "id": "kev-freepbx-filestore-shell",
+      "cves": [
+        "CVE-2025-64328"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-02-03"
+      ],
+      "source_candidates": [
+        74
+      ],
+      "sha256": "b3930bc52d62bc5729baf4a39fff02c15026feaf845c5275fc1118a542516763",
+      "sources": [
+        {
+          "cve": "CVE-2025-64328",
+          "cna_sha256": "ccca6dd6a2a5e853d4ab1e3597b831bc1bd1e112561a44935811363338c3ba97",
+          "template_sha256": "b9638b4be31533cf0644718054dfb520c8824e50fca1cdc0edb4b4b4ac1f54bf",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-64328.yaml",
+          "template_authors": "_th3y"
+        }
+      ]
+    },
+    {
+      "id": "kev-solarwinds-jsonrpc-jndi",
+      "cves": [
+        "CVE-2025-40551"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-02-03"
+      ],
+      "source_candidates": [
+        75
+      ],
+      "sha256": "d087f1d8422223530a56294106a52ca3790fb8672bd67149fa857b98a3a10ea2",
+      "sources": [
+        {
+          "cve": "CVE-2025-40551",
+          "cna_sha256": "7ad78fec74c96e0ff632722bc004535b118e24631ba60a377908a5bbbc3029b7",
+          "template_sha256": "071809fd0796e2541fceb0ee0f790f7365c5a755a8b986e2ff8834cce8174bed",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-40551.yaml",
+          "template_authors": "Horizon3.ai"
+        }
+      ]
+    },
+    {
+      "id": "kev-smartermail-admin-reset",
+      "cves": [
+        "CVE-2026-23760"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-01-26"
+      ],
+      "source_candidates": [
+        77
+      ],
+      "sha256": "bc43d352d96d8dd068a255c2ca9165f3a108f6207be231b82deb2084f3fab22c",
+      "sources": [
+        {
+          "cve": "CVE-2026-23760",
+          "cna_sha256": "cd3cee5994491fc36c98ec539ef80d5e5ea066ad073b29ce0b04b3813a0ea0a5",
+          "template_sha256": "47611c31b7ef38659acf5cd69cea72de8087dd07ab46d1cf2d1c292b6d3e911e",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2026/CVE-2026-23760.yaml",
+          "template_authors": "watchTowr,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-smartermail-upload-containment",
+      "cves": [
+        "CVE-2025-52691"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-01-26"
+      ],
+      "source_candidates": [
+        78
+      ],
+      "sha256": "176a02b03accef651bdd84032233f6fc1431205e5118ece8fdb45887f87fb6db",
+      "sources": [
+        {
+          "cve": "CVE-2025-52691",
+          "cna_sha256": "967b278e79d56c771c60dfc0b47005f0ab4f96966b7b5b62b2ae59ec837a3f6a",
+          "template_sha256": "3372fd1a2b1115540e0f7d5e7f4fb63af857f6b5efed59f138ea1988749d8153",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-52691.yaml",
+          "template_authors": "DhiyaneshDK,watchTowr"
+        }
+      ]
+    },
+    {
+      "id": "kev-zimbra-servlet-include",
+      "cves": [
+        "CVE-2025-68645"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-01-22"
+      ],
+      "source_candidates": [
+        79
+      ],
+      "sha256": "4ca079a850e3c070faeb0a4f82a143a5283e0b3304c1526e94fd1e92315446c6",
+      "sources": [
+        {
+          "cve": "CVE-2025-68645",
+          "cna_sha256": "bd41274aaa620be63fa244073da9ebb2fdc36a8442dac50305f72416bcd13c0c",
+          "template_sha256": "c0037b1db4979f283b4fa8367ef10887eef246ff14d47a9bdf9572be8c4333d1",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-68645.yaml",
+          "template_authors": "DhiyaneshDk,sirifu4k1"
+        }
+      ]
+    },
+    {
+      "id": "kev-versa-hop-header-bypass",
+      "cves": [
+        "CVE-2025-34026"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-01-22"
+      ],
+      "source_candidates": [
+        80
+      ],
+      "sha256": "88a4ac17f9b145b4cbc4445000df360446930e5d46b30c95ea39f2c6226be2d8",
+      "sources": [
+        {
+          "cve": "CVE-2025-34026",
+          "cna_sha256": "fa650231e4aa4b4384ce8363deb81119f551df0341c53dc52241162bd7ebbb61",
+          "template_sha256": "c20d557c60ff3ed595f26437f2cc169d4e1afe956f6e45b963569887bd39c7fb",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-34026.yaml",
+          "template_authors": "iamnoooob,rootxharsh,parthmalhotra,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-vite-filesystem-probe",
+      "cves": [
+        "CVE-2025-31125"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-01-22"
+      ],
+      "source_candidates": [
+        81
+      ],
+      "sha256": "1944fd86c0083d16aad27ad399c449a3e5f49eb5d96c1d50a72d70346763cec5",
+      "sources": [
+        {
+          "cve": "CVE-2025-31125",
+          "cna_sha256": "10aa72dc72c62738f3713ff82516be4e0c233821f6e9f710bb6374708f08506b",
+          "template_sha256": "3a553824696aaa42bf8a8fe80c37ed666e29f7d951501fbcf9ea0be6181938b6",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-31125.yaml",
+          "template_authors": "martian,ritikchaddha,v2htw"
+        }
+      ]
+    },
+    {
+      "id": "kev-hpe-oneview-command-containment",
+      "cves": [
+        "CVE-2025-37164"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2026-01-07"
+      ],
+      "source_candidates": [
+        83
+      ],
+      "sha256": "922277dd5fcada3608dc4a859eed5112101d517fa34d83eb96a6fbfbfc729487",
+      "sources": [
+        {
+          "cve": "CVE-2025-37164",
+          "cna_sha256": "2b2ac38a3fdacdebb6b756fd3f2e8426fd5b84ee4007d1aebeedeabe0a8d2736",
+          "template_sha256": "094e9fd6edf4612ab65641b6788dc21fde51377858594b345327830881cec539",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-37164.yaml",
+          "template_authors": "DhiyaneshDk,garciaizcoa"
+        }
+      ]
+    },
+    {
+      "id": "kev-digiever-cgi-containment",
+      "cves": [
+        "CVE-2023-52163"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-12-22"
+      ],
+      "source_candidates": [
+        84
+      ],
+      "sha256": "6c4245355d0e6a262566dc244360de5a42449a6de3103325229e6b1cca7d1322",
+      "sources": [
+        {
+          "cve": "CVE-2023-52163",
+          "cna_sha256": "49907d03439c10fec8fc8ff6d8e11f691159c0dbcd278b00b480ffa973f446e8",
+          "template_sha256": "f869a043f7722216246c891cca66cb5ee1cb0aa947b68f3b8564d368c9d4db17",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2023/CVE-2023-52163.yaml",
+          "template_authors": "rajesh-social-tech"
+        }
+      ]
+    },
+    {
+      "id": "kev-gladinet-filesvr-containment",
+      "cves": [
+        "CVE-2025-14611"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-12-15"
+      ],
+      "source_candidates": [
+        85
+      ],
+      "sha256": "41ef926d5bc684d184d47524e9ed79d33c9d1c4bd5a755ccb85ad9c9deffbec2",
+      "sources": [
+        {
+          "cve": "CVE-2025-14611",
+          "cna_sha256": "ba0e41480b3b5e67ef6d80dbf77de1622af5388ecc847a2bc670cdb2460475d3",
+          "template_sha256": "91b55c55eda76bf66d2d72713035f6a3084e3cc9f33f42720d06927e896e7b24",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-14611.yaml",
+          "template_authors": "0xanis"
+        }
+      ]
+    },
+    {
+      "id": "kev-geoserver-xml-map-containment",
+      "cves": [
+        "CVE-2025-58360"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-12-11"
+      ],
+      "source_candidates": [
+        86
+      ],
+      "sha256": "c47975e8aec4eee8cc18a2ed8dd4579f0674852697e3f7aa5251a7870765d1ab",
+      "sources": [
+        {
+          "cve": "CVE-2025-58360",
+          "cna_sha256": "1db59427d142834b5b118b0a22d38c4d7a3968f67c7500c4131f513f8e54be94",
+          "template_sha256": "68b76fc800dc6a649236eaa4f1de6ecd930583f0fd17ad63238fefb20fc45739",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-58360.yaml",
+          "template_authors": "lbb,xbow,darses"
+        }
+      ]
+    },
+    {
+      "id": "kev-react-server-action-multipart-containment",
+      "cves": [
+        "CVE-2025-55182"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-12-05"
+      ],
+      "source_candidates": [
+        87
+      ],
+      "sha256": "ddc0ea60c0bc6b970eb0e2ac4ae841d0cad562301357e7e17c1a609928c9bdc2",
+      "sources": [
+        {
+          "cve": "CVE-2025-55182",
+          "cna_sha256": "a184d19cf0cdf9dda2d1c98abbbca2229cc5beabbf43080846d33c9f0d5067b1",
+          "template_sha256": "15d58f8f3a1604d3a79ca1ba6a352caee69834ca655408aa30d14b779930e055",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-55182.yaml",
+          "template_authors": "DhiyaneshDk,princechaddha,assetnote,lachlan2k,maple3142,iamnooob"
+        }
+      ]
+    },
+    {
+      "id": "kev-oracle-iam-semicolon-wadl",
+      "cves": [
+        "CVE-2025-61757"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-11-21"
+      ],
+      "source_candidates": [
+        88
+      ],
+      "sha256": "a928e33d21c1503af8df6f933a9feb94d47332529bfab748d300142ae22e7cc0",
+      "sources": [
+        {
+          "cve": "CVE-2025-61757",
+          "cna_sha256": "4b13540954a5bf9a36699e324be7f75c9fc68798f219b18989dfe80ddca7f4ab",
+          "template_sha256": "fdb75b214721ff3f0233918d86373d59f7792dadf301844bc712fe90d0d70b0e",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-61757.yaml",
+          "template_authors": "ritikchaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-fortiweb-admin-traversal",
+      "cves": [
+        "CVE-2025-64446"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-11-14"
+      ],
+      "source_candidates": [
+        89
+      ],
+      "sha256": "7467412ec5b7807a240a05fa48eec445950c488aa2514fcfee25073afff5bd43",
+      "sources": [
+        {
+          "cve": "CVE-2025-64446",
+          "cna_sha256": "b5adb450af2ddba7d8647b698ff36597a0d6f66c24320c57d6c0a9c6c674703c",
+          "template_sha256": "37606ccdf7585db0eef5b330b336e862512bf4e47decc627c0a5868a16f3277b",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-64446.yaml",
+          "template_authors": "DhiyaneshDk,watchTowr,rapid7,defusedcyber"
+        }
+      ]
+    },
+    {
+      "id": "kev-cwp-permission-operation-containment",
+      "cves": [
+        "CVE-2025-48703"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-11-04"
+      ],
+      "source_candidates": [
+        91
+      ],
+      "sha256": "114dd278ca4e319f63cc8574439854065411ff2d17c301c1c9ee163dedf93dc9",
+      "sources": [
+        {
+          "cve": "CVE-2025-48703",
+          "cna_sha256": "243f6492d1b5e25615251aeee751932ec2d936caa28c8f333075de5642545416",
+          "template_sha256": "3e5f511673ac0e68c16f69cf5983f520cb58ce538563a4e2fa128d3b206f4cff",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-48703.yaml",
+          "template_authors": "theamanrawat"
+        }
+      ]
+    },
+    {
+      "id": "kev-gladinet-storage-traversal",
+      "cves": [
+        "CVE-2025-11371"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-11-04"
+      ],
+      "source_candidates": [
+        92
+      ],
+      "sha256": "7ad3abb645e9ddac756a061c9c65c00027e3fa483c412ac6b2cb7cc42fe2292a",
+      "sources": [
+        {
+          "cve": "CVE-2025-11371",
+          "cna_sha256": "f4d3fa5a5d04a6685f9d1460293d5027335d14afd762bd3fa3133b32975c5f02",
+          "template_sha256": "34701260077e264b1b31c81a41c71d62e7aaaf9b066685e431ea35e8ecf12ea1",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-11371.yaml",
+          "template_authors": "Kazgangap"
+        }
+      ]
+    },
+    {
+      "id": "kev-xwiki-solr-groovy",
+      "cves": [
+        "CVE-2025-24893"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-10-30"
+      ],
+      "source_candidates": [
+        93
+      ],
+      "sha256": "264ac812995b3dca2322630a80f03bcccfc23cfad91d206fb9d6fa14c907e98e",
+      "sources": [
+        {
+          "cve": "CVE-2025-24893",
+          "cna_sha256": "123bdfb651951d76a4f78d650748084e93cf6822766454090395bc9f893ab6e4",
+          "template_sha256": "6b4e985ead1cf01dcb2a7b96d7ba2cd4b481d17ad5ae4b27a53daa60bcc8214d",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-24893.yaml",
+          "template_authors": "iamnoooob,rootxharsh,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-apriso-async-message-containment",
+      "cves": [
+        "CVE-2025-6205",
+        "CVE-2025-6204"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-10-28",
+        "2025-10-28"
+      ],
+      "source_candidates": [
+        94,
+        95
+      ],
+      "sha256": "d64857f5f99db50f79c36f0904c9155486abc96f14d154b16718a13eedd0471d",
+      "sources": [
+        {
+          "cve": "CVE-2025-6205",
+          "cna_sha256": "623e2f91881e44570ced039af957080044c4f33fd5fc6f0890d03f1dabe45dff",
+          "template_sha256": "2d7b660ae6ce1f50f6df88e65a028423a2beb025b52248ff472fac2657340e3d",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-6205.yaml",
+          "template_authors": "iamnoooob,rootxharsh,parthmalhotra,pdresearch"
+        },
+        {
+          "cve": "CVE-2025-6204",
+          "cna_sha256": "89d4cf51d8f93f7011d6c4ac213ea728625d04854c9d32a7a566c4700380ed48",
+          "template_sha256": "42132dfe5661f537a00b50ceac07777e8a5f3464a7cc3acbe75014363f282da1",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-6204.yaml",
+          "template_authors": "iamnoooob,rootxharsh,parthmalhotra,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-wsus-reporting-rollup-containment",
+      "cves": [
+        "CVE-2025-59287"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-10-24"
+      ],
+      "source_candidates": [
+        96
+      ],
+      "sha256": "e6ea82a35bd02e647302dc3dae5ba9b1eaf69e2c81287dbb43e4ddfa3c61cc4f",
+      "sources": [
+        {
+          "cve": "CVE-2025-59287",
+          "cna_sha256": "3277aaaf19501ce3229832ae5a0f1bc08ce273811b06a67ba97fd8c1ee332832",
+          "template_sha256": "35901383625ef3766bf8a588e08baad583642a1d9cdb12c202978e374d878248",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-59287.yaml",
+          "template_authors": "pussycat0x,princechaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-magento-address-file-containment",
+      "cves": [
+        "CVE-2025-54236"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-10-24"
+      ],
+      "source_candidates": [
+        97
+      ],
+      "sha256": "856a7ef8c24606161cdaec0c732519ea439db469e486d7d4343f70974bcde654",
+      "sources": [
+        {
+          "cve": "CVE-2025-54236",
+          "cna_sha256": "a2d2da71ff54e944379e35f2a41b8d3bb78c327875d6fd82d06758bb883f992f",
+          "template_sha256": "544161035c3d8e47c64cebb60f70d9e04950c32421d483f6319727768a463bce",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-54236.yaml",
+          "template_authors": "DhiyaneshDK,slcyber,johnk3r"
+        }
+      ]
+    },
+    {
+      "id": "kev-oracle-ebs-configurator-containment",
+      "cves": [
+        "CVE-2025-61884"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-10-20"
+      ],
+      "source_candidates": [
+        98
+      ],
+      "sha256": "acdd677738c0933c0076d976fac9f13f48abff13a13e935dadf98472f42a8be3",
+      "sources": [
+        {
+          "cve": "CVE-2025-61884",
+          "cna_sha256": "5d8c0598f656f06e2969247975dadce19e36bdfdf4b979f669003a93e7bf9252",
+          "template_sha256": "510b0bc9e8c0220e171add1881f30b42d62f83bbe9289a837b8133e4c94d6c90",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-61884.yaml",
+          "template_authors": "Kazgangap"
+        }
+      ]
+    },
+    {
+      "id": "kev-kentico-staging-sync-containment",
+      "cves": [
+        "CVE-2025-2747",
+        "CVE-2025-2746"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-10-20",
+        "2025-10-20"
+      ],
+      "source_candidates": [
+        99,
+        100
+      ],
+      "sha256": "17d3cb0ac34d9f15f83b0e14585cf0fa5380975575ad27d81f29807cd61dec5d",
+      "sources": [
+        {
+          "cve": "CVE-2025-2747",
+          "cna_sha256": "dab5ee531a9f740a68f4a8b25f0d28bf9ae2f2e9286bff50e621098f9643b3f4",
+          "template_sha256": "c5c3be4d81cd46f477f934eea7428eb0aa45bb28224e6a64047837fe254ff283",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-2747.yaml",
+          "template_authors": "DhiyaneshDK"
+        },
+        {
+          "cve": "CVE-2025-2746",
+          "cna_sha256": "bff318d7a6fa617f398d5ea932c9ac4caabe712f824af0d0971898cdd3c87ec4",
+          "template_sha256": "6a07f1d0fbbcb17581e9907bf58843e13f5fd0c8c4444824ccbae8b5fa2f80c1",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-2746.yaml",
+          "template_authors": "DhiyaneshDK"
+        }
+      ]
+    },
+    {
+      "id": "kev-grafana-plugin-traversal",
+      "cves": [
+        "CVE-2021-43798"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-10-09"
+      ],
+      "source_candidates": [
+        101
+      ],
+      "sha256": "ac652f0a9b0f1c07f5eb293897d07229280844a1f181966a04f4a69169a86379",
+      "sources": [
+        {
+          "cve": "CVE-2021-43798",
+          "cna_sha256": "331644a1301a1e3b2a0754cc2246482f0926bafca6b3200fc86e5cd4f8c45c36",
+          "template_sha256": "f3191431881c13170bea98bf79b281f9990925c9e94528e680faeab01c5499b7",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2021/CVE-2021-43798.yaml",
+          "template_authors": "z0ne,dhiyaneshDk,j4vaovo"
+        }
+      ]
+    },
+    {
+      "id": "kev-oracle-ebs-sync-containment",
+      "cves": [
+        "CVE-2025-61882"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-10-06"
+      ],
+      "source_candidates": [
+        103
+      ],
+      "sha256": "b17d45952f59d6b9d0afbacb7695242d1eb7073b0cea3b86c804beb3863cecb4",
+      "sources": [
+        {
+          "cve": "CVE-2025-61882",
+          "cna_sha256": "c8f8ca1fb4e1164798f5539c165a0867f03b6442a62369bdc8a40ec6365d272a",
+          "template_sha256": "6b34a7666de9e89796ebbdec627b608b49db8836500cc1192f81caca80ac25a4",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-61882.yaml",
+          "template_authors": "testanull,watchtowr,DhiyaneshDk,pussycat0x"
+        }
+      ]
+    },
+    {
+      "id": "kev-meteobridge-template-shell",
+      "cves": [
+        "CVE-2025-4008"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-10-02"
+      ],
+      "source_candidates": [
+        104
+      ],
+      "sha256": "655a75d20633b1e697a12c609fe975ed45234fc3b659161becb77578530d38c5",
+      "sources": [
+        {
+          "cve": "CVE-2025-4008",
+          "cna_sha256": "8e281579d7fc8db958158150c29ff09097ef8d4578dc25c24461a85ccf80f12b",
+          "template_sha256": "cc27f72189e4f49b5595f5b6281682a595cc04c8f5b713eaaa53f0536bb8e912",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-4008.yaml",
+          "template_authors": "iamnoooob,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-goanywhere-license-containment",
+      "cves": [
+        "CVE-2025-10035"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-09-29"
+      ],
+      "source_candidates": [
+        105
+      ],
+      "sha256": "4bc900a474586e85d3c7f06433648d090d8d53ff5f03c58a2dbbd208825b5b80",
+      "sources": [
+        {
+          "cve": "CVE-2025-10035",
+          "cna_sha256": "3fe9bf3e8ea28dc48b5238098e87e058fee78ccdaeffe2c36460aa42b6b2bceb",
+          "template_sha256": "e11fab4642abf9d24a561b22edc578c6941c6b7c08576f772ec3b1cd68bf546f",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-10035.yaml",
+          "template_authors": "DhiyaneshDk,watchtowr"
+        }
+      ]
+    },
+    {
+      "id": "kev-cisco-webvpn-traversal",
+      "cves": [
+        "CVE-2025-20362"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-09-25"
+      ],
+      "source_candidates": [
+        107
+      ],
+      "sha256": "9c17edfb7d24c51e2117b83c500306a939b70219f5c552f91db5b476e6d8a2e5",
+      "sources": [
+        {
+          "cve": "CVE-2025-20362",
+          "cna_sha256": "900dcbcbf18dc72b5a52befdd24df3eba6cb6e05e89de0cf09ad634dc7003401",
+          "template_sha256": "872d1f39b5103e2bc57355068cbd5994e1bafc9cf34a51ad08f5e64709065442",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-20362.yaml",
+          "template_authors": "DhiyaneshDk,attackerkb,brendan-rsoc"
+        }
+      ]
+    },
+    {
+      "id": "kev-apriso-invoke-containment",
+      "cves": [
+        "CVE-2025-5086"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-09-11"
+      ],
+      "source_candidates": [
+        108
+      ],
+      "sha256": "80a952d5e7cca11ca6fe01a54b294282b5d4f36bea01e6af171fa5fb61a292d2",
+      "sources": [
+        {
+          "cve": "CVE-2025-5086",
+          "cna_sha256": "894a18499f529eee443d337b5f69072b916fa5aab411973e634dc37849b23f57",
+          "template_sha256": "bc885ea0db6961cb6c06a095bab6888f05be264125d802f3c358460f28ba922d",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-5086.yaml",
+          "template_authors": "hacktronai,iamnoooob,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-freepbx-endpoint-brand-sql",
+      "cves": [
+        "CVE-2025-57819"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-08-29"
+      ],
+      "source_candidates": [
+        109
+      ],
+      "sha256": "6d94636e9e5490a1d50e534bee3c2f8b3b19881a1eef6c11fde4e1b7301ac848",
+      "sources": [
+        {
+          "cve": "CVE-2025-57819",
+          "cna_sha256": "58ba8259519aae1307065077663e649aa5c71d5af5c895f4d32d5179babb63f0",
+          "template_sha256": "f7cc91f23dc3b97bb53e87d5426cd70fd95f7338030e4a2e489311d7799f79e6",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-57819.yaml",
+          "template_authors": "watchtowr,pussycat0x,DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-dlink-user-config-containment",
+      "cves": [
+        "CVE-2020-25078"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-08-05"
+      ],
+      "source_candidates": [
+        110
+      ],
+      "sha256": "caca69473a8b7b1b1d484285d694eab07563175e79d6bd851a67a964a4c2689e",
+      "sources": [
+        {
+          "cve": "CVE-2020-25078",
+          "cna_sha256": "a7ae8dc22cec175642df4f600208f767534844247faf5d32f9f98c247337933e",
+          "template_sha256": "bdac2b70b14a302123a62bcf46888c720a4c9aea6b5b9970abd98b7e7ae0e44c",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2020/CVE-2020-25078.yaml",
+          "template_authors": "pikpikcu"
+        }
+      ]
+    },
+    {
+      "id": "kev-cisco-ise-deployment-rpc-containment",
+      "cves": [
+        "CVE-2025-20281"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-28"
+      ],
+      "source_candidates": [
+        111
+      ],
+      "sha256": "d948cc0a20698b177bb5dcb2253b3b43ea06ce79da289611c9a2d29c3cf88be8",
+      "sources": [
+        {
+          "cve": "CVE-2025-20281",
+          "cna_sha256": "f74458575e32086a6048b0f50357498ce7f356e7023d97c75529021632e0013b",
+          "template_sha256": "1f41da4b0aa09008b8f248ebd7fc5a5947485a255e4cb434d321c48c970f4d15",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-20281.yaml",
+          "template_authors": "daffainfo"
+        }
+      ]
+    },
+    {
+      "id": "kev-sharepoint-toolpane-containment",
+      "cves": [
+        "CVE-2025-49706",
+        "CVE-2025-53770"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-22",
+        "2025-07-20"
+      ],
+      "source_candidates": [
+        112,
+        115
+      ],
+      "sha256": "386ae536c1354c6236adbe83c18c4d4375ea07e97459bc1b33995197c452d273",
+      "sources": [
+        {
+          "cve": "CVE-2025-49706",
+          "cna_sha256": "aefb0b8ba28d209ba3e3108ac9fe678569b86bf9a68cd3676eec8c4f1cac4ef3",
+          "template_sha256": "498216862b0a168b249e5aeb82532286004617a795f9431f9420bcf1af2d7d10",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-49706.yaml",
+          "template_authors": "daffainfo"
+        },
+        {
+          "cve": "CVE-2025-53770",
+          "cna_sha256": "2fc5a3890810a19c33facb56a3d536aa05f16d97d346c487254e44722f15a8da",
+          "template_sha256": "fad6a2e2960760c38b982564644f19e93fcd04da0532c1124a757e0f434839a2",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-53770.yaml",
+          "template_authors": "_l0gg,SamIntruder,sfewer-r7,iamnoooob,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-sysaid-mdm-serverurl-containment",
+      "cves": [
+        "CVE-2025-2776"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-22"
+      ],
+      "source_candidates": [
+        113
+      ],
+      "sha256": "be27dcfc313cf965c3437cf2234a24f5251e98b92b232623583b7d9b9bb5e0de",
+      "sources": [
+        {
+          "cve": "CVE-2025-2776",
+          "cna_sha256": "183752b01e173f0031bae257cb59f763907d44e8a3b17b0e92bd85d6d97f5c18",
+          "template_sha256": "ca0e472177556d851a88dde856f053c3870df7a1b599348f830b746526841be9",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-2776.yaml",
+          "template_authors": "johnk3r"
+        }
+      ]
+    },
+    {
+      "id": "kev-sysaid-mdm-checkin-containment",
+      "cves": [
+        "CVE-2025-2775"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-22"
+      ],
+      "source_candidates": [
+        114
+      ],
+      "sha256": "23a2af0850e7f0d49c9430de7c3c5c5b4497abea217ee78f67c08d279c85cd3a",
+      "sources": [
+        {
+          "cve": "CVE-2025-2775",
+          "cna_sha256": "36b8b0a64eb306d2481e22b0454c2d2695c14186beba3fabebaf6c9a48d73247",
+          "template_sha256": "20b2b9bffa86bae43a84edb5990ca25de0851d9fd53227ab6a4f325eb76cedca",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-2775.yaml",
+          "template_authors": "johnk3r"
+        }
+      ]
+    },
+    {
+      "id": "kev-wingftp-login-containment",
+      "cves": [
+        "CVE-2025-47812"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-14"
+      ],
+      "source_candidates": [
+        117
+      ],
+      "sha256": "feb2bf7277c3351335c6d6c381f3e075dbc5c94333602aa2d661709ae5b11ee7",
+      "sources": [
+        {
+          "cve": "CVE-2025-47812",
+          "cna_sha256": "11b0b7dc7da56a79cf67a530621033182ff919ef719c432c5ff1441ceed304cf",
+          "template_sha256": "826eda113dd82eed598068b7ef6fb18b4ae5aa12d9c2b701122c36ca03cf0263",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-47812.yaml",
+          "template_authors": "rcesecurity,4m3rr0r"
+        }
+      ]
+    },
+    {
+      "id": "kev-netscaler-auth-containment",
+      "cves": [
+        "CVE-2025-5777"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-10"
+      ],
+      "source_candidates": [
+        118
+      ],
+      "sha256": "ef5b02f0d4fcb63f0434af4a3281c18e2f319ad386e342d3a07ee442cd1de31e",
+      "sources": [
+        {
+          "cve": "CVE-2025-5777",
+          "cna_sha256": "96b4b40f775fe5ad2209eb6cc62b407d885b682edf4f3a724666a2dc74ef6b9c",
+          "template_sha256": "715bbe358af451f3903c42a71a2999c6d156d6d9279cb1c250e4f87a37c627d7",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-5777.yaml",
+          "template_authors": "watchtowr,DhiyaneshDk,darses"
+        }
+      ]
+    },
+    {
+      "id": "kev-zimbra-autodiscover-xml-containment",
+      "cves": [
+        "CVE-2019-9621"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-07-07"
+      ],
+      "source_candidates": [
+        119
+      ],
+      "sha256": "391ca24775143460210f48684bf33b2e63bfd22638afbd56e42b54c82ca6e2d2",
+      "sources": [
+        {
+          "cve": "CVE-2019-9621",
+          "cna_sha256": "50da62942319af0fa8e7a58dbdc5da65fb3322ad7744c964937b4245b18d30cf",
+          "template_sha256": "62f83024dd4682d68d3fad95860d01421156370aa408cd48af437e5cf23ffab8",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2019/CVE-2019-9621.yaml",
+          "template_authors": "riteshs4hu"
+        }
+      ]
+    },
+    {
+      "id": "kev-rails-accept-traversal",
+      "cves": [
+        "CVE-2019-5418"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-07-07"
+      ],
+      "source_candidates": [
+        120
+      ],
+      "sha256": "1bb189bc8abe5efbcb7820c93a3d199b5d811193e71aa237afe1fced5ce6addd",
+      "sources": [
+        {
+          "cve": "CVE-2019-5418",
+          "cna_sha256": "63c524eb9dbdfd859aaf99d6b1f0e78feb7b42613ffe236a00565caaba61d8b3",
+          "template_sha256": "c17a58f442d647421988821201de40129c38ee294911507cd0c76a794773231a",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2019/CVE-2019-5418.yaml",
+          "template_authors": "omarkurt"
+        }
+      ]
+    },
+    {
+      "id": "kev-wazuh-runas-containment",
+      "cves": [
+        "CVE-2025-24016"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-06-10"
+      ],
+      "source_candidates": [
+        122
+      ],
+      "sha256": "0d424c5bb24c0e2acfbcdb36fd6130c35e17a30f97b1cd247d88ff93a12fdb46",
+      "sources": [
+        {
+          "cve": "CVE-2025-24016",
+          "cna_sha256": "de77d389b9231f1cf59fa847066741559d5a35efe744db373c50f477e2187955",
+          "template_sha256": "cbf58238807eaf84cf73983e34ff693bcd76f0fbfb9c8229320d6c4966087d5b",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-24016.yaml",
+          "template_authors": "H\u00fcseyin TINTA\u015e,ritikchaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-craft-configpath-directive",
+      "cves": [
+        "CVE-2024-56145"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-06-02"
+      ],
+      "source_candidates": [
+        124
+      ],
+      "sha256": "3e096b819212cb597f4b9e99ba5901eb46eb5f661db02ab2823cba67eb5ecc9a",
+      "sources": [
+        {
+          "cve": "CVE-2024-56145",
+          "cna_sha256": "1ae0c82d90b6a50f76a33df42a9e149a7026f4d8cc48e3b5a40ad77d0c381e97",
+          "template_sha256": "a1b2c342dff7ef946419cbf9d30365e9b0e7060f07e5f3a76fe9c77cbc19dde8",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-56145.yaml",
+          "template_authors": "jackhax"
+        }
+      ]
+    },
+    {
+      "id": "kev-magicinfo-upload-traversal",
+      "cves": [
+        "CVE-2025-4632",
+        "CVE-2024-7399"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-05-22",
+        "2026-04-24"
+      ],
+      "source_candidates": [
+        126,
+        49
+      ],
+      "sha256": "e96f03223cc0639af49e4309d4181faa9b8ada238db3cd9bc603618bbb777ced",
+      "sources": [
+        {
+          "cve": "CVE-2025-4632",
+          "cna_sha256": "dbed77a3185efc1b29e5bbdf39d67261ca1fb78e96156a5923f06ad847f37a3b",
+          "template_sha256": "ca44cdd6bd97b8ccd80e3423a32c28b4d89f5a93b8da9bba7d6189e6da663ccd",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-4632.yaml",
+          "template_authors": "s4e-io"
+        },
+        {
+          "cve": "CVE-2024-7399",
+          "cna_sha256": "a29ccd41ad1cd6b3c7f197bab8e3ce964d771afa742bd172dc48d40957cb5bae",
+          "template_sha256": "fa53bf59ed0bdc68e27ff437bda8d5b2d786957a2b4914cc6bb3bb0478afabab",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-7399.yaml",
+          "template_authors": "iamnoooob,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-ivanti-featureusage-expression",
+      "cves": [
+        "CVE-2025-4427"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-05-19"
+      ],
+      "source_candidates": [
+        127
+      ],
+      "sha256": "4323472b56283639f1b7e1164cd4635b33e7e56a12c794df24b6b3a9ed186229",
+      "sources": [
+        {
+          "cve": "CVE-2025-4427",
+          "cna_sha256": "d630f6a668f3b7bb8f650eac13251bbae7d669e1d3e56ae290f948ff66f8c45f",
+          "template_sha256": "c306fce2cdf080047b1ec807a528bd1a1f28ef1aae16fdaae294eb488c146c82",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-4427.yaml",
+          "template_authors": "iamnoooob,rootxharsh,parthmalhotra,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-biotime-file-traversal",
+      "cves": [
+        "CVE-2023-38950"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2025-05-19"
+      ],
+      "source_candidates": [
+        129
+      ],
+      "sha256": "cc1be65980b5ae216ac2967832a2d11084242d9825e973dc378e5b81c34f6410",
+      "sources": [
+        {
+          "cve": "CVE-2023-38950",
+          "cna_sha256": "ced4aaddf4fdefa95f1c8cb1f1745207d1e5bc9b228e3971994fcf63dbcb2256",
+          "template_sha256": "e51430db43b2759bc8f5d4a94ce6e20ae006d3092bb58ca9359430c67122bddb",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2023/CVE-2023-38950.yaml",
+          "template_authors": "iamnoooob,pdresearch"
+        }
+      ]
+    },
+    {
+      "id": "kev-draytek-apm-upload-containment",
+      "cves": [
+        "CVE-2024-12987"
+      ],
+      "kind": "endpoint_containment",
+      "kev_dates": [
+        "2025-05-15"
+      ],
+      "source_candidates": [
+        130
+      ],
+      "sha256": "f723843bcdd08ce03d5de42d8cbbf83677e09b2470fbeed85817a4012b057f17",
+      "sources": [
+        {
+          "cve": "CVE-2024-12987",
+          "cna_sha256": "110004383bb86a82a910c54530cd1b5b0ce6f4948810338f9a9369534c9fed0e",
+          "template_sha256": "4980a91797dd3acff6c293102aa3b007d2ae4c1ad688cb897ae89c4a79598c26",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-12987.yaml",
+          "template_authors": "ritikchaddha"
+        }
+      ]
+    },
+    {
+      "id": "kev-teamcity-public-prefix-traversal",
+      "cves": [
+        "CVE-2024-27199"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-04-20"
+      ],
+      "source_candidates": [
+        52
+      ],
+      "sha256": "545f676b37d777b34e71b81603c0f46127d30cbd3848305836ecc8a1b4271212",
+      "sources": [
+        {
+          "cve": "CVE-2024-27199",
+          "cna_sha256": "f6ed7a14261187489be685228af103ebce9fbf4dd2a5b41c03dd668bc00e5834",
+          "template_sha256": "d881110d912e05e6a0c54c40024dfea67bbb4e7e9c4deef2d9d31464ed9208f4",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2024/CVE-2024-27199.yaml",
+          "template_authors": "DhiyaneshDk"
+        }
+      ]
+    },
+    {
+      "id": "kev-papercut-keepalive-suffix",
+      "cves": [
+        "CVE-2023-27351"
+      ],
+      "kind": "request_signature",
+      "kev_dates": [
+        "2026-04-20"
+      ],
+      "source_candidates": [
+        53
+      ],
+      "sha256": "833ea53259c046b9e2460dbbb1b8b33d15e761a2e3d0fc78319acc28c1219def",
+      "sources": [
+        {
+          "cve": "CVE-2023-27351",
+          "cna_sha256": "d4a2822a30d7630230b776e1525b61c33e47c0b10b992abe89ce6be44db30d1f",
+          "template_sha256": "794bc404a4a9a4ba8316fd7a5e8af4bc95e38a48b2633458b052da701cf47545",
+          "template_commit": "22f1a14a7fce254b73d81a706f15fabeb93231b5",
+          "template_source": "https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2023/CVE-2023-27351.yaml",
+          "template_authors": "daffainfo,jjcho"
+        }
+      ]
+    }
+  ],
+  "explicit_rejections": {
+    "kev-craft-transform-gadget": "Protected JSON pointer contains session; current DSL does not support this selector.",
+    "kev-fortinet-service-worker-token-containment": "Global root service-worker block would collide with unrelated legitimate web applications."
+  },
+  "assessed_candidates": [
+    {
+      "cve": "CVE-2026-21589",
+      "kev_added": "2026-10-15",
+      "status": "proposed",
+      "reason": "See kev-atlassian-double-colon-traversal",
+      "cna_sha256": "d4f4c87c10ae44997beaa051f6af435840b8a962f9303c42ced0a4e743991c16",
+      "template_sha256": "fced13591d75c87475b2cf95ce2428105f31bcbb5e343cd40f05e0bb7af2bb03"
+    },
+    {
+      "cve": "CVE-2026-105133",
+      "kev_added": "2026-10-14",
+      "status": "proposed",
+      "reason": "See kev-ahsay-fromservlet-bypass",
+      "cna_sha256": "b1b438abafa7ecce896c028bd345262d9321720f5c11d772ad010372184f40be",
+      "template_sha256": "70e9cded08fee46a4f0f3453c94321519be959b640af90425c731b342401386c"
+    },
+    {
+      "cve": "CVE-2026-104935",
+      "kev_added": "2026-10-13",
+      "status": "proposed",
+      "reason": "See kev-ivanti-dscgi-header",
+      "cna_sha256": "3ea3901cd1371613692cfea61b2de0f1ca1dddc3aafba6e192473ec6bc2a01cd",
+      "template_sha256": "dcfdde58ff23ce597479a037a70fe77db47a184b8272bb0044458511c545ae46"
+    },
+    {
+      "cve": "CVE-2016-3081",
+      "kev_added": "2026-10-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Dynamic query parameter names are outside current native selectors.",
+      "cna_sha256": "f4649ff10a971547bf7f00d4c263380847ee14bab9d5ac68dc246b0f61439c27",
+      "template_sha256": "1d96e561f5a7022fffa54e48de2942e0970fedb9d78c11d1e3401fe36074d5ae"
+    },
+    {
+      "cve": "CVE-2026-87902",
+      "kev_added": "2026-09-25",
+      "status": "proposed",
+      "reason": "See kev-wordpress-template-traversal",
+      "cna_sha256": "729d6179192835be690672e01e6a6237dc3c441b3422241200b279e09ab1e481",
+      "template_sha256": "6f1b002c1b126898974e2774b6103ea7819e2c436f67687ed9143dd744b0eced"
+    },
+    {
+      "cve": "CVE-2026-71362",
+      "kev_added": "2026-09-24",
+      "status": "proposed",
+      "reason": "See kev-magento-editpost-containment",
+      "cna_sha256": "150c3a3df2cd1b1e7db5571a88d5bbf92a951775460b24526756c7e271bd3ccd",
+      "template_sha256": "4f330824ffed3e8bfa338b3c65fe44acfe7e8cc7001b9f6b5054aae749dbf963"
+    },
+    {
+      "cve": "CVE-2026-93616",
+      "kev_added": "2026-09-22",
+      "status": "proposed",
+      "reason": "See kev-checkpoint-upgradesvc-containment",
+      "cna_sha256": "95deeefdeb1cbc389bba43a92b4c9a55832c53a5c57bc44175a124b139d399dd",
+      "template_sha256": "79e2e4d55a02520dde9602989d847237e231b39d398ef70b2e8e72d389163086"
+    },
+    {
+      "cve": "CVE-2026-76460",
+      "kev_added": "2026-09-16",
+      "status": "proposed",
+      "reason": "See kev-cisco-ise-mnt-containment",
+      "cna_sha256": "56ad33c89f006ea184c21f2b819d971fb394b94f6a0fbc38ee5adcd35c9bdb3c",
+      "template_sha256": "56de03ef886a7b5ab4dc4f2e2782affc0917df23e7a530f34f8b94c8cc2c323e"
+    },
+    {
+      "cve": "CVE-2026-85706",
+      "kev_added": "2026-09-11",
+      "status": "proposed",
+      "reason": "See kev-gitlab-file-path-traversal",
+      "cna_sha256": "ff7dd8512392618705f7c2ef78f592fab94db3fdce1be22e4faa9533e08a1f62",
+      "template_sha256": "41f56d726064f3443d1d73ad1bbef216de087cb2b9519c0e65444c7e8f3406f8"
+    },
+    {
+      "cve": "CVE-2026-42018",
+      "kev_added": "2026-09-11",
+      "status": "proposed",
+      "reason": "See kev-artifactory-aws-token-slash",
+      "cna_sha256": "df2e57db35e824200ee70f1f93c585707631586ea96dea7c17e5978cbdace803",
+      "template_sha256": "12a1f25d8eaed98ffb1da3cde6703bc8c1cc747b17132f91bc8a030d789357ca"
+    },
+    {
+      "cve": "CVE-2026-20079",
+      "kev_added": "2026-09-09",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Bypass condition relies on a protected cookie field.",
+      "cna_sha256": "154b50c266d9f064288be305f178687261bab69611e6891a9df91609a828c1e5",
+      "template_sha256": "74d58dbabf4d9f386261d0cc293838c017a7fc0d5d8cba20106706fa9ccb8afb"
+    },
+    {
+      "cve": "CVE-2026-86218",
+      "kev_added": "2026-09-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe, not an attack signature.",
+      "cna_sha256": "8471975789bf0312b7d04d60808023f57676f63d094de2b89cdbc40eb9de674b",
+      "template_sha256": "3a9dca1b20d248756b74bd7299269e8ed862cb4b1e859d8eb3247ad3cdec2e14"
+    },
+    {
+      "cve": "CVE-2026-9586",
+      "kev_added": "2026-09-02",
+      "status": "proposed",
+      "reason": "See kev-switchvox-pa-xml-containment",
+      "cna_sha256": "20218fda2f4c200c558e711b6a279af2695233d995855d1cd62d195c4f644e57",
+      "template_sha256": "de6d4d2e2568101c93c76c82b71acf9016f215409e2417e46a3c041368f25bb1"
+    },
+    {
+      "cve": "CVE-2026-82329",
+      "kev_added": "2026-09-02",
+      "status": "proposed",
+      "reason": "See kev-artifactory-registry-join-containment",
+      "cna_sha256": "7779cc1045c8cfe25d6244dec46e6c2d6920382dc625331773ec31d756423b55",
+      "template_sha256": "de463a9824ecca463918d3d73f27b385ed9311fd2ad40bc72828bdaf9640c815"
+    },
+    {
+      "cve": "CVE-2026-48710",
+      "kev_added": "2026-09-02",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Malformed authority requires HTTP parser/routing analysis, not a guessed request rule.",
+      "cna_sha256": "ee4c4d4e39af3eae1191556ae07c0e2dd2bca3f3ea35fe3e59eed1c9e00080d1",
+      "template_sha256": "eb5035713cccb4f04ffc0da3f5b3b90818b64ee66bdb87d0c5774333df2e11af"
+    },
+    {
+      "cve": "CVE-2026-81578",
+      "kev_added": "2026-08-31",
+      "status": "proposed",
+      "reason": "See kev-papercut-configeditor-dispatch",
+      "cna_sha256": "9d52dd611e8e6adbb56d601b96a212eae18315fdb5e64bb0671efb7912b178cd",
+      "template_sha256": "9619ee522c7ec83a8d7cb3a766c8ba66c3635281d3d55c5357482cbe4838fb13"
+    },
+    {
+      "cve": "CVE-2026-60004",
+      "kev_added": "2026-08-25",
+      "status": "proposed",
+      "reason": "See kev-gitea-diffpatch-hooks",
+      "cna_sha256": "21c83f30902ea57e124086d1ca3d97174a2752f81abfc5cc9110c0864f84ed5b",
+      "template_sha256": "6ea77040033c880685db37ceffe9287d7a650a7279ca6da66e9ea78be78d9cfd"
+    },
+    {
+      "cve": "CVE-2026-64849",
+      "kev_added": "2026-08-19",
+      "status": "proposed",
+      "reason": "See kev-mlflow-webhook-test-containment",
+      "cna_sha256": "fa49e2787999324225f2bdcf23816dc627a8f15c5e06637459855b37730dffc7",
+      "template_sha256": "d3cad28471a0b9c12bf1a1aceef21421b440e07a969ff587731d8790f47858ad"
+    },
+    {
+      "cve": "CVE-2025-62593",
+      "kev_added": "2026-08-17",
+      "status": "proposed",
+      "reason": "See kev-ray-job-submission-containment",
+      "cna_sha256": "edecab251b4eb803401265c2408e6798d4d3aad7a8b70c9372c415e460803dbe",
+      "template_sha256": "ead5f2180ce4c6933991fdbc96ab8315a5ad49db938112936528bc127d615cbd"
+    },
+    {
+      "cve": "CVE-2026-72898",
+      "kev_added": "2026-08-11",
+      "status": "proposed",
+      "reason": "See kev-metabase-password-reset-containment",
+      "cna_sha256": "0caeed2aedbb6685a19836090fd91885f1ee5e3d132cb0cfb097c1e70360cb3c",
+      "template_sha256": "8cffc4797eaf078d2a8552f0858eb9d606fcfa11a07b3c33e5d4d0283b8edea0"
+    },
+    {
+      "cve": "CVE-2026-8037",
+      "kev_added": "2026-08-07",
+      "status": "proposed",
+      "reason": "See kev-loadmaster-json-shell",
+      "cna_sha256": "e0fe82f088ba795459e0fa631d340ce1185def92b19072f8fed8c17560fed064",
+      "template_sha256": "1852744bc976b2665cb1e88d57143ac0441055d224e9a4f917ac240b23db45cd"
+    },
+    {
+      "cve": "CVE-2026-63077",
+      "kev_added": "2026-08-05",
+      "status": "proposed",
+      "reason": "See kev-teamcity-agent-register-containment",
+      "cna_sha256": "329b29ea604912fe0b71019ae1d2b3c3c36f47e120d5ec0d0da2af5d19c59dc0",
+      "template_sha256": "bf2e2e37e2cd3b8a3bb7129896608e6440ab4eca1ceb36b9cdb4921e0ffdcbeb"
+    },
+    {
+      "cve": "CVE-2026-9198",
+      "kev_added": "2026-08-04",
+      "status": "proposed",
+      "reason": "See kev-langflow-code-execution-markers",
+      "cna_sha256": "16e89ae496df51ce4e9e71058f9dc2dbe2ef307dd2af3135e60c5f9a4fe3077a",
+      "template_sha256": "995b0464a4c772831bee485fa0dcce777d5fbdbe97c96c858ca7f5c8ca3695fa"
+    },
+    {
+      "cve": "CVE-2026-34486",
+      "kev_added": "2026-08-04",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Cluster transport is not an HTTP request body.",
+      "cna_sha256": "137eab300c598bc9d58856775a569f0369ec8e2ec125a759438e4b905e7a3839",
+      "template_sha256": "53b74eb046873ddec249b7aecde5675c0cbdcb99e4a031adafcbd61bda718845"
+    },
+    {
+      "cve": "CVE-2026-18577",
+      "kev_added": "2026-08-03",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "f86ee451b96081937cf8d0ed0535c1ffd18aafce7d28f4abcfeb15feb17a0222",
+      "template_sha256": "2acc205896359717a80f0cefaff95252a15d3b58c954d4f55569e5641ceee47f"
+    },
+    {
+      "cve": "CVE-2026-63030",
+      "kev_added": "2026-07-21",
+      "status": "proposed",
+      "reason": "See kev-wordpress-batch-route-confusion",
+      "cna_sha256": "9a384f57bfa28a3443ea250dfa765f7c025c902b2bb9e5fc40d768ccdad6c630",
+      "template_sha256": "3ac1a0810c4ce6fe84c2d72f050a4b41d98a6c1055b9cadb15032e545ba99e92"
+    },
+    {
+      "cve": "CVE-2026-0770",
+      "kev_added": "2026-07-21",
+      "status": "proposed",
+      "reason": "See kev-langflow-code-execution-markers",
+      "cna_sha256": "cf6d4e5138013f6210b1413caa6fdeb223ed388fd4934ead6445a459c3a8ba8f",
+      "template_sha256": "4eb8b6862097eb5835b8f32c3a24e3522d69f6bd9f4c93b68f41c4ed74ab12df"
+    },
+    {
+      "cve": "CVE-2026-58644",
+      "kev_added": "2026-07-16",
+      "status": "proposed",
+      "reason": "See kev-sharepoint-wsfed-containment",
+      "cna_sha256": "31a286dea819ead45e5a6427991f018556aad99acdcd60d938bc22c88dc75b0d",
+      "template_sha256": "34311a5408c7c46a66390b7ddd706314e8a4bd8b952f660fd51d6d53583b383d"
+    },
+    {
+      "cve": "CVE-2026-39808",
+      "kev_added": "2026-07-16",
+      "status": "proposed",
+      "reason": "See kev-fortisandbox-tracer-shell",
+      "cna_sha256": "78e5d135b35e5bd6bc21fe4e7dfb30311010368f36584e4c366b1788fcc2d930",
+      "template_sha256": "1ca632787c69a48437816122f881626b2eedb72ca5a390dfd6ffc4e7d7bf9067"
+    },
+    {
+      "cve": "CVE-2026-56291",
+      "kev_added": "2026-07-10",
+      "status": "proposed",
+      "reason": "See kev-balbooa-upload-containment",
+      "cna_sha256": "43e575def26dada119d7ec95c3abe1f5f87896e847aa1493f61d79dd6a0e5711",
+      "template_sha256": "da8450f54d491cb5da870f60bca9664852ac472c2edb15c631308090f5554564"
+    },
+    {
+      "cve": "CVE-2026-48939",
+      "kev_added": "2026-07-10",
+      "status": "proposed",
+      "reason": "See kev-icagenda-upload-containment",
+      "cna_sha256": "77a52bea29ffa2917168d16d3c57d0347e80d8e768020a3b19f9eaffb12be6d9",
+      "template_sha256": "819a8f8ecc620c5afd58c298c2a3bf65cd794f876a649f7e71deabd8f4103756"
+    },
+    {
+      "cve": "CVE-2026-56290",
+      "kev_added": "2026-07-07",
+      "status": "proposed",
+      "reason": "See kev-pagebuilderck-upload-containment",
+      "cna_sha256": "6913b891d702fd04c33a7de6926aa9795a71d0bc9b99e1bc25e68d515371a849",
+      "template_sha256": "e115abb8a9eda682fa61e6b3970a3c0efadba020fca8dbe7d9b6831c7bf41d28"
+    },
+    {
+      "cve": "CVE-2026-48282",
+      "kev_added": "2026-07-07",
+      "status": "proposed",
+      "reason": "See kev-coldfusion-rds-fileio-containment",
+      "cna_sha256": "b3a827d26ff74f5fbcbd2969e164c90b8cf3b73c98ee4af708cfc0d3cf3f9aec",
+      "template_sha256": "534fc31f27833a022f92e5dfb62864f984ad0b8eb73938fae5da013be4017df5"
+    },
+    {
+      "cve": "CVE-2026-48558",
+      "kev_added": "2026-06-29",
+      "status": "proposed",
+      "reason": "See kev-simplehelp-oidc-containment",
+      "cna_sha256": "6a1f3037bd2c6e2f10309e5753bc3310aec32e375eef06ba25bdca138e78f838",
+      "template_sha256": "c219c0828674e2ec650f38858d596f6b751a1ba8ba5200865ca98211539e6262"
+    },
+    {
+      "cve": "CVE-2026-34910",
+      "kev_added": "2026-06-23",
+      "status": "proposed",
+      "reason": "See kev-unifi-sso-path-traversal",
+      "cna_sha256": "ae0f9e8671d44a62d8cdeffd7ce8ba150ff0be9bdb824c883447eaced52d37c1",
+      "template_sha256": "03500f4d76bce274115bbf2a5e938808407a64fcda6cb73a87edface43b56f9b"
+    },
+    {
+      "cve": "CVE-2026-34908",
+      "kev_added": "2026-06-23",
+      "status": "proposed",
+      "reason": "See kev-unifi-sso-path-traversal",
+      "cna_sha256": "6a8a86e0a65c582e3f84dc6574ac42fcbdcc246cd5260d52237bf5dbb5d90246",
+      "template_sha256": "836073f7bf424c955e7f70f5c6db6c5f49fd8f7e19826ef0281d3cf427a75cd1"
+    },
+    {
+      "cve": "CVE-2026-20253",
+      "kev_added": "2026-06-18",
+      "status": "proposed",
+      "reason": "See kev-splunk-recovery-backup-containment",
+      "cna_sha256": "bc192e679d22b9f751022e2f249a0fe06d84b90b990efe266bd8586b8f7d6f6d",
+      "template_sha256": "a95f0e1d1dcd950b8d9d5c324ddbef6f264157245c84fd5346bbadf562fae50b"
+    },
+    {
+      "cve": "CVE-2026-48907",
+      "kev_added": "2026-06-16",
+      "status": "proposed",
+      "reason": "See kev-joomla-jce-import-containment",
+      "cna_sha256": "b419f74a0edfd4f05cbcca08841f5e4c661a5671dc4b92d23327d2dda7e40ffb",
+      "template_sha256": "252ce6323c38bdc55ff0568f28581e32ea11dcaf2cb63247ab3727c73bbbb6cd"
+    },
+    {
+      "cve": "CVE-2026-35273",
+      "kev_added": "2026-06-12",
+      "status": "proposed",
+      "reason": "See kev-peoplesoft-psemhub-containment",
+      "cna_sha256": "f998f64b907c350e46df2a9a4ce789fe0d5a65f98480c3146c9c59601d1df5b6",
+      "template_sha256": "f66cceb79c5c2ef409d58b3cd0c33dd5867911da5f2298470abf2116992f0732"
+    },
+    {
+      "cve": "CVE-2026-10520",
+      "kev_added": "2026-06-11",
+      "status": "proposed",
+      "reason": "See kev-ivanti-sentry-handlemessage-containment",
+      "cna_sha256": "2feb215e3039c60e96dc0996a58b0beba4836649a183b965d78f5e7b4056f41b",
+      "template_sha256": "b043ade13575b591d0d9e3bdddcf7f4e235e7bafe499f60366d8a71079965036"
+    },
+    {
+      "cve": "CVE-2026-50751",
+      "kev_added": "2026-06-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "7c237a164999d80b4d5f0d101c83cd9f00ca73d7701177c31047f10a8a741c29",
+      "template_sha256": "1bb7591adb02e60d71bfd401a41cac420c2cbba1e5495fa70532616c030e2f58"
+    },
+    {
+      "cve": "CVE-2026-42271",
+      "kev_added": "2026-06-08",
+      "status": "proposed",
+      "reason": "See kev-litellm-mcp-connection-test-containment",
+      "cna_sha256": "b3930f813baaddc7511bf9ea3c05030fa9ac32b77e0a35e9c3a0efb05cc72b9b",
+      "template_sha256": "33e8403e78f8ca029f2e89206a24fcb511fe1af6d198cf88710ec8214ec78820"
+    },
+    {
+      "cve": "CVE-2026-9082",
+      "kev_added": "2026-05-22",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Exploit uses dynamic nested parameter keys outside the current selectors.",
+      "cna_sha256": "d6a8eaf5052cd78d5fdf03521304175a5a9f6e50e88433f776102d8c41fb544c",
+      "template_sha256": "60a3d5c6f5f8216a54a603d6f95938f251c12cafb6242f9daa91456cf8e1f632"
+    },
+    {
+      "cve": "CVE-2025-34291",
+      "kev_added": "2026-05-21",
+      "status": "not_proposed_in_this_draft",
+      "reason": "CORS trust behavior requires configuration/response controls, not a fixed hostile Origin string.",
+      "cna_sha256": "5413e6828751da10a96b7a56809d00d5a07cc79c289078cca853cdc52cf1c393",
+      "template_sha256": "a315bcacfe86143ec0b48d453781af63cf964b3aede1f524aa9184b299adc290"
+    },
+    {
+      "cve": "CVE-2026-42208",
+      "kev_added": "2026-05-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Injection is in the protected Authorization header.",
+      "cna_sha256": "ce354c39bc085d908578d344cef06c0e973d8a079ddf3243da375d6569cb529d",
+      "template_sha256": "fc8b362ab1cb9398b2ce98656f9d058cfca86f74f6f43f03352da5b1d5f18a58"
+    },
+    {
+      "cve": "CVE-2026-41940",
+      "kev_added": "2026-04-30",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Injection is inside protected encoded credentials.",
+      "cna_sha256": "46e53b6dd6c5ade0d9fa073112cb40ce21dfc40e17a162eff34b7f4446f847f5",
+      "template_sha256": "68c1c05ea1b3e64002d06a03e7e3589ea19ad69bf6c70b017ba936f32c6ee887"
+    },
+    {
+      "cve": "CVE-2024-1708",
+      "kev_added": "2026-04-28",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "8f65d4bbe486ae84b7e5ce96ea8057023885e4d2f3e9f52681c5c646e29ea3ce",
+      "template_sha256": "ef34d69a529b2a869c035fcf78fab2f186cc5c12729e7e5cfeece9947cef6915"
+    },
+    {
+      "cve": "CVE-2025-29635",
+      "kev_added": "2026-04-24",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "4e4bba22d92f75dc99b19770bcb45fe441ea52c4a8ac249a5e5ed943ece9f7ab",
+      "template_sha256": "71c14213119feea4a2859d0006e2b47e3726dc57eea57f980c29773b6480ef73"
+    },
+    {
+      "cve": "CVE-2024-7399",
+      "kev_added": "2026-04-24",
+      "status": "proposed",
+      "reason": "See kev-magicinfo-upload-traversal",
+      "cna_sha256": "a29ccd41ad1cd6b3c7f197bab8e3ce964d771afa742bd172dc48d40957cb5bae",
+      "template_sha256": "fa53bf59ed0bdc68e27ff437bda8d5b2d786957a2b4914cc6bb3bb0478afabab"
+    },
+    {
+      "cve": "CVE-2024-57728",
+      "kev_added": "2026-04-24",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "bcefc1b587d883473923de15e433d5845070a4ea2c8f2cf1ccf2b5740676a3fc",
+      "template_sha256": "7ea05b626fee056e2606f6d40700b82911989c625f6c358ec17503765e583400"
+    },
+    {
+      "cve": "CVE-2024-57726",
+      "kev_added": "2026-04-24",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "b4af5242bbf671839cc309bbe97a0b4635b9626d10524b170a159c3f4b505bf8",
+      "template_sha256": "3007640e3d6a6c723cc803da5c7a0fe11f255c6b015a1af5088d57c5631bae2a"
+    },
+    {
+      "cve": "CVE-2024-27199",
+      "kev_added": "2026-04-20",
+      "status": "proposed",
+      "reason": "See kev-teamcity-public-prefix-traversal",
+      "cna_sha256": "f6ed7a14261187489be685228af103ebce9fbf4dd2a5b41c03dd668bc00e5834",
+      "template_sha256": "d881110d912e05e6a0c54c40024dfea67bbb4e7e9c4deef2d9d31464ed9208f4"
+    },
+    {
+      "cve": "CVE-2023-27351",
+      "kev_added": "2026-04-20",
+      "status": "proposed",
+      "reason": "See kev-papercut-keepalive-suffix",
+      "cna_sha256": "d4a2822a30d7630230b776e1525b61c33e47c0b10b992abe89ce6be44db30d1f",
+      "template_sha256": "794bc404a4a9a4ba8316fd7a5e8af4bc95e38a48b2633458b052da701cf47545"
+    },
+    {
+      "cve": "CVE-2026-34197",
+      "kev_added": "2026-04-16",
+      "status": "proposed",
+      "reason": "See kev-activemq-jolokia-network-containment",
+      "cna_sha256": "9ee8c8af428ed5688e6b34d7bebe79b674c571fd1d19ec4654d8cb45f9a63c97",
+      "template_sha256": "5d10a1ee88cf016d00eefb11d59366e342e4592776d33ac61d8a6d2db6ed9aaa"
+    },
+    {
+      "cve": "CVE-2026-21643",
+      "kev_added": "2026-04-13",
+      "status": "proposed",
+      "reason": "See kev-forticlient-site-sql",
+      "cna_sha256": "ff6ff84a2e1ed55e306d6216c0b4578608468bed7582f33f94be39515de3d10e",
+      "template_sha256": "41c5b51c0dbcfa853ef43f972206a35af8bbff20e04dd1680abf39f5fcbad19f"
+    },
+    {
+      "cve": "CVE-2026-1340",
+      "kev_added": "2026-04-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "4793d17b508587581d29ba2376c0712cc1d9bf8d4ee808a03fb081a60e6b99ea",
+      "template_sha256": "d32c607c725eee5aca645765c03948480f533002380acdfca814eb816d00566a"
+    },
+    {
+      "cve": "CVE-2026-35616",
+      "kev_added": "2026-04-06",
+      "status": "proposed",
+      "reason": "See kev-forticlient-client-verify-bypass",
+      "cna_sha256": "937c52a2c57b93c785643d701f1969ed57521bda2dae6f76a6dad87fdc3691e8",
+      "template_sha256": "25337866df2f8a277cc641071143163fc22c018979b508d15ab0dc9970a4e4ab"
+    },
+    {
+      "cve": "CVE-2026-3055",
+      "kev_added": "2026-03-30",
+      "status": "proposed",
+      "reason": "See kev-netscaler-saml-containment",
+      "cna_sha256": "fd6cb971b51088b9a5b8069d402f7a90fa8843dee8ae5b84ad435851316b751e",
+      "template_sha256": "3ee9b1167ae6b04a7564dc601b6f21d51034698ef19e9c2401a825c1b5705354"
+    },
+    {
+      "cve": "CVE-2026-33017",
+      "kev_added": "2026-03-25",
+      "status": "proposed",
+      "reason": "See kev-langflow-public-build-containment",
+      "cna_sha256": "b87c2b844f3e3f3a6785d84f6ff35a81c8158b65a20fb3e11453165d634f3ce2",
+      "template_sha256": "6128527d6654342fcf93975e5fae558378507f68b21e3cf724998ee526bf67d3"
+    },
+    {
+      "cve": "CVE-2025-54068",
+      "kev_added": "2026-03-20",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Signed/opaque payload and dynamic property names require richer inspection.",
+      "cna_sha256": "799cd33227beaf192c1e35ff0fc9209679328588a2abca6e6cee6e21d388b49b",
+      "template_sha256": "ed49d8eee6cb7ac6dc3944de232abf36964c8123e18a4707f4a45a5fca774604"
+    },
+    {
+      "cve": "CVE-2025-32432",
+      "kev_added": "2026-03-20",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "3e586e1e5f36df42769d611cf3dce146907d725a9501ae1aa1e5f7f47a1d3864",
+      "template_sha256": "882ba2f360eee38d83a47358548bb656578e88926120c80dbcced2d6437fbddc"
+    },
+    {
+      "cve": "CVE-2025-47813",
+      "kev_added": "2026-03-16",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Overlong protected cookie cannot be safely represented by current selectors.",
+      "cna_sha256": "38d9b9ad0bc0bf817bc93d7cee956b1e86a6f4f566ce074d04d8c68d82365bcd",
+      "template_sha256": "207fcd79b02cab3d2a8600927bac5ef4ec358f9b0721a27a238efbb0da0e4f63"
+    },
+    {
+      "cve": "CVE-2025-68613",
+      "kev_added": "2026-03-11",
+      "status": "proposed",
+      "reason": "See kev-n8n-workflow-process-expression",
+      "cna_sha256": "93568cea2e0d01b998cb4d4e91c5001be6a8ee5d6abb30707037e4cbe2a6cb11",
+      "template_sha256": "7c807dcb8e25dc0c9b9bb1fc19ed4bc61b29e07b33f360134166bf1cd10d98f0"
+    },
+    {
+      "cve": "CVE-2026-1603",
+      "kev_added": "2026-03-09",
+      "status": "proposed",
+      "reason": "See kev-ivanti-remotecontrol-logintype",
+      "cna_sha256": "8f72cda501598154927901998bafd74bd96a726271ac99e3c4bbedaeb67be1d1",
+      "template_sha256": "e492ed185e85eb9657c637b4704562572b0108d73c0b1bcdd5b22afcf2ea1685"
+    },
+    {
+      "cve": "CVE-2025-26399",
+      "kev_added": "2026-03-09",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "37e5c50cab5dbbd1df0a0808196a858f851bec57806f13f085bcb522e1e96cc0",
+      "template_sha256": "eef389505c22b7b807d9be9fae4f6c30fbe1dc7a4892cdfd2e050032c009d22a"
+    },
+    {
+      "cve": "CVE-2021-22054",
+      "kev_added": "2026-03-09",
+      "status": "proposed",
+      "reason": "See kev-workspaceone-blobhandler-containment",
+      "cna_sha256": "d84f7ef13a4cb37cd84dc3c9e4a66d09696e44f1c8a9524c45f38f3f8ddb1b88",
+      "template_sha256": "9f3c7905a161d6e5567f574a0f3d52cefb7a2f3a3d3373756bf11e2a45c5c100"
+    },
+    {
+      "cve": "CVE-2017-7921",
+      "kev_added": "2026-03-05",
+      "status": "proposed",
+      "reason": "See kev-hikvision-auth-bypass-marker",
+      "cna_sha256": "ffafb4014be29ccf2d5bd34cf6b413cdaa062082c7c1fcc644087ca106faa3af",
+      "template_sha256": "8406609a17a03f028753468929ce25c51319ba0078acba3622f9b4209fb77de4"
+    },
+    {
+      "cve": "CVE-2025-49113",
+      "kev_added": "2026-02-20",
+      "status": "proposed",
+      "reason": "See kev-roundcube-upload-serialization",
+      "cna_sha256": "f1fbd0f04f1fcf16b423c29a4d010fffcdfee8b3214cfb85931b0d13823ef8d7",
+      "template_sha256": "ef3d61a267adafe71b2617b3bdfe7e4968139f4102cc468ece2b0e5f52aadb7a"
+    },
+    {
+      "cve": "CVE-2021-22175",
+      "kev_added": "2026-02-18",
+      "status": "proposed",
+      "reason": "See kev-gitlab-ci-lint-containment",
+      "cna_sha256": "db56caf5b991a7009b418bcefa357b65f7ff7fb03609f5522a3f4dd3e2a682be",
+      "template_sha256": "8741e4fc1901735d7511b0293dea728f3efd7320cc908c6b62f0ea2998de554f"
+    },
+    {
+      "cve": "CVE-2020-7796",
+      "kev_added": "2026-02-17",
+      "status": "proposed",
+      "reason": "See kev-zimbra-webex-ssrf-url",
+      "cna_sha256": "7048c93c223299e5f730758f298127b75d10b90f7748a29532da8a94b3a129cc",
+      "template_sha256": "c49763d1bc473a4fc683df6ef8236e585b4c1dfec122751415a88e852733f414"
+    },
+    {
+      "cve": "CVE-2025-40536",
+      "kev_added": "2026-02-12",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "9942ca0e3c1978057d5232d0c20a2e521c4e8f29f2ef0f8c645d6394fcce273b",
+      "template_sha256": "04aca2af81e155b1f87a8f683ad976e7fde6db9d4f5db8158b9050ed9eaa3cea"
+    },
+    {
+      "cve": "CVE-2026-24423",
+      "kev_added": "2026-02-05",
+      "status": "proposed",
+      "reason": "See kev-smartermail-hub-connect-containment",
+      "cna_sha256": "be8849ccc2176561d04592f0688200a579a1b5729a6c610eb684c0f65c8254aa",
+      "template_sha256": "5b4b90df1d22ae0850b8182a4cf01f7890023065b2bfe3cf81d0a4e4bfcce452"
+    },
+    {
+      "cve": "CVE-2025-11953",
+      "kev_added": "2026-02-05",
+      "status": "proposed",
+      "reason": "See kev-react-native-openurl-containment",
+      "cna_sha256": "59debd7d2c795722241a235210424cabe7470ad1623b9df59ad27f3f2a701f8d",
+      "template_sha256": "730aa8e72ba9551c25797d4c250b2d7b26e3572104cc099b431b9fe8de050eb3"
+    },
+    {
+      "cve": "CVE-2025-64328",
+      "kev_added": "2026-02-03",
+      "status": "proposed",
+      "reason": "See kev-freepbx-filestore-shell",
+      "cna_sha256": "ccca6dd6a2a5e853d4ab1e3597b831bc1bd1e112561a44935811363338c3ba97",
+      "template_sha256": "b9638b4be31533cf0644718054dfb520c8824e50fca1cdc0edb4b4b4ac1f54bf"
+    },
+    {
+      "cve": "CVE-2025-40551",
+      "kev_added": "2026-02-03",
+      "status": "proposed",
+      "reason": "See kev-solarwinds-jsonrpc-jndi",
+      "cna_sha256": "7ad78fec74c96e0ff632722bc004535b118e24631ba60a377908a5bbbc3029b7",
+      "template_sha256": "071809fd0796e2541fceb0ee0f790f7365c5a755a8b986e2ff8834cce8174bed"
+    },
+    {
+      "cve": "CVE-2026-1281",
+      "kev_added": "2026-01-29",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Downloaded source is a version probe.",
+      "cna_sha256": "8d0af2ae35bf4919d04ada4e804b32b71a038c99bf5f64fcf6f1789b790e113a",
+      "template_sha256": "3fef9b348f5cd2dacc328197769921e14e0b8d499f952fe159f2b9fa94fac755"
+    },
+    {
+      "cve": "CVE-2026-23760",
+      "kev_added": "2026-01-26",
+      "status": "proposed",
+      "reason": "See kev-smartermail-admin-reset",
+      "cna_sha256": "cd3cee5994491fc36c98ec539ef80d5e5ea066ad073b29ce0b04b3813a0ea0a5",
+      "template_sha256": "47611c31b7ef38659acf5cd69cea72de8087dd07ab46d1cf2d1c292b6d3e911e"
+    },
+    {
+      "cve": "CVE-2025-52691",
+      "kev_added": "2026-01-26",
+      "status": "proposed",
+      "reason": "See kev-smartermail-upload-containment",
+      "cna_sha256": "967b278e79d56c771c60dfc0b47005f0ab4f96966b7b5b62b2ae59ec837a3f6a",
+      "template_sha256": "3372fd1a2b1115540e0f7d5e7f4fb63af857f6b5efed59f138ea1988749d8153"
+    },
+    {
+      "cve": "CVE-2025-68645",
+      "kev_added": "2026-01-22",
+      "status": "proposed",
+      "reason": "See kev-zimbra-servlet-include",
+      "cna_sha256": "bd41274aaa620be63fa244073da9ebb2fdc36a8442dac50305f72416bcd13c0c",
+      "template_sha256": "c0037b1db4979f283b4fa8367ef10887eef246ff14d47a9bdf9572be8c4333d1"
+    },
+    {
+      "cve": "CVE-2025-34026",
+      "kev_added": "2026-01-22",
+      "status": "proposed",
+      "reason": "See kev-versa-hop-header-bypass",
+      "cna_sha256": "fa650231e4aa4b4384ce8363deb81119f551df0341c53dc52241162bd7ebbb61",
+      "template_sha256": "c20d557c60ff3ed595f26437f2cc169d4e1afe956f6e45b963569887bd39c7fb"
+    },
+    {
+      "cve": "CVE-2025-31125",
+      "kev_added": "2026-01-22",
+      "status": "proposed",
+      "reason": "See kev-vite-filesystem-probe",
+      "cna_sha256": "10aa72dc72c62738f3713ff82516be4e0c233821f6e9f710bb6374708f08506b",
+      "template_sha256": "3a553824696aaa42bf8a8fe80c37ed666e29f7d951501fbcf9ea0be6181938b6"
+    },
+    {
+      "cve": "CVE-2025-8110",
+      "kev_added": "2026-01-12",
+      "status": "not_proposed_in_this_draft",
+      "reason": "No static narrow request signature was established from the downloaded source.",
+      "cna_sha256": "260e0df36546aed6e2fc6f0e1ea455699b9189887d33f78f9349bb78fe46f602",
+      "template_sha256": "f2c9a9553c6468ca1d6ec21666294fc2bd18c5a0636a531d0915da3f2e84b4c0"
+    },
+    {
+      "cve": "CVE-2025-37164",
+      "kev_added": "2026-01-07",
+      "status": "proposed",
+      "reason": "See kev-hpe-oneview-command-containment",
+      "cna_sha256": "2b2ac38a3fdacdebb6b756fd3f2e8426fd5b84ee4007d1aebeedeabe0a8d2736",
+      "template_sha256": "094e9fd6edf4612ab65641b6788dc21fde51377858594b345327830881cec539"
+    },
+    {
+      "cve": "CVE-2023-52163",
+      "kev_added": "2025-12-22",
+      "status": "proposed",
+      "reason": "See kev-digiever-cgi-containment",
+      "cna_sha256": "49907d03439c10fec8fc8ff6d8e11f691159c0dbcd278b00b480ffa973f446e8",
+      "template_sha256": "f869a043f7722216246c891cca66cb5ee1cb0aa947b68f3b8564d368c9d4db17"
+    },
+    {
+      "cve": "CVE-2025-14611",
+      "kev_added": "2025-12-15",
+      "status": "proposed",
+      "reason": "See kev-gladinet-filesvr-containment",
+      "cna_sha256": "ba0e41480b3b5e67ef6d80dbf77de1622af5388ecc847a2bc670cdb2460475d3",
+      "template_sha256": "91b55c55eda76bf66d2d72713035f6a3084e3cc9f33f42720d06927e896e7b24"
+    },
+    {
+      "cve": "CVE-2025-58360",
+      "kev_added": "2025-12-11",
+      "status": "proposed",
+      "reason": "See kev-geoserver-xml-map-containment",
+      "cna_sha256": "1db59427d142834b5b118b0a22d38c4d7a3968f67c7500c4131f513f8e54be94",
+      "template_sha256": "68b76fc800dc6a649236eaa4f1de6ecd930583f0fd17ad63238fefb20fc45739"
+    },
+    {
+      "cve": "CVE-2025-55182",
+      "kev_added": "2025-12-05",
+      "status": "proposed",
+      "reason": "See kev-react-server-action-multipart-containment",
+      "cna_sha256": "a184d19cf0cdf9dda2d1c98abbbca2229cc5beabbf43080846d33c9f0d5067b1",
+      "template_sha256": "15d58f8f3a1604d3a79ca1ba6a352caee69834ca655408aa30d14b779930e055"
+    },
+    {
+      "cve": "CVE-2025-61757",
+      "kev_added": "2025-11-21",
+      "status": "proposed",
+      "reason": "See kev-oracle-iam-semicolon-wadl",
+      "cna_sha256": "4b13540954a5bf9a36699e324be7f75c9fc68798f219b18989dfe80ddca7f4ab",
+      "template_sha256": "fdb75b214721ff3f0233918d86373d59f7792dadf301844bc712fe90d0d70b0e"
+    },
+    {
+      "cve": "CVE-2025-64446",
+      "kev_added": "2025-11-14",
+      "status": "proposed",
+      "reason": "See kev-fortiweb-admin-traversal",
+      "cna_sha256": "b5adb450af2ddba7d8647b698ff36597a0d6f66c24320c57d6c0a9c6c674703c",
+      "template_sha256": "37606ccdf7585db0eef5b330b336e862512bf4e47decc627c0a5868a16f3277b"
+    },
+    {
+      "cve": "CVE-2025-12480",
+      "kev_added": "2025-11-12",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Localhost authority bypass depends on deployment routing; broad setup blocks need further scoping.",
+      "cna_sha256": "5f340ead0a8c33422ca7ac546be94cc3a73bc37a27989cdb1c3010140e4ba4ab",
+      "template_sha256": "ca007653e92a10faa722871a9e453ae413a44a9d47bea288e3bd29c857b51766"
+    },
+    {
+      "cve": "CVE-2025-48703",
+      "kev_added": "2025-11-04",
+      "status": "proposed",
+      "reason": "See kev-cwp-permission-operation-containment",
+      "cna_sha256": "243f6492d1b5e25615251aeee751932ec2d936caa28c8f333075de5642545416",
+      "template_sha256": "3e5f511673ac0e68c16f69cf5983f520cb58ce538563a4e2fa128d3b206f4cff"
+    },
+    {
+      "cve": "CVE-2025-11371",
+      "kev_added": "2025-11-04",
+      "status": "proposed",
+      "reason": "See kev-gladinet-storage-traversal",
+      "cna_sha256": "f4d3fa5a5d04a6685f9d1460293d5027335d14afd762bd3fa3133b32975c5f02",
+      "template_sha256": "34701260077e264b1b31c81a41c71d62e7aaaf9b066685e431ea35e8ecf12ea1"
+    },
+    {
+      "cve": "CVE-2025-24893",
+      "kev_added": "2025-10-30",
+      "status": "proposed",
+      "reason": "See kev-xwiki-solr-groovy",
+      "cna_sha256": "123bdfb651951d76a4f78d650748084e93cf6822766454090395bc9f893ab6e4",
+      "template_sha256": "6b4e985ead1cf01dcb2a7b96d7ba2cd4b481d17ad5ae4b27a53daa60bcc8214d"
+    },
+    {
+      "cve": "CVE-2025-6205",
+      "kev_added": "2025-10-28",
+      "status": "proposed",
+      "reason": "See kev-apriso-async-message-containment",
+      "cna_sha256": "623e2f91881e44570ced039af957080044c4f33fd5fc6f0890d03f1dabe45dff",
+      "template_sha256": "2d7b660ae6ce1f50f6df88e65a028423a2beb025b52248ff472fac2657340e3d"
+    },
+    {
+      "cve": "CVE-2025-6204",
+      "kev_added": "2025-10-28",
+      "status": "proposed",
+      "reason": "See kev-apriso-async-message-containment",
+      "cna_sha256": "89d4cf51d8f93f7011d6c4ac213ea728625d04854c9d32a7a566c4700380ed48",
+      "template_sha256": "42132dfe5661f537a00b50ceac07777e8a5f3464a7cc3acbe75014363f282da1"
+    },
+    {
+      "cve": "CVE-2025-59287",
+      "kev_added": "2025-10-24",
+      "status": "proposed",
+      "reason": "See kev-wsus-reporting-rollup-containment",
+      "cna_sha256": "3277aaaf19501ce3229832ae5a0f1bc08ce273811b06a67ba97fd8c1ee332832",
+      "template_sha256": "35901383625ef3766bf8a588e08baad583642a1d9cdb12c202978e374d878248"
+    },
+    {
+      "cve": "CVE-2025-54236",
+      "kev_added": "2025-10-24",
+      "status": "proposed",
+      "reason": "See kev-magento-address-file-containment",
+      "cna_sha256": "a2d2da71ff54e944379e35f2a41b8d3bb78c327875d6fd82d06758bb883f992f",
+      "template_sha256": "544161035c3d8e47c64cebb60f70d9e04950c32421d483f6319727768a463bce"
+    },
+    {
+      "cve": "CVE-2025-61884",
+      "kev_added": "2025-10-20",
+      "status": "proposed",
+      "reason": "See kev-oracle-ebs-configurator-containment",
+      "cna_sha256": "5d8c0598f656f06e2969247975dadce19e36bdfdf4b979f669003a93e7bf9252",
+      "template_sha256": "510b0bc9e8c0220e171add1881f30b42d62f83bbe9289a837b8133e4c94d6c90"
+    },
+    {
+      "cve": "CVE-2025-2747",
+      "kev_added": "2025-10-20",
+      "status": "proposed",
+      "reason": "See kev-kentico-staging-sync-containment",
+      "cna_sha256": "dab5ee531a9f740a68f4a8b25f0d28bf9ae2f2e9286bff50e621098f9643b3f4",
+      "template_sha256": "c5c3be4d81cd46f477f934eea7428eb0aa45bb28224e6a64047837fe254ff283"
+    },
+    {
+      "cve": "CVE-2025-2746",
+      "kev_added": "2025-10-20",
+      "status": "proposed",
+      "reason": "See kev-kentico-staging-sync-containment",
+      "cna_sha256": "bff318d7a6fa617f398d5ea932c9ac4caabe712f824af0d0971898cdd3c87ec4",
+      "template_sha256": "6a07f1d0fbbcb17581e9907bf58843e13f5fd0c8c4444824ccbae8b5fa2f80c1"
+    },
+    {
+      "cve": "CVE-2021-43798",
+      "kev_added": "2025-10-09",
+      "status": "proposed",
+      "reason": "See kev-grafana-plugin-traversal",
+      "cna_sha256": "331644a1301a1e3b2a0754cc2246482f0926bafca6b3200fc86e5cd4f8c45c36",
+      "template_sha256": "f3191431881c13170bea98bf79b281f9990925c9e94528e680faeab01c5499b7"
+    },
+    {
+      "cve": "CVE-2025-27915",
+      "kev_added": "2025-10-07",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Source is a version probe; malicious calendar/mail input is not demonstrated on the HTTP request path.",
+      "cna_sha256": "c3f3024742e67f4e3ea8144d45384f6f61670ee1fb71924f8cd9f761f4d7dce2",
+      "template_sha256": "9485ac5b2adccdb584556e5d409d1d2bb757cc4225b3b7e8ea749a4ce34f64ed"
+    },
+    {
+      "cve": "CVE-2025-61882",
+      "kev_added": "2025-10-06",
+      "status": "proposed",
+      "reason": "See kev-oracle-ebs-sync-containment",
+      "cna_sha256": "c8f8ca1fb4e1164798f5539c165a0867f03b6442a62369bdc8a40ec6365d272a",
+      "template_sha256": "6b34a7666de9e89796ebbdec627b608b49db8836500cc1192f81caca80ac25a4"
+    },
+    {
+      "cve": "CVE-2025-4008",
+      "kev_added": "2025-10-02",
+      "status": "proposed",
+      "reason": "See kev-meteobridge-template-shell",
+      "cna_sha256": "8e281579d7fc8db958158150c29ff09097ef8d4578dc25c24461a85ccf80f12b",
+      "template_sha256": "cc27f72189e4f49b5595f5b6281682a595cc04c8f5b713eaaa53f0536bb8e912"
+    },
+    {
+      "cve": "CVE-2025-10035",
+      "kev_added": "2025-09-29",
+      "status": "proposed",
+      "reason": "See kev-goanywhere-license-containment",
+      "cna_sha256": "3fe9bf3e8ea28dc48b5238098e87e058fee78ccdaeffe2c36460aa42b6b2bceb",
+      "template_sha256": "e11fab4642abf9d24a561b22edc578c6941c6b7c08576f772ec3b1cd68bf546f"
+    },
+    {
+      "cve": "CVE-2021-21311",
+      "kev_added": "2025-09-29",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Form credentials/nested protected keys need application controls or richer inspection.",
+      "cna_sha256": "53c3a93250227db6122fc8aa3cb2f2ae892eda0ea26efaf7391f2f2823cf53bf",
+      "template_sha256": "d54375ec70deb046deff892107d7fa94fc63486e6c5807bdd6a7ab139675bc2d"
+    },
+    {
+      "cve": "CVE-2025-20362",
+      "kev_added": "2025-09-25",
+      "status": "proposed",
+      "reason": "See kev-cisco-webvpn-traversal",
+      "cna_sha256": "900dcbcbf18dc72b5a52befdd24df3eba6cb6e05e89de0cf09ad634dc7003401",
+      "template_sha256": "872d1f39b5103e2bc57355068cbd5994e1bafc9cf34a51ad08f5e64709065442"
+    },
+    {
+      "cve": "CVE-2025-5086",
+      "kev_added": "2025-09-11",
+      "status": "proposed",
+      "reason": "See kev-apriso-invoke-containment",
+      "cna_sha256": "894a18499f529eee443d337b5f69072b916fa5aab411973e634dc37849b23f57",
+      "template_sha256": "bc885ea0db6961cb6c06a095bab6888f05be264125d802f3c358460f28ba922d"
+    },
+    {
+      "cve": "CVE-2025-57819",
+      "kev_added": "2025-08-29",
+      "status": "proposed",
+      "reason": "See kev-freepbx-endpoint-brand-sql",
+      "cna_sha256": "58ba8259519aae1307065077663e649aa5c71d5af5c895f4d32d5179babb63f0",
+      "template_sha256": "f7cc91f23dc3b97bb53e87d5426cd70fd95f7338030e4a2e489311d7799f79e6"
+    },
+    {
+      "cve": "CVE-2020-25078",
+      "kev_added": "2025-08-05",
+      "status": "proposed",
+      "reason": "See kev-dlink-user-config-containment",
+      "cna_sha256": "a7ae8dc22cec175642df4f600208f767534844247faf5d32f9f98c247337933e",
+      "template_sha256": "bdac2b70b14a302123a62bcf46888c720a4c9aea6b5b9970abd98b7e7ae0e44c"
+    },
+    {
+      "cve": "CVE-2025-20281",
+      "kev_added": "2025-07-28",
+      "status": "proposed",
+      "reason": "See kev-cisco-ise-deployment-rpc-containment",
+      "cna_sha256": "f74458575e32086a6048b0f50357498ce7f356e7023d97c75529021632e0013b",
+      "template_sha256": "1f41da4b0aa09008b8f248ebd7fc5a5947485a255e4cb434d321c48c970f4d15"
+    },
+    {
+      "cve": "CVE-2025-49706",
+      "kev_added": "2025-07-22",
+      "status": "proposed",
+      "reason": "See kev-sharepoint-toolpane-containment",
+      "cna_sha256": "aefb0b8ba28d209ba3e3108ac9fe678569b86bf9a68cd3676eec8c4f1cac4ef3",
+      "template_sha256": "498216862b0a168b249e5aeb82532286004617a795f9431f9420bcf1af2d7d10"
+    },
+    {
+      "cve": "CVE-2025-2776",
+      "kev_added": "2025-07-22",
+      "status": "proposed",
+      "reason": "See kev-sysaid-mdm-serverurl-containment",
+      "cna_sha256": "183752b01e173f0031bae257cb59f763907d44e8a3b17b0e92bd85d6d97f5c18",
+      "template_sha256": "ca0e472177556d851a88dde856f053c3870df7a1b599348f830b746526841be9"
+    },
+    {
+      "cve": "CVE-2025-2775",
+      "kev_added": "2025-07-22",
+      "status": "proposed",
+      "reason": "See kev-sysaid-mdm-checkin-containment",
+      "cna_sha256": "36b8b0a64eb306d2481e22b0454c2d2695c14186beba3fabebaf6c9a48d73247",
+      "template_sha256": "20b2b9bffa86bae43a84edb5990ca25de0851d9fd53227ab6a4f325eb76cedca"
+    },
+    {
+      "cve": "CVE-2025-53770",
+      "kev_added": "2025-07-20",
+      "status": "proposed",
+      "reason": "See kev-sharepoint-toolpane-containment",
+      "cna_sha256": "2fc5a3890810a19c33facb56a3d536aa05f16d97d346c487254e44722f15a8da",
+      "template_sha256": "fad6a2e2960760c38b982564644f19e93fcd04da0532c1124a757e0f434839a2"
+    },
+    {
+      "cve": "CVE-2025-25257",
+      "kev_added": "2025-07-18",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Injection is in a protected Authorization header.",
+      "cna_sha256": "b6b0ed05131bb19374b99e80a6c01387d79d75f4fff3af5da1e554894ad8ac01",
+      "template_sha256": "3f27bd580d9db7354d21d264bd9158483e6ba64daf63bc794ecb3e6e9cd89b0c"
+    },
+    {
+      "cve": "CVE-2025-47812",
+      "kev_added": "2025-07-14",
+      "status": "proposed",
+      "reason": "See kev-wingftp-login-containment",
+      "cna_sha256": "11b0b7dc7da56a79cf67a530621033182ff919ef719c432c5ff1441ceed304cf",
+      "template_sha256": "826eda113dd82eed598068b7ef6fb18b4ae5aa12d9c2b701122c36ca03cf0263"
+    },
+    {
+      "cve": "CVE-2025-5777",
+      "kev_added": "2025-07-10",
+      "status": "proposed",
+      "reason": "See kev-netscaler-auth-containment",
+      "cna_sha256": "96b4b40f775fe5ad2209eb6cc62b407d885b682edf4f3a724666a2dc74ef6b9c",
+      "template_sha256": "715bbe358af451f3903c42a71a2999c6d156d6d9279cb1c250e4f87a37c627d7"
+    },
+    {
+      "cve": "CVE-2019-9621",
+      "kev_added": "2025-07-07",
+      "status": "proposed",
+      "reason": "See kev-zimbra-autodiscover-xml-containment",
+      "cna_sha256": "50da62942319af0fa8e7a58dbdc5da65fb3322ad7744c964937b4245b18d30cf",
+      "template_sha256": "62f83024dd4682d68d3fad95860d01421156370aa408cd48af437e5cf23ffab8"
+    },
+    {
+      "cve": "CVE-2019-5418",
+      "kev_added": "2025-07-07",
+      "status": "proposed",
+      "reason": "See kev-rails-accept-traversal",
+      "cna_sha256": "63c524eb9dbdfd859aaf99d6b1f0e78feb7b42613ffe236a00565caaba61d8b3",
+      "template_sha256": "c17a58f442d647421988821201de40129c38ee294911507cd0c76a794773231a"
+    },
+    {
+      "cve": "CVE-2016-10033",
+      "kev_added": "2025-07-07",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Sender/authority parsing differs from observable native request facts.",
+      "cna_sha256": "f70ba17e955975440c2a8b59105817076cb23e4bb81cf6eec8f3a6fd3f831eb5",
+      "template_sha256": "84d3f1c0a0b4a02a4565303ca35737135a58fed6163be4cfc24255df06e6db8c"
+    },
+    {
+      "cve": "CVE-2025-24016",
+      "kev_added": "2025-06-10",
+      "status": "proposed",
+      "reason": "See kev-wazuh-runas-containment",
+      "cna_sha256": "de77d389b9231f1cf59fa847066741559d5a35efe744db373c50f477e2187955",
+      "template_sha256": "cbf58238807eaf84cf73983e34ff693bcd76f0fbfb9c8229320d6c4966087d5b"
+    },
+    {
+      "cve": "CVE-2024-42009",
+      "kev_added": "2025-06-09",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Source is a version probe for stored mail XSS.",
+      "cna_sha256": "08a6f3b2043fb6715e3345be17b3997df4475e13d430528df95914a644d9d8f5",
+      "template_sha256": "2792ef998b71e552f6f4453ebc763ced27aa8c51d9aae5855ac3c96f33674640"
+    },
+    {
+      "cve": "CVE-2024-56145",
+      "kev_added": "2025-06-02",
+      "status": "proposed",
+      "reason": "See kev-craft-configpath-directive",
+      "cna_sha256": "1ae0c82d90b6a50f76a33df42a9e149a7026f4d8cc48e3b5a40ad77d0c381e97",
+      "template_sha256": "a1b2c342dff7ef946419cbf9d30365e9b0e7060f07e5f3a76fe9c77cbc19dde8"
+    },
+    {
+      "cve": "CVE-2021-32030",
+      "kev_added": "2025-06-02",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Protected cookie/NUL handling needs parser-level analysis.",
+      "cna_sha256": "0fab51d5c1038bac45521fcade9bb9266881bd5a979c7a757db23ed239b2f1dd",
+      "template_sha256": "93bfb39fa027e5d01b18daf297799d393c4c486ab8a52ec41af249bdcdbcc835"
+    },
+    {
+      "cve": "CVE-2025-4632",
+      "kev_added": "2025-05-22",
+      "status": "proposed",
+      "reason": "See kev-magicinfo-upload-traversal",
+      "cna_sha256": "dbed77a3185efc1b29e5bbdf39d67261ca1fb78e96156a5923f06ad847f37a3b",
+      "template_sha256": "ca44cdd6bd97b8ccd80e3423a32c28b4d89f5a93b8da9bba7d6189e6da663ccd"
+    },
+    {
+      "cve": "CVE-2025-4427",
+      "kev_added": "2025-05-19",
+      "status": "proposed",
+      "reason": "See kev-ivanti-featureusage-expression",
+      "cna_sha256": "d630f6a668f3b7bb8f650eac13251bbae7d669e1d3e56ae290f948ff66f8c45f",
+      "template_sha256": "c306fce2cdf080047b1ec807a528bd1a1f28ef1aae16fdaae294eb488c146c82"
+    },
+    {
+      "cve": "CVE-2024-27443",
+      "kev_added": "2025-05-19",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Source is a version probe for stored mail XSS.",
+      "cna_sha256": "1c4c2cb4a5aa1fc051e52e7674bbba2e66927c82416b866235646d930049d901",
+      "template_sha256": "5975baf488c323fe476b1be2a7dc5ff78ccce76b91d59e9512b4013719f91d57"
+    },
+    {
+      "cve": "CVE-2023-38950",
+      "kev_added": "2025-05-19",
+      "status": "proposed",
+      "reason": "See kev-biotime-file-traversal",
+      "cna_sha256": "ced4aaddf4fdefa95f1c8cb1f1745207d1e5bc9b228e3971994fcf63dbcb2256",
+      "template_sha256": "e51430db43b2759bc8f5d4a94ce6e20ae006d3092bb58ca9359430c67122bddb"
+    },
+    {
+      "cve": "CVE-2024-12987",
+      "kev_added": "2025-05-15",
+      "status": "proposed",
+      "reason": "See kev-draytek-apm-upload-containment",
+      "cna_sha256": "110004383bb86a82a910c54530cd1b5b0ce6f4948810338f9a9369534c9fed0e",
+      "template_sha256": "4980a91797dd3acff6c293102aa3b007d2ae4c1ad688cb897ae89c4a79598c26"
+    },
+    {
+      "cve": "CVE-2025-3248",
+      "kev_added": "2025-05-05",
+      "status": "proposed",
+      "reason": "See kev-langflow-code-execution-markers",
+      "cna_sha256": "1d9bcac631b8da5f21df7728af1ae59c10bb3b0569b3960bd49b5bbac87880b1",
+      "template_sha256": "f9d046312380b4ffb9066bee2e3a980fb01a150ac168e3ff1a1f1ef3f11ae89e"
+    },
+    {
+      "cve": "CVE-2025-34028",
+      "kev_added": "2025-05-02",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "92347955b7ffb17d8d373e02c19dd6eb57e344956754a7d0d825819230876364",
+      "template_sha256": "199abb81f7158ae3a6d06af9a87e0d3318391ff7ceb9883f3d7453a45ef615eb"
+    },
+    {
+      "cve": "CVE-2024-58136",
+      "kev_added": "2025-05-02",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Dynamic JSON behavior keys need richer selectors.",
+      "cna_sha256": "10f28ac44a78b62645ad57c628b0924a38a46ff30df79f15aee2dd8a176c06b4",
+      "template_sha256": "54685473bccb772d2446e4690db126dd55580d7bc26c9c6f11af914527e6de4b"
+    },
+    {
+      "cve": "CVE-2024-38475",
+      "kev_added": "2025-05-01",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "482af1017963ba038b6b8c0cb11cdf62964c534c3d7ef24ef1d1f48a6ff064aa",
+      "template_sha256": "a40a3cd508888db113d3cb430cb93ac1026691f458b760107c90ae025d127a49"
+    },
+    {
+      "cve": "CVE-2025-31324",
+      "kev_added": "2025-04-29",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "dd98a2eaee44307684373e87bb8172622bdaf76727f9d7ccafba4807a1caa4f6",
+      "template_sha256": "61c4c7fc570cb677ffcd5be3b935b21d98a491782825662ac9087ed54522df45"
+    },
+    {
+      "cve": "CVE-2025-30406",
+      "kev_added": "2025-04-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "b213ff219a292fb73d27d623bcaaa597780b18edc9b36c7c3d26c8c2bddc5dad",
+      "template_sha256": "e6def1b9474d6dbd6370227f5cbf5e3b22137c3f8351265b97db9b8aebb01d91"
+    },
+    {
+      "cve": "CVE-2025-31161",
+      "kev_added": "2025-04-07",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "b88b6188d2ee88d36878914d916220a17aaa58db239cc19620b3caa64df366e4",
+      "template_sha256": "7b149fbb1f34fc8a3affe7123762416710974f2732a450517a57462ac9db2971"
+    },
+    {
+      "cve": "CVE-2025-24813",
+      "kev_added": "2025-04-01",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "dc5300a6befe1affd361923a56dbe1f6106b413a2319fccc0826b780d5b90852",
+      "template_sha256": "3112523e4859a02edc3be9f08a2867845f307cf53a5eeeed2355f5cbb31994ed"
+    },
+    {
+      "cve": "CVE-2024-20439",
+      "kev_added": "2025-03-31",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "c0b381e8ea1e8b3e800bacfcb4bf464902c0eb3d1250c7d7b3d6c6b9547ed932",
+      "template_sha256": "2869ef27af10d4771de61e9cf2f4f154fc9b7617dac0a57aeeb9388568344afa"
+    },
+    {
+      "cve": "CVE-2019-9874",
+      "kev_added": "2025-03-26",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "49cfb28ebf433d81c6a47a7a1710d1e742c4aae9b5a72c025b47456a5b17269a",
+      "template_sha256": "7c24b1d0d6f3df831f6b08a4ba94ee216a9ea1e2de5aa1216cd3da7057b10967"
+    },
+    {
+      "cve": "CVE-2024-48248",
+      "kev_added": "2025-03-19",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "8306f654152aa4ccd8981cffa0346cbe4aa0a03b8ff25df9b1ac95f9413ada0d",
+      "template_sha256": "189dfbddbc856625b86eaac9fee76bb4e7caa61beaef1aff1c56cf2a4908e88d"
+    },
+    {
+      "cve": "CVE-2017-12637",
+      "kev_added": "2025-03-19",
+      "status": "not_proposed_in_this_draft",
+      "reason": "The relevant raw query shape is outside the named-key selectors.",
+      "cna_sha256": "7370551a4ebbac70fb136a99b6a328a4d7cbb9edf24150d63539157eb384baac",
+      "template_sha256": "341763bd2284a24015236de6488040321fd2d2b0621cc332c71c77b9c18bf701"
+    },
+    {
+      "cve": "CVE-2024-13161",
+      "kev_added": "2025-03-10",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "d1396fb6d67fac1dccd73ae5fbf3c5ce30b140fd08a713d2b9436d370d814974",
+      "template_sha256": "36303dac20b55d80b66525adc342fc185b0a9aeaa54b831299ccbaf227fec2f1"
+    },
+    {
+      "cve": "CVE-2024-13160",
+      "kev_added": "2025-03-10",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "579dd667649a530b631d5b67134c80373ace66ba62729716fb9952bc65f274a8",
+      "template_sha256": "7fa8f4a4cf737dcf65187eaecf4dcc4a007e11cfd3437df5f8805e1d80b6a319"
+    },
+    {
+      "cve": "CVE-2024-13159",
+      "kev_added": "2025-03-10",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "de08915aa43cc314bb93560b827ecd5166875fec317364592ccffe9cf97f9fda",
+      "template_sha256": "f1da68c323bac061a6cc57a97dcd0c180c2d859cfd8410d74ff4e2d4bd545abd"
+    },
+    {
+      "cve": "CVE-2024-4885",
+      "kev_added": "2025-03-03",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "330b3ab27ac1b000b748872fae5deb3f35037b8eaf32e44e9d3c03687fb5150d",
+      "template_sha256": "c8776268cf589064c654276e06e277538762571dd574f81807f87ee099942170"
+    },
+    {
+      "cve": "CVE-2022-43939",
+      "kev_added": "2025-03-03",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "287f308f22d5d7f63f17389a2d1ed0afb3b9ac848e62b20bf0d2c4bb12aeff1b",
+      "template_sha256": "d7bca347d260b721e63de925419122af0a0f0efaf11f27179b65d3dad63f78fd"
+    },
+    {
+      "cve": "CVE-2022-43769",
+      "kev_added": "2025-03-03",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "c92539b36ea1d5a1dbafe57b5fc4f6158946b62beb12932aa5528eccefd01d5b",
+      "template_sha256": "87d14e776a9f8ee9fcb33f037c643895e5c7cc45029564f2583580cd74582e2d"
+    },
+    {
+      "cve": "CVE-2023-34192",
+      "kev_added": "2025-02-25",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "25a8cf8dcf2e22e49939faf13bc7c4e598fe1c2a1a346d0a2c8d1cb1d4d96bd0",
+      "template_sha256": "8e69bc82697d224bae486ba232e864625b42a5776dab3d75cec832504ee57343"
+    },
+    {
+      "cve": "CVE-2025-0108",
+      "kev_added": "2025-02-18",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "5d7d0153be786119ffdcda7ab9d7e3dc58f0d10a67d89916d04e6b91fa897b39",
+      "template_sha256": "c20a0710ab046de3d2fe16847d0ea5c18400d93f431675c31da750838516496c"
+    },
+    {
+      "cve": "CVE-2024-53704",
+      "kev_added": "2025-02-18",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Authentication bypass relies on a protected cookie.",
+      "cna_sha256": "181c213becbc545e0666ebfef927dbdbb7bf1af3453ecd82c2596b12883cc0df",
+      "template_sha256": "03064ca899b0921c2e944fe05f38f364cce939d3bb3bbafe2ae3e81cee9c78f7"
+    },
+    {
+      "cve": "CVE-2024-57727",
+      "kev_added": "2025-02-13",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "c40f8efcf6491f30c6c1230c5dc6f7df7c17b5c12bc3e7d44be1687bccfc2268",
+      "template_sha256": "fb13682b9c4f2d48a417782496400d23863cc2a8327ab5104e83c715ef882d82"
+    },
+    {
+      "cve": "CVE-2024-45195",
+      "kev_added": "2025-02-04",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "bfbcee7c5e5585b34a04079308907c4051b24e637471c098c39d7ab7b4826373",
+      "template_sha256": "58fb7a86fb66ad331551e17a5d8cb888c244250bddd7e9c84ede3ae5085224d9"
+    },
+    {
+      "cve": "CVE-2024-29059",
+      "kev_added": "2025-02-04",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "eb9750f4fda88c176ab94eec039bfcba68f6e0d3be678f6fc3f4049a72a86acd",
+      "template_sha256": "82b77480b622a4bd5ddd96f206c541491f0575672f8ec9d96bc380bd614979cc"
+    },
+    {
+      "cve": "CVE-2018-19410",
+      "kev_added": "2025-02-04",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "5112e4617473184541ac5d4ab6d6a194d11fc68859beeba0c83a66d1ac0b4506",
+      "template_sha256": "2f140672075706772eaeba8e86912629eca8059d038d111a5ddefd14dad57d0c"
+    },
+    {
+      "cve": "CVE-2024-50603",
+      "kev_added": "2025-01-16",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "a6f96cf6131dedf84368aab0d4816e6bb83d348d38fe6c965f46df07d287d159",
+      "template_sha256": "abbbae804b502521794bd228ba0d3dd451032f3e49fab366285a11f21ae0b644"
+    },
+    {
+      "cve": "CVE-2024-55591",
+      "kev_added": "2025-01-14",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Global root service-worker block would collide with unrelated legitimate web applications.",
+      "cna_sha256": "837b288c741fb707e6287f5184ee00386bcfc205cb2d1450ca3df144888cf9b0",
+      "template_sha256": "a5ca09eace719dc079e078568168a4a41b83371090037e2507f5e7b9f9eb8489"
+    },
+    {
+      "cve": "CVE-2025-0282",
+      "kev_added": "2025-01-08",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Source probes version; the exploit transport requires separate inspection.",
+      "cna_sha256": "452cea271fb7594fd3b66f91eb954297beedcaf140f141bc8d26e886504c1998",
+      "template_sha256": "29b2f2487cba11319d6021237f966304362dea326aa29ae95e678a03ee3d2dde"
+    },
+    {
+      "cve": "CVE-2024-55550",
+      "kev_added": "2025-01-07",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "4d0ca92b1d4f67655232ed84f2658ce9e278d69cf416570a87d938ec47a4af65",
+      "template_sha256": "f78d0955102be41e0f64be100c793e47dddf0089f248230de2df4581feb9fa66"
+    },
+    {
+      "cve": "CVE-2024-41713",
+      "kev_added": "2025-01-07",
+      "status": "not_proposed_in_this_draft",
+      "reason": "Outside the selected actionable 100 after current review; no coverage claim.",
+      "cna_sha256": "ba9e970311d5b66dde38624ad2c435b5f7dee56cc4edb46d54ec44b7310372b5",
+      "template_sha256": "ed07bdc6e5bb21a0c54161e2146e2547d60f112b73d0dcb0e9d5ec9c161c2582"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "kev-cisco-webvpn-traversal",
+  "pack": "Secure Firewall Adaptive Security Appliance and Secure Firewall Threat Defense request guards",
+  "technology": [
+    "cisco",
+    "http"
+  ],
+  "cves": [
+    "CVE-2025-20362"
+  ],
+  "description": "Partial request-pattern mitigation. Rejects traversal components under the WebVPN public-resource prefix.",
+  "affected_versions": "Cisco Cisco Secure Firewall Adaptive Security Appliance (ASA) Software: 9.8.1, 9.8.1.5, 9.8.1.7, 9.8.2, 9.8.2.8, 9.8.2.14, 9.8.2.15, 9.8.2.17, 9.8.2.20, 9.8.2.24, 9.8.2.26, 9.8.2.28, 9.8.2.33, 9.8.2.35, 9.8.2.38, 9.8.3.8, 9.8.3.11, 9.8.3.14, 9.8.3.16, 9.8.3.18, 9.8.3.21, 9.8.3, 9.8.3.26, 9.8.3.29, 9.8.4, 9.8.4.3, 9.8.4.7, 9.8.4.8, 9.8.4.10, 9.8.4.12, 9.8.4.15, 9.8.4.17, 9.8.2.45, 9.8.4.25, 9.8.4.20, 9.8.4.22, 9.8.4.26, 9.8.4.29, 9.8.4.32, 9.8.4.33, 9.8.4.34, 9.8.4.35, 9.8.4.39, 9.8.4.40, 9.8.4.41, 9.8.4.43, 9.8.4.44, 9.8.4.45, 9.8.4.46, 9.8.4.48, 9.12.1, 9.12.1.2, 9.12.1.3, 9.12.2, 9.12.2.4, 9.12.2.5, 9.12.2.9, 9.12.3, 9.12.3.2, 9.12.3.7, 9.12.4, 9.12.3.12, 9.12.3.9, 9.12.2.1, 9.12.4.2, 9.12.4.4, 9.12.4.7, 9.12.4.10, 9.12.4.13, 9.12.4.8, 9.12.4.18, 9.12.4.24, 9.12.4.26, 9.12.4.29, 9.12.4.30, 9.12.4.35, 9.12.4.37, 9.12.4.38, 9.12.4.39, 9.12.4.40, 9.12.4.41, 9.12.4.47, 9.12.4.48, 9.12.4.50, 9.12.4.52, 9.12.4.54, 9.12.4.55, 9.12.4.56, 9.12.4.58, 9.12.4.62, 9.12.4.65, 9.12.4.67, 9.14.1, 9.14.1.10, 9.14.1.6, 9.14.1.15, 9.14.1.19, 9.14.1.30, 9.14.2, 9.14.2.4, 9.14.2.8, 9.14.2.13, 9.14.2.15, 9.14.3, 9.14.3.1, 9.14.3.9, 9.14.3.11, 9.14.3.13, 9.14.3.18, 9.14.3.15, 9.14.4, 9.14.4.6, 9.14.4.7, 9.14.4.12, 9.14.4.13, 9.14.4.14, 9.14.4.15, 9.14.4.17, 9.14.4.22, 9.14.4.23, 9.14.4.24, 9.16.1, 9.16.1.28, 9.16.2, 9.16.2.3, 9.16.2.7, 9.16.2.11, 9.16.2.13, 9.16.2.14, 9.16.3, 9.16.3.3, 9.16.3.14, 9.16.3.15, 9.16.3.19, 9.16.3.23, 9.16.4, 9.16.4.9, ; verify complete affected/fixed ranges and deployment prerequisites in the linked CNA/vendor records.",
+  "coverage": "Rejects traversal components under the WebVPN public-resource prefix.",
+  "limitations": "Only the declared request facts and bounded native matcher are covered. No vulnerable-deployment reproduction was performed. Direct-origin access, alternate routes/encodings and uninspectable facts remain outside this rule. Apply vendor fixes; this is not complete CVE protection.",
+  "false_positive_risk": "Literal traversal-like portal resource paths are denied.",
+  "references": [
+    "https://www.cve.org/CVERecord?id=CVE-2025-20362",
+    "https://github.com/projectdiscovery/nuclei-templates/blob/22f1a14a7fce254b73d81a706f15fabeb93231b5/http/cves/2025/CVE-2025-20362.yaml",
+    "https://attackerkb.com/topics/Szq5u0xgUX/cve-2025-20362/rapid7-analysis"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Cisco WebVPN path traversal guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "^/\\+CSCOU\\+/"
+      },
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:\\.\\.[/\\\\]|%2e)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "method": "POST",
+      "path": "/+CSCOU+//../+CSCOE+/files/file_action.html",
+      "headers": {},
+      "body": "",
+      "name": "matching synthetic request",
+      "expected_match": true
+    },
+    {
+      "method": "GET",
+      "path": "/+CSCOU+/portal.js",
+      "headers": {},
+      "body": "",
+      "name": "nonmatching synthetic request",
+      "expected_match": false
+    },
+    {
+      "method": "GET",
+      "path": "/aegis-rule-control-health",
+      "headers": {},
+      "body": "",
+      "name": "ordinary health request",
+      "expected_match": false
+    }
+  ]
+}
