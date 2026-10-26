@@ -113,6 +113,7 @@ type App struct {
 	flood                         floodLimiter
 	botRates                      floodLimiter
 	botWork                       chan struct{}
+	simulationWork                chan struct{}
 	botClearances                 botClearanceCache
 	metrics                       liveMetrics
 	replicaID                     string
@@ -141,7 +142,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	a := &App{botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a := &App{simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {
 			slog.Warn("snapshot cache unavailable; database startup required")
@@ -217,103 +218,8 @@ func (a *App) refresh(ctx context.Context) error {
 		a.persistSnapshot(old)
 		return nil
 	}
-	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>''")
+	next, e := a.buildSnapshot(ctx, tx, version)
 	if e != nil {
-		return e
-	}
-	certs := map[int64]*tls.Certificate{}
-	for rows.Next() {
-		var id int64
-		var chain, kid string
-		var enc []byte
-		if e = rows.Scan(&id, &chain, &enc, &kid); e != nil {
-			rows.Close()
-			return e
-		}
-		if kid != a.cfg.KeyID {
-			rows.Close()
-			return errors.New("unknown encryption key identifier")
-		}
-		key, e := open(a.cfg.Key, kid+":certificate", enc)
-		if e != nil {
-			rows.Close()
-			return e
-		}
-		pair, e := tls.X509KeyPair([]byte(chain), key)
-		if e != nil {
-			rows.Close()
-			return e
-		}
-		pair.Leaf, e = x509.ParseCertificate(pair.Certificate[0])
-		if e != nil {
-			rows.Close()
-			return e
-		}
-		certs[id] = &pair
-	}
-	e = rows.Err()
-	rows.Close()
-	if e != nil {
-		return e
-	}
-	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
-	if e != nil {
-		return e
-	}
-	next := &snapshot{version: version, routes: map[string]*route{}, certificates: certs}
-	for rows.Next() {
-		var s Site
-		var rawHeaders []byte
-		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &rawHeaders); e != nil {
-			rows.Close()
-			return e
-		}
-		target, e := url.Parse(s.Upstream)
-		if e != nil {
-			rows.Close()
-			return e
-		}
-		r := &route{site: s}
-		if s.CertificateID != nil {
-			r.cert = certs[*s.CertificateID]
-		}
-		var headers HeaderSettings
-		if e = json.Unmarshal(rawHeaders, &headers); e != nil {
-			rows.Close()
-			return e
-		}
-		headers, e = normalizeHeaders(headers)
-		if e != nil {
-			rows.Close()
-			return e
-		}
-		r.site.Headers = &headers
-		r.proxy = newProxyWithHeaders(target, s.PreserveHost, headers)
-		for _, h := range s.Hostnames {
-			next.routes[h] = r
-		}
-	}
-	e = rows.Err()
-	rows.Close()
-	if e != nil {
-		return e
-	}
-	if e = a.loadPolicies(ctx, tx, next); e != nil {
-		return e
-	}
-	if e = a.loadProtection(ctx, tx, next); e != nil {
-		return e
-	}
-	if e = a.loadPolicyBindings(ctx, tx, next); e != nil {
-		return e
-	}
-	if e = a.loadManagedSignatures(ctx, tx, next); e != nil {
-		return e
-	}
-	if e = a.loadGeo(ctx, tx, next); e != nil {
-		return e
-	}
-	if e = a.loadLocalGeo(ctx, tx, next); e != nil {
 		return e
 	}
 	if e = tx.Commit(ctx); e != nil {
@@ -330,6 +236,111 @@ func (a *App) refresh(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// buildSnapshot compiles a complete candidate without committing database state
+// or changing the active pointer. Refresh and offline simulation share it.
+func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*snapshot, error) {
+	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>''")
+	if e != nil {
+		return nil, e
+	}
+	certs := map[int64]*tls.Certificate{}
+	for rows.Next() {
+		var id int64
+		var chain, kid string
+		var enc []byte
+		if e = rows.Scan(&id, &chain, &enc, &kid); e != nil {
+			rows.Close()
+			return nil, e
+		}
+		if kid != a.cfg.KeyID {
+			rows.Close()
+			return nil, errors.New("unknown encryption key identifier")
+		}
+		key, e := open(a.cfg.Key, kid+":certificate", enc)
+		if e != nil {
+			rows.Close()
+			return nil, e
+		}
+		pair, e := tls.X509KeyPair([]byte(chain), key)
+		if e != nil {
+			rows.Close()
+			return nil, e
+		}
+		pair.Leaf, e = x509.ParseCertificate(pair.Certificate[0])
+		if e != nil {
+			rows.Close()
+			return nil, e
+		}
+		certs[id] = &pair
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return nil, e
+	}
+	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
+	if e != nil {
+		return nil, e
+	}
+	next := &snapshot{version: version, routes: map[string]*route{}, certificates: certs}
+	for rows.Next() {
+		var s Site
+		var rawHeaders []byte
+		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &rawHeaders); e != nil {
+			rows.Close()
+			return nil, e
+		}
+		target, e := url.Parse(s.Upstream)
+		if e != nil {
+			rows.Close()
+			return nil, e
+		}
+		r := &route{site: s}
+		if s.CertificateID != nil {
+			r.cert = certs[*s.CertificateID]
+		}
+		var headers HeaderSettings
+		if e = json.Unmarshal(rawHeaders, &headers); e != nil {
+			rows.Close()
+			return nil, e
+		}
+		headers, e = normalizeHeaders(headers)
+		if e != nil {
+			rows.Close()
+			return nil, e
+		}
+		r.site.Headers = &headers
+		r.proxy = newProxyWithHeaders(target, s.PreserveHost, headers)
+		for _, h := range s.Hostnames {
+			next.routes[h] = r
+		}
+	}
+	e = rows.Err()
+	rows.Close()
+	if e != nil {
+		return nil, e
+	}
+	if e = a.loadPolicies(ctx, tx, next); e != nil {
+		return nil, e
+	}
+	if e = a.loadProtection(ctx, tx, next); e != nil {
+		return nil, e
+	}
+	if e = a.loadPolicyBindings(ctx, tx, next); e != nil {
+		return nil, e
+	}
+	if e = a.loadManagedSignatures(ctx, tx, next); e != nil {
+		return nil, e
+	}
+	if e = a.loadGeo(ctx, tx, next); e != nil {
+		return nil, e
+	}
+	if e = a.loadLocalGeo(ctx, tx, next); e != nil {
+		return nil, e
+	}
+	return next, nil
 }
 func newProxy(target *url.URL, preserve bool) *httputil.ReverseProxy {
 	return newProxyWithHeaders(target, preserve, HeaderSettings{})
@@ -495,7 +506,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	done := a.metrics.begin(r, rt.site.ID)
 	defer done()
 	facts := newRequestFacts(r)
-	facts.facts["client_ip"] = Fact{State: "present", Values: []string{clientIP.String()}}
+	facts.facts[factKey("client_ip", "")] = Fact{State: "present", Values: []string{clientIP.String()}}
 	results := []RuleResult{}
 	blocked := false
 	if !botEndpoint && !network.Blocked && !network.BypassWAF {

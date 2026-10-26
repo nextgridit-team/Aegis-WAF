@@ -122,3 +122,8 @@ CREATE TABLE IF NOT EXISTS bot_clearances(token_hash text PRIMARY KEY,scope text
 CREATE INDEX IF NOT EXISTS bot_clearances_expiry ON bot_clearances(expires_at);
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS bot jsonb NOT NULL DEFAULT '{}'::jsonb;
 INSERT INTO schema_version VALUES(15) ON CONFLICT DO NOTHING;
+
+-- Version 16: single-use, configuration-bound MCP dry-run receipts.
+CREATE TABLE IF NOT EXISTS mcp_simulations(token_hash text PRIMARY KEY,agent_id bigint NOT NULL REFERENCES agent_keys ON DELETE CASCADE,candidate_hash text NOT NULL,config_version bigint NOT NULL,expires_at timestamptz NOT NULL,used boolean NOT NULL DEFAULT false,summary jsonb NOT NULL);
+CREATE INDEX IF NOT EXISTS mcp_simulations_expiry ON mcp_simulations(expires_at);
+INSERT INTO schema_version VALUES(16) ON CONFLICT DO NOTHING;

@@ -56,3 +56,7 @@ Dashboard adds `response_statuses` (up to 100 groups): `site_id`, current `site_
 The live-traffic response includes `gateway_location:{public_ip,country,region,map_point?}` and optional per-event `map_point:{latitude,longitude}`. Coordinates come from cached City data and must match the recorded country; local-assigned events use their recorded reference IP. The management-only lookups do not add forwarding work or external client Geo queries.
 
 View-only local filtering: `GET /live-traffic?exclude_local=true` excludes recorded `local_reference`/`local_unlocated` entries before the tail limit. `GET /dashboard?map_exclude_local=true` filters only country/origin aggregates; overview totals remain global for the selected application. `GET /dashboard/regions?exclude_local=true` filters regional aggregates and recent entries. Defaults include local traffic; logs and enforcement are unchanged.
+
+## MCP simulation safety gate
+
+MCP protection mutations require `simulate_rule_impact` followed by the exact operation with its `simulation_id`. Receipts are single-use, expire after two minutes and bind the issuing key, candidate and configuration version. Missing or invalid receipts return 428; regular dashboard requests retain session/CSRF authorization. See [simulation inputs, coverage and workflow](agent-access.md#required-simulation-before-live-protection-changes).

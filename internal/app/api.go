@@ -393,6 +393,10 @@ func resourceID(r *http.Request) (int64, error) {
 	return id, nil
 }
 func (a *App) change(ctx context.Context, fn func(pgx.Tx) error) error {
+	if simulated, ok := ctx.Value(simulationTransactionKey{}).(pgx.Tx); ok {
+		return fn(simulated)
+	}
+
 	tx, e := a.db.Begin(ctx)
 	if e != nil {
 		return e
@@ -400,6 +404,11 @@ func (a *App) change(ctx context.Context, fn func(pgx.Tx) error) error {
 	defer tx.Rollback(ctx)
 	if _, e = tx.Exec(ctx, "SELECT version FROM config_version WHERE id FOR UPDATE"); e != nil {
 		return e
+	}
+	if invocation, ok := ctx.Value(agentInvocationKey{}).(agentInvocation); ok && requiresRuleSimulation(invocation.Pattern) {
+		if e = a.consumeSimulation(ctx, tx, invocation); e != nil {
+			return e
+		}
 	}
 	if e = fn(tx); e != nil {
 		return e

@@ -62,3 +62,7 @@ Record these in the operator's own playbook before autonomous enforcement:
 - Verification method, reporting destination and audit references.
 
 Operate within that standing authorization without requesting approval repeatedly. Stop dependent mutations when a limit is exceeded or an essential fact is missing; present the concrete unresolved change. Aegis validates API contracts and key scopes; the agent/operator owns these additional automation limits.
+
+## Mandatory simulation receipts
+
+Before live protection changes, use `simulate_rule_impact` with the exact management method/path/input and representative `test_payloads` with expected outcomes. Review `unknown`, `sample_truncated`, `newly_blocked` and `newly_unblocked`. Never call previously allowed requests legitimate without independent evidence. Pass its `simulation_id` to `management_operation`, `activate_rule`, `disable_rule` or `save_policy`; unchanged candidates can use either equivalent route. Receipts last two minutes, are bound to this key/configuration and can be used once. A failed assertion or no evaluable cases produces no receipt. Re-simulate after any candidate/configuration change. This is an enforced technical check, not an additional human approval requirement.

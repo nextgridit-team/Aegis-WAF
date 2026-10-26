@@ -168,11 +168,30 @@ func TestAgentIntegration(t *testing.T) {
 	if e = a.db.QueryRow(ctx, "SELECT id FROM rules ORDER BY id DESC LIMIT 1").Scan(&ruleID); e != nil {
 		t.Fatal(e)
 	}
-	result, e = enforceSession.CallTool(ctx, &mcp.CallToolParams{Name: "activate_rule", Arguments: map[string]any{"id": ruleID, "input": map[string]any{"action": "observe", "ttl_seconds": 60}}})
+	activation := map[string]any{"action": "observe", "ttl_seconds": 60}
+	result, e = enforceSession.CallTool(ctx, &mcp.CallToolParams{Name: "activate_rule", Arguments: map[string]any{"id": ruleID, "input": activation}})
+	if e != nil || !result.IsError {
+		t.Fatalf("unsimulated activation accepted: %v %+v", e, result)
+	}
+	simulate := func(path string, input map[string]any) string {
+		t.Helper()
+		result, err := enforceSession.CallTool(ctx, &mcp.CallToolParams{Name: "simulate_rule_impact", Arguments: map[string]any{"method": "POST", "path": path, "input": input, "test_payloads": []any{map[string]any{"host": "agent.test", "path": "/.env", "expected": "allow"}}}})
+		if err != nil || result.IsError {
+			t.Fatalf("simulation: %v %+v", err, result)
+		}
+		var summary simulationSummary
+		if err = json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &summary); err != nil || summary.ID == "" {
+			t.Fatalf("simulation receipt: %v %+v", err, summary)
+		}
+		return summary.ID
+	}
+	receipt := simulate(fmt.Sprintf("/api/rules/%d/activate", ruleID), activation)
+	result, e = enforceSession.CallTool(ctx, &mcp.CallToolParams{Name: "activate_rule", Arguments: map[string]any{"id": ruleID, "input": activation, "simulation_id": receipt}})
 	if e != nil || result.IsError {
 		t.Fatalf("activation %v %+v", e, result)
 	}
-	result, e = enforceSession.CallTool(ctx, &mcp.CallToolParams{Name: "disable_rule", Arguments: map[string]any{"id": ruleID}})
+	receipt = simulate(fmt.Sprintf("/api/rules/%d/disable", ruleID), map[string]any{})
+	result, e = enforceSession.CallTool(ctx, &mcp.CallToolParams{Name: "disable_rule", Arguments: map[string]any{"id": ruleID, "simulation_id": receipt}})
 	if e != nil || result.IsError {
 		t.Fatalf("disable %v %+v", e, result)
 	}

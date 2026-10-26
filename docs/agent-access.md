@@ -33,7 +33,7 @@ Included workflows cover request investigation, false-positive tuning, disabled 
 
 Permissions cover the whole workspace; per-application agent roles are not implemented. Stored private keys/tokens, administrator/bootstrap/session operations, new accounts (including ACME registration), and new MCP-key creation remain unavailable. Uploading certificates or supplying new DNS credentials is permitted by the certificate scope; normal APIs never read stored secrets back.
 
-`list_management_operations` discovers every permitted management route; `get_management_contract` supplies payload documentation; `management_operation` accepts `{method,path,input}` and dispatches only to an explicitly registered management route. This covers every other current management operation, including history, rollback, application creation/deletion, signature inventory, feed sync/import and settings. Paths are relative `/api/...` paths, with optional query filters; arbitrary URLs, SQL, shell execution and recursion into MCP are unavailable. API route additions require explicit catalog review before exposure.
+`list_management_operations` discovers every permitted management route; `get_management_contract` supplies payload documentation; `management_operation` accepts `{method,path,input,simulation_id?}` and dispatches only to an explicitly registered management route. This covers every other current management operation, including history, rollback, application creation/deletion, signature inventory, feed sync/import and settings. Paths are relative `/api/...` paths, with optional query filters; arbitrary URLs, SQL, shell execution and recursion into MCP are unavailable. API route additions require explicit catalog review before exposure.
 
 For example, a Configuration key can call `management_operation` with `method:"POST"`, `path:"/api/address-objects"`, `input:{name:"Office",value:"192.168.10.0/24"}`. An Enforce key can update policies or request rollback using the normal revision checks. Convenience investigation/draft/replay tools remain available.
 
@@ -42,6 +42,31 @@ Scopes grant authority to whole management domains, not isolated safety guarante
 Typical workflow: read rule schema and metadata → inspect approved retained evidence → draft a typed rule → replay against attack **and legitimate** samples → review unknowns and false positives → activate using an operator or separately authorized enforcement key. Aegis validates normal rule/policy limits and preserves transactional audits; it does not enforce your external agent's human-approval workflow. Granting Enforce allows autonomous changes.
 
 Tool calls use `id` for an existing resource and `input` for the corresponding management API payload. `propose_rule` takes a RuleSpec; `replay_rule` takes `{rule,event_ids}`; `activate_rule` takes `{action,ttl_seconds}`; `save_policy` requires the current policy revision and complete intended assignments. Consult [management API](management-api.md). SDK tool descriptions expose these contracts and `get_rule_schema` supplies the custom rule schema.
+
+## Required simulation before live protection changes
+
+`simulate_rule_impact` is an offline safety check. MCP changes to rules, policies/assignments, proxy hosts, protection settings, existing address objects/groups and feed imports require its receipt. Dashboard administrators retain their existing interactive workflow. Draft creation and unused address creation do not require a receipt.
+
+1. Read the current definition, revision and complete intended assignments. Choose the exact management method, relative path and input object.
+2. Call `simulate_rule_impact` with that `{method,path,input}`, optional `lookback_minutes` (default 60, maximum 1440), `max_events` (default 200, maximum 500), and up to 20 `test_payloads`.
+3. Review `newly_blocked`, `newly_unblocked`, `unknown`, `sample_truncated`, warnings and test outcomes. Previously allowed traffic is **not** verified legitimate traffic. Metadata cannot reconstruct uncaptured paths/bodies, full CRS transactions, past rate counters, browser clearances or upstream behavior. Evidence permission allows only still-retained, opted-in facts. No requests are sent upstream.
+4. Submit the identical operation through `management_operation` with `simulation_id`, or use the matching convenience tool with that field. The receipt expires after two minutes, is single-use, and is bound to the issuing key, exact candidate and database configuration version. A concurrent configuration change requires a new simulation. Missing/invalid receipts fail with HTTP 428 through the management operation.
+
+Synthetic payloads accept `host`, `method` (default GET), relative `path`, `client_ip`, bounded `headers`/`body`, optional `response:{status,headers,body}`, and `expected` (`allow`, `block`, `challenge`, `unroutable`). Bodies are capped at 64 KiB. Synthetic rate state starts empty; response-stage inspection runs only when a response is supplied. Include representative valid and attack cases: a passing test harness is not a proof that a policy is safe. If all facts are unknown/no tests can be evaluated, or an expected assertion fails, no receipt is issued.
+
+```json
+{
+  "method": "POST",
+  "path": "/api/rules/42/activate",
+  "input": {"action": "block", "ttl_seconds": 300},
+  "test_payloads": [
+    {"host": "app.example.com", "path": "/", "expected": "allow"},
+    {"host": "app.example.com", "path": "/.env", "expected": "block"}
+  ]
+}
+```
+
+The candidate is validated and compiled inside a transaction that is rolled back. Only an expiring receipt hash and aggregate results are persisted; submitted test bodies are not retained by this tool. Each replica admits at most two concurrent simulations, with a ten-second deadline and at most 100 unexpired receipts per key. PostgreSQL remains required for simulation and enforcement. Scope checks and normal revision checks still apply; a receipt grants no additional authority and imposes no separate human approval workflow.
 
 ## Security and operations
 
