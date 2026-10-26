@@ -50,7 +50,7 @@ exceeds the matcher or a broad block is not adequately explained.
 A maintainer approval is separate from green CI. Merge accepted rules through a
 pull request; do not auto-merge submissions solely because tests pass. Merged
 individual JSON files, generated package and release descriptor become available at the main-branch
-community URL. Image publication also depends on community validation. Rejected,
+community URL. Rule-only merges run community validation without rebuilding the application image; running installations use feed sync. Application, nightly and manual image builds still depend on community validation. Rejected,
 open and unmerged PRs never enter that feed. Fork owners can publish a separate
 feed, but that is not the reviewed Aegis community source.
 

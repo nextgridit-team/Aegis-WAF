@@ -16,7 +16,7 @@ Aegis follows that separation. It does not import or execute NASL plugins or Nuc
 
 A sync checks the descriptor using its ETag. If changed, it downloads the one ZIP, verifies its size/hash, validates bounded ZIP directory records, and reads the individual rule files without extracting them. All metadata, matchers and embedded regression fixtures must pass before a single transaction updates the catalogue. A failed update leaves the last-good catalogue and policy snapshots intact. PostgreSQL coordinates workers across replicas; normal checks run every 12 hours or manually.
 
-The authoring script discovers rule JSON recursively and generates the archive and descriptor. Reviewers see changes to the source rule plus generated artifacts. Run the [contribution checks](rule-contributions.md); never edit only the archive.
+The authoring script discovers rule JSON recursively and generates the archive and descriptor. Reviewers see changes to the source rule plus generated artifacts. Rule-only merges validate and publish these files without a container build; installed replicas download the new feed independently. Run the [contribution checks](rule-contributions.md); never edit only the archive.
 
 ## Boundaries
 

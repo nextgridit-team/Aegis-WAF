@@ -2,6 +2,11 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Independent rule publication
+
+- Rule-only main pushes run community validation without rebuilding the application image. Application/build inputs, nightly schedules and manual runs retain image publication.
+- Feed updates reach existing replicas through sync; policy adoption remains explicit. Image builds retain a bundled catalogue snapshot for offline bootstrap.
+
 ## 2026-10-26 — Packaged community distribution
 
 - Replace the growing official index with a compact schema 3 release descriptor and one checksummed ZIP of separate rule files. Authors still edit one JSON per rule; tooling generates delivery artifacts. Unchanged ETags avoid the package download.

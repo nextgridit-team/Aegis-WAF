@@ -2,6 +2,19 @@ name: Build and publish application image
 on:
   push:
     branches: [main]
+    # Rule files and generated feed packages publish independently of the image.
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'web/**'
+      - 'skills/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'LICENSE'
+      - 'third_party_licenses/**'
+      - 'rules/community/embed.go'
   schedule:
     - cron: '17 7 * * *'
   workflow_dispatch:

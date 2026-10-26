@@ -1,6 +1,14 @@
 name: Community rule review checks
 on:
   pull_request:
+  push:
+    branches: [main]
+    paths:
+      - 'rules/community/**'
+      - 'scripts/build-rule-feed.py'
+      - 'scripts/check-rule-revisions.py'
+      - 'tests/rule-revisions.py'
+      - '.github/workflows/community-rules.yml'
   workflow_call:
   workflow_dispatch:
 permissions:

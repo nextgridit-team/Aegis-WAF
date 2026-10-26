@@ -1,6 +1,6 @@
 # Published application image
 
-GitHub Actions rebuilds the single application image on main pushes, nightly
+GitHub Actions rebuilds the single application image when application/build inputs change on main, nightly
 at 07:17 UTC, and through Actions > Build and publish application image > Run
 workflow. It runs formatting/vet, PostgreSQL race tests, the dashboard build
 and dependency audit, then verifies the exact image with the container smoke
@@ -27,3 +27,7 @@ Docker-socket mount or extra worker container is installed.
 Set `AEGIS_IMAGE` to a unique build tag/digest for a rollback. Keep the current
 PostgreSQL data and secret files. The optional compose.build.yaml overlay is
 for development source builds; it is not required for normal deployment.
+
+Rule-only pushes run **Community rule validation** without rebuilding or publishing an image. This includes the individual rule JSON, generated ZIP/release metadata and rule documentation. Running installations discover accepted feed releases through scheduled or manual sync; adopting them in a policy still requires an explicit save/refresh. Application/backend, dashboard, embedded skill, dependency, Docker build, license and Go embed changes trigger the image pipeline. Changes to workflow files alone can be verified with a manual run.
+
+Nightly/manual/application builds still bundle the current reviewed catalogue for offline first startup. Until such a build, an existing image contains its previous bundled snapshot and downloads newer catalogue releases after startup. Existing policy selections remain pinned; publishing a rule does not silently enable it.
