@@ -212,3 +212,31 @@ func TestCommunityFeedSeedOnce(t *testing.T) {
 		t.Fatal("removed community subscription was recreated", count, e)
 	}
 }
+
+func TestStarterRetirementPreservesImportedRules(t *testing.T) {
+	a, b, api, site, _ := captchaFixture(t)
+	ctx := context.Background()
+	old := mustID(t, api.call("POST", "/api/rule-feeds", map[string]any{"name": "Legacy starter", "url": "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/starter.json", "site_id": site}, 201))
+	custom := mustID(t, api.call("POST", "/api/rule-feeds", map[string]any{"name": "Custom source", "url": "https://example.com/custom.json", "site_id": site}, 201))
+	spec := probeRule("path", "", "equals", "/private")
+	spec.Scope.SiteID = site
+	rule := mustID(t, api.call("POST", "/api/rules", spec, 200))
+	if _, e := a.db.Exec(ctx, "INSERT INTO rule_feed_items(feed_id,entry_id,spec,imported_spec,rule_id) SELECT $1,'retained',spec,spec,id FROM rules WHERE id=$2", old, rule); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := a.db.Exec(ctx, "DELETE FROM built_in_rule_feeds WHERE key='starter-retired'"); e != nil {
+		t.Fatal(e)
+	}
+	if e := b.initialize(ctx); e != nil {
+		t.Fatal(e)
+	}
+	var retained, removed bool
+	a.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM rules WHERE id=$1) AND EXISTS(SELECT 1 FROM rule_feeds WHERE id=$2),NOT EXISTS(SELECT 1 FROM rule_feeds WHERE id=$3)", rule, custom, old).Scan(&retained, &removed)
+	if !retained || !removed {
+		t.Fatal("starter retirement removed imported rules/custom sources or retained deprecated source")
+	}
+	if e := a.initialize(ctx); e != nil {
+		t.Fatal(e)
+	}
+	api.call("GET", "/api/rules", nil, 200)
+}

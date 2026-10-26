@@ -67,7 +67,7 @@ Checksums verify file bytes against the downloaded manifest. **They are not publ
 
 ## Legacy application feeds
 
-Existing application-bound version 1 subscriptions continue working. Choose an application labelled **legacy v1** to use a single JSON document such as [rules/starter.json](../rules/starter.json). Review and **Import pending as drafts** creates disabled, application-scoped local rules with proposed Observe action. Changed candidates import as new drafts; unchanged imports create no duplicate. Older imported rules are not automatically replaced or disabled. These subscriptions do not populate the workspace catalogue.
+The community catalogue is the single shipped source. The official starter shortcut is removed, and its old subscription is retired once on upgrade while retaining imported native rules and their state. The historical `rules/starter.json` document remains available for compatibility, but is not offered as a second built-in feed. Custom application-bound version 1 subscriptions continue working. Choose an application labelled **legacy v1** to use a single JSON document such as [rules/starter.json](../rules/starter.json). Review and **Import pending as drafts** creates disabled, application-scoped local rules with proposed Observe action. Changed candidates import as new drafts; unchanged imports create no duplicate. Older imported rules are not automatically replaced or disabled. These subscriptions do not populate the workspace catalogue.
 
 ## URL and network constraints
 

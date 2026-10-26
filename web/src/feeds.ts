@@ -49,8 +49,6 @@ type Context = {
   refresh: () => Promise<void>;
   notice: (message: string, error?: boolean) => void;
 };
-const starter =
-  "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/starter.json";
 const community =
   "https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/manifest.json";
 export function makeFeedsUI(c: Context) {
@@ -88,21 +86,16 @@ export function makeFeedsUI(c: Context) {
             "Rule sources",
           )
         : '<section class="empty-state"><h2>No rule sources yet</h2><p>Add a public HTTPS manifest to share independently versioned rules across policies.</p></section>') +
-      `<section class="section"><h2>Aegis community mitigation feed</h2><p class="muted">Independent CVE-labelled rules with checksums, revisions, regression cases and explicit partial-mitigation limits. Select only rules compatible with each application.</p>${button("community-feed", "Use Aegis community feed")}<p><a href="${community}" target="_blank" rel="noreferrer">View the manifest</a></p></section><section class="section"><h2>Aegis starter rules</h2><p class="muted">A small set of example signatures for exposed configuration files, Git metadata and common scanner user agents. These are starting points to review for your application.</p>${button("starter-feed", "Use Aegis starter feed")}<p><a href="${starter}" target="_blank" rel="noreferrer">View the starter document</a></p></section>`
+      `<section class="section"><h2>Aegis community mitigation feed</h2><p class="muted">Independent CVE-labelled rules with checksums, revisions, regression cases and explicit partial-mitigation limits. Select only rules compatible with each application.</p>${button("community-feed", "Use Aegis community feed")}<p><a href="${community}" target="_blank" rel="noreferrer">View the manifest</a></p></section>`
     );
   }
-  function add(starterFeed = false, communityFeed = false) {
-    if (starterFeed && !c.sites().length) {
-      c.notice("Add a proxy host before subscribing to a rule feed.", true);
-      return;
-    }
+  function add(communityFeed = false) {
     c.openEditor(
       "Add rule source",
-      `<form id="feed-form"><label class="field">Name<input name="name" maxlength="120" required value="${starterFeed ? "Aegis starter rules" : communityFeed ? "Aegis community mitigations" : ""}" placeholder="My rule source"></label><label class="field">Feed URL<input name="url" type="url" required maxlength="2048" value="${starterFeed ? starter : communityFeed ? community : ""}" placeholder="https://example.com/aegis-rules.json"></label><label class="field" for="feed-site">Application</label><select id="feed-site" name="site_id"><option value="0" ${!starterFeed ? "selected" : ""}>Workspace catalogue · all policies (manifest v2)</option>${c
+      `<form id="feed-form"><label class="field">Name<input name="name" maxlength="120" required value="${communityFeed ? "Aegis community mitigations" : ""}" placeholder="My rule source"></label><label class="field">Feed URL<input name="url" type="url" required maxlength="2048" value="${communityFeed ? community : ""}" placeholder="https://example.com/aegis-rules.json"></label><label class="field" for="feed-site">Application</label><select id="feed-site" name="site_id"><option value="0" selected>Workspace catalogue · all policies (manifest v2)</option>${c
         .sites()
         .map(
-          (s) =>
-            `<option value="${s.id}" ${starterFeed && s.id === c.sites()[0]?.id ? "selected" : ""}>${esc(s.name)} · legacy v1</option>`,
+          (s) => `<option value="${s.id}" >${esc(s.name)} · legacy v1</option>`,
         )
         .join(
           "",
@@ -155,12 +148,9 @@ export function makeFeedsUI(c: Context) {
             await c.refresh();
           }
           await review(existing.id);
-        } else add(false, true);
+        } else add(true);
         return true;
       }
-      case "starter-feed":
-        add(true);
-        return true;
       case "sync-feed":
         await api(`/rule-feeds/${id}/sync`, "POST", {});
         await c.refresh();

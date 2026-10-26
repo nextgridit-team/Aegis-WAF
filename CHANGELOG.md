@@ -2,6 +2,10 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-26 — Single shipped rule feed
+
+- Remove the separate starter-feed shortcut and retire its official subscription once on upgrade. Imported native rules, active state and custom sources remain intact. Community mitigations are the single shipped feed; the historical starter JSON stays available for compatibility.
+
 ## 2026-10-26 — Policy-owned community controls and contributions
 
 - Policies now own the community enable switch, all/individual selection, coverage review and targeted refresh; feed pages manage subscription/sync and read-only review. Disabling preserves selections and legacy scoped rules keep their scope.

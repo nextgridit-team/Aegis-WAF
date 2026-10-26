@@ -139,9 +139,13 @@ const path = require("node:path");
       .getByRole("heading", { name: "Rules", exact: true })
       .waitFor();
     await page
-      .getByRole("button", { name: "Use Aegis starter feed", exact: true })
+      .getByRole("button", { name: "Add source", exact: true })
       .click();
     const dialog = page.getByRole("dialog");
+    assert.equal(await page.getByRole("button",{name:"Use Aegis starter feed",exact:true}).count(),0);
+    await dialog.getByLabel("Name",{exact:true}).fill("Aegis starter rules");
+    await dialog.getByLabel("Feed URL",{exact:true}).fill("https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/starter.json");
+    await dialog.getByLabel("Application",{exact:true}).selectOption({label:"Example app · legacy v1"});
     assert.equal(
       await dialog.getByLabel("Name", { exact: true }).inputValue(),
       "Aegis starter rules",
@@ -203,7 +207,7 @@ const path = require("node:path");
       .waitFor();
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: rule source form, starter URL, sync failure/retry, escaped review JSON, draft imports, removal and 4 responsive layouts.",
+      "PASS: custom rule source form, legacy URL compatibility, sync failure/retry, escaped review JSON, draft imports, removal and 4 responsive layouts.",
     );
   } finally {
     await browser.close();

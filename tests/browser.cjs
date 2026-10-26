@@ -986,11 +986,13 @@ const { execFileSync } = require("node:child_process");
       .getByText(/HTTP flood exempt/)
       .first()
       .waitFor();
-    // First-party public feed: real download, candidate review and draft import.
+    // Legacy custom-source compatibility: real download and draft import.
     await nav("Rule feeds").click();
     await page
-      .getByRole("button", { name: "Use Aegis starter feed", exact: true })
+      .getByRole("button", { name: "Add source", exact: true })
       .click();
+    await dialog().getByLabel("Name", {exact:true}).fill("Aegis starter rules");
+    await dialog().getByLabel("Feed URL", {exact:true}).fill("https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/starter.json");
     await dialog()
       .getByLabel("Application", { exact: true })
       .selectOption({ label: "Manual TLS · legacy v1" });

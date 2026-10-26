@@ -34,3 +34,7 @@ Update all replicas before using workspace feeds or catalogue selections. Existi
 ## Policy-owned community controls
 
 Update all replicas before using `community_mitigations`. The baseline gains every available rule from the built-in community source once when this field is absent; other settings and assignments are preserved. The initial reviewed catalogue is bundled for offline availability before network sync. **This enables the multipart and Brotli guards on applications already assigned that baseline:** review legitimate upload requirements before upgrading and disable incompatible selections in Policies afterward, or assign a suitable custom policy beforehand. Custom policies retain their current behavior; new custom policies default community controls off. Subsequent choices/disabling survive restart. A customized baseline already at the 100-rule policy limit keeps its existing rules; community controls start disabled with an audited capacity event instead of breaking snapshot loading. Feed-derived legacy group rules retain scopes and can be controlled from the policy switch. Feed pages no longer apply rules. Definitions remain pinned until explicit refresh/save.
+
+## Single shipped community feed
+
+The old official starter subscription is retired once on upgrade and its dashboard shortcut is removed. Previously imported native rules, their history/activation and policy assignments are retained. Custom feeds are untouched. The old version 1 fixture URL remains for compatibility; new subscriptions should use the community manifest.
