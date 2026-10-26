@@ -123,6 +123,8 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 }
 func (a *App) Management() http.Handler {
 	m := http.NewServeMux()
+	m.Handle("GET /metrics", a.metricsHandler())
+	m.HandleFunc("GET /api/metrics", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error { a.serveMetrics(w, r); return nil }))
 	rateStateAPI(a, m)
 	dashboardAPI(a, m)
 	signatureAPI(a, m)

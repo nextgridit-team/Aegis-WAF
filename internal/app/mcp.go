@@ -189,7 +189,7 @@ func agentAPI(a *App, m *http.ServeMux) {
 	}
 }
 
-func (a *App) authenticateAgent(r *http.Request) (agentPrincipal, error) {
+func (a *App) authenticateAgent(r *http.Request, requireEnabled ...bool) (agentPrincipal, error) {
 	var p agentPrincipal
 	peer, _, e := net.SplitHostPort(r.RemoteAddr)
 	if e != nil {
@@ -213,12 +213,14 @@ func (a *App) authenticateAgent(r *http.Request) (agentPrincipal, error) {
 		return p, e
 	}
 	defer tx.Rollback(r.Context())
-	var enabled bool
-	if e = tx.QueryRow(r.Context(), "SELECT enabled FROM agent_access WHERE id").Scan(&enabled); e != nil {
-		return p, e
-	}
-	if !enabled {
-		return p, apiError{404, "agent access is disabled"}
+	if len(requireEnabled) == 0 || requireEnabled[0] {
+		var enabled bool
+		if e = tx.QueryRow(r.Context(), "SELECT enabled FROM agent_access WHERE id").Scan(&enabled); e != nil {
+			return p, e
+		}
+		if !enabled {
+			return p, apiError{404, "agent access is disabled"}
+		}
 	}
 	auth := r.Header.Values("Authorization")
 	if len(auth) != 1 || !strings.HasPrefix(auth[0], "Bearer ") || len(auth[0]) > 256 {
@@ -420,5 +422,6 @@ func (a *App) agentServer(principal agentPrincipal, mux *http.ServeMux) *mcp.Ser
 	a.addAgentSimulation(server, principal, mux)
 	a.addAgentContract(server)
 	a.addAgentSkill(server)
+	a.instrumentAgent(server)
 	return server
 }

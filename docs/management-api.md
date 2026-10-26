@@ -1,6 +1,6 @@
 # Management API
 
-All endpoint paths below are relative to `/api` on the management listener. There are no bearer-token or private-key export APIs. Use the dashboard for interactive management, or a cookie jar for automation:
+All endpoint paths below are relative to `/api` on the management listener. Stored private keys and bearer credentials are never returned by normal read APIs. Use the dashboard for interactive management, or a cookie jar for automation:
 
 - `GET /setup`, `POST /setup` (`username`, `password`, `secret`): one-time administrator bootstrap.
 - `POST /login` (`username`, `password`): returns username and CSRF token and sets the session cookie. `GET /me` returns the current CSRF token. `POST /logout` revokes the session.
@@ -64,3 +64,5 @@ MCP protection mutations require `simulate_rule_impact` followed by the exact op
 Site writes also accept `traffic_profile` (`web`, default, or `streaming`) and `stream_window_bytes` (4096–65536, default 8192). Streaming flushes immediately and uses bounded response windows when policy response inspection is enabled. A match can terminate remaining output, not retract previously sent bytes. See [streaming behavior and telemetry](body-inspection.md#sse-and-streaming-api-profiles).
 
 Shared counter configuration: `GET/PUT /rate-state`, `POST /rate-state/test`. Fields are `backend` (memory/redis), `address` (host:port), optional `username`/write-only `password`, `clear_password`, `tls`, `timeout_ms` (20–250, default 100), and current `revision`. Reads return nested `settings`, `has_password`, loaded revision and failure count. Configuration scope covers MCP; PUT requires simulation. See [optional Redis/Dragonfly counters](shared-rate-state.md).
+
+`GET /metrics` on the management listener returns authenticated Prometheus exposition using a dashboard session or source-restricted Read key over HTTPS (MCP enablement is independent). `GET /api/metrics` is a session/MCP-readable alias. Scrape every replica; counters are replica-local and reset on restart. See [observability, labels and histogram semantics](observability.md).

@@ -87,6 +87,10 @@ func inspectManagedResponse(response *http.Response) error {
 }
 
 func (s *managedResponseState) inspect(response *http.Response) (err error) {
+	started := time.Now()
+	if s.app != nil {
+		defer func() { s.app.prom.observeInspection("response", time.Since(started)) }()
+	}
 	tx := s.tx
 	buffered := false
 	defer func() {

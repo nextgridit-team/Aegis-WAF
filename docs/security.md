@@ -34,6 +34,8 @@ MCP is disabled by default. When enabled, named expiring keys have permissions a
 
 The endpoint lets you bring an agent and model. Aegis does not run model inference, behavioral learning or a built-in AI investigation workflow. See [agent setup and permission boundaries](agent-access.md).
 
+MCP live-protection changes additionally require a fresh exact-candidate simulation receipt. This enforced check preserves unknown evidence and scoped authority; it is not proof that traffic is legitimate. Management-only Prometheus metrics use sessions or source-restricted read keys. See [simulation](agent-access.md#required-simulation-before-live-protection-changes) and [observability](observability.md).
+
 ## Harden the deployment around the application
 
 The supplied app container runs as non-root, supports a platform-assigned UID, uses a read-only root and explicit temporary directory, drops capabilities and requires no Docker socket. Upstream HTTPS certificate verification is enabled. The supplied app-to-PostgreSQL Docker connection is not TLS-encrypted; use verified TLS for remote PostgreSQL.

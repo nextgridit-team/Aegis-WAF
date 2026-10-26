@@ -43,3 +43,5 @@ docker compose logs --no-color --no-log-prefix app | jq -Rc 'fromjson? | select(
 Point a Docker stdout collector, Filebeat, an OpenTelemetry log collector or your SIEM agent at the application container, decode JSON once, and filter on `event` / `action`. For Grafana Loki, apply `| json` then `| event="waf_block"` to your application stream. No collector or external destination is enabled automatically.
 
 Delivery is best effort. Queue saturation and database/collector outages can lose events; the dashboard and `/api/status` expose dropped access-log counts. Stdout emission is attempted before the PostgreSQL batch write, so a database write failure does not suppress an already queued stdout record. Collectors manage their own transport, storage and data residency; PostgreSQL evidence retention does not delete exported stdout samples.
+
+Prometheus request/inspection/MCP metrics and structured MCP completion events are documented in [observability](observability.md). They do not make queued log delivery lossless.

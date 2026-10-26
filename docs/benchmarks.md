@@ -46,3 +46,19 @@ Three one-second engine runs measured 10 rules at 697–703 ns/op, 100 at 5.88�
 ## Measured allocation changes
 
 Forwarding profiles found 79.6% of allocated bytes in the reverse proxy's new 32 KiB response-copy buffer. Reusing cleared buffers changed three two-second real-upstream microbenchmarks from 34.95–35.84 µs / about 41.1 KiB per operation to 29.21–29.86 µs / 8.35–8.41 KiB. Keeping fact-cache hit lookup separate from stored selector allocation changed the 100-rule matcher from about 5.9 µs / 103 allocations to 5.34–5.37 µs / 4 allocations. These changes were measured individually and retained; neither disables protections. Full-network measurements remain noisy and do not establish a material production p99 gain. See [the repeated forwarding comparisons](proxy-comparison.md) for measured reference ranges.
+
+## Platform hardening verification (2026-10-25)
+
+A final small-response HTTP/1.1 keep-alive run used 64,000 requests per phase and concurrency 16 on the same Ryzen 9 7950X3D host. The new build includes selective CAPTCHA support, simulation enforcement, streaming profiles, optional shared counters and Prometheus instrumentation; this workload uses local counters, no challenges and response inspection Off. Results are in [the raw report](benchmarks/platform-hardening-20261025.json).
+
+| Path | Requests/sec | Mean ms | p99 ms |
+| --- | ---: | ---: | ---: |
+| reference_haproxy | 15,187.9 | 1.046 | 4.046 |
+| reference_nginx | 14,402.0 | 1.097 | 4.314 |
+| direct_upstream | 15,449.7 | 1.025 | 3.955 |
+| gateway_0_rules | 13,029.0 | 1.218 | 4.401 |
+| gateway_10_rules | 14,430.3 | 1.098 | 3.894 |
+| gateway_100_rules | 13,551.0 | 1.167 | 4.256 |
+| gateway_crs_baseline | 10,807.5 | 1.471 | 3.793 |
+
+These are single-phase fixture measurements on a shared local host, not sustained production capacity or a security-equivalent comparison. The CRS baseline's mean was approximately 0.45 ms above the direct path; its total mean was 1.47 ms. Do not subtract independent p99 values to claim overhead. The 10-rule run being faster than the 0-rule run illustrates measurement variation. HAProxy/NGINX references are their routing dataplanes, not NGINX Proxy Manager's complete management product or SafeLine. Shared Redis lookup, active CAPTCHA, larger bodies and streaming-window inspection need separate workload-specific measurements. No access logs/evidence were dropped and no background worker panics were recorded during this run.

@@ -1,0 +1,124 @@
+{
+  "image": "aegis-waf:platform-hardening",
+  "workload": "HTTP/1.1 keep-alive GET, small fixed body; local closed-loop client and Docker ports",
+  "phases": [
+    {
+      "name": "reference_haproxy",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.214,
+      "requests_per_second": 15187.9,
+      "mean_ms": 1.046,
+      "p50_ms": 0.785,
+      "p95_ms": 2.741,
+      "p99_ms": 4.046
+    },
+    {
+      "name": "reference_nginx",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.444,
+      "requests_per_second": 14402.0,
+      "mean_ms": 1.097,
+      "p50_ms": 0.83,
+      "p95_ms": 2.881,
+      "p99_ms": 4.314
+    },
+    {
+      "name": "direct_upstream",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.142,
+      "requests_per_second": 15449.7,
+      "mean_ms": 1.025,
+      "p50_ms": 0.782,
+      "p95_ms": 2.649,
+      "p99_ms": 3.955
+    },
+    {
+      "name": "gateway_0_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.912,
+      "requests_per_second": 13029.0,
+      "mean_ms": 1.218,
+      "p50_ms": 0.985,
+      "p95_ms": 3.032,
+      "p99_ms": 4.401
+    },
+    {
+      "name": "gateway_10_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.435,
+      "requests_per_second": 14430.3,
+      "mean_ms": 1.098,
+      "p50_ms": 0.883,
+      "p95_ms": 2.72,
+      "p99_ms": 3.894
+    },
+    {
+      "name": "gateway_100_rules",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 4.723,
+      "requests_per_second": 13551.0,
+      "mean_ms": 1.167,
+      "p50_ms": 0.929,
+      "p95_ms": 2.925,
+      "p99_ms": 4.256
+    },
+    {
+      "name": "gateway_crs_baseline",
+      "requests": 64000,
+      "concurrency": 16,
+      "seconds": 5.922,
+      "requests_per_second": 10807.5,
+      "mean_ms": 1.471,
+      "p50_ms": 1.316,
+      "p95_ms": 2.813,
+      "p99_ms": 3.793
+    }
+  ],
+  "reference_images": {
+    "reference_haproxy": {
+      "tag": "haproxy:3.2-alpine",
+      "image_id": "sha256:5893840576071e6217cd52ebdcc14f454c6f7a631056fa6f4e0f40d3cac4215b"
+    },
+    "reference_nginx": {
+      "tag": "nginx:stable-alpine",
+      "image_id": "sha256:47928bf67eb62a1863cb08d9ecb52d3e704304ba614eaee17884204677702951"
+    }
+  },
+  "crs_policy": {
+    "mode": "block",
+    "set_id": "owasp-crs-v4.30.0-12a403fcc18d",
+    "response_mode": "off",
+    "paranoia_level": 1,
+    "body_limit_bytes": 1048576,
+    "body_limit_action": "reject",
+    "excluded_rule_ids": [],
+    "inbound_threshold": 5,
+    "outbound_threshold": 4,
+    "response_body_limit_bytes": 262144,
+    "response_body_limit_action": "reject"
+  },
+  "image_id": "sha256:43acbf81a4390ef929fcb9102bf250ac5d6edf2c9eb8d8ca42874b89394f52b9",
+  "source_revision": "local-platform-verification",
+  "host": {
+    "cpu_model": "AMD Ryzen 9 7950X3D 16-Core Processor",
+    "available_cpus": 32,
+    "platform": "Linux-7.3.0-2-cachyos-x86_64-with-glibc2.44"
+  },
+  "status_after_load": {
+    "background_worker_panics": 0,
+    "configuration_version": 205,
+    "database_available": true,
+    "dropped_access_logs": 0,
+    "dropped_evidence_samples": 0,
+    "propagation_seconds": 2,
+    "snapshot_cache_available": false,
+    "snapshot_cache_enabled": false,
+    "snapshot_cache_restored": false
+  }
+}

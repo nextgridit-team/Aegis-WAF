@@ -55,10 +55,11 @@ type simulationSummary struct {
 	Warnings          []string                  `json:"warnings"`
 }
 type simulationHarnessResult struct {
-	Index   int     `json:"index"`
-	Outcome string  `json:"outcome"`
-	Passed  bool    `json:"passed"`
-	RuleIDs []int64 `json:"rule_ids,omitempty"`
+	Evaluable bool    `json:"evaluable"`
+	Index     int     `json:"index"`
+	Outcome   string  `json:"outcome"`
+	Passed    bool    `json:"passed"`
+	RuleIDs   []int64 `json:"rule_ids,omitempty"`
 }
 
 func requiresRuleSimulation(pattern string) bool {
@@ -184,6 +185,29 @@ func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipa
 	if e = tx.QueryRow(ctx, "SELECT version FROM config_version WHERE id").Scan(&result.Version); e != nil {
 		return result, e
 	}
+	originalHosts := map[string]bool{}
+	originalSites := map[int64]bool{}
+	originalRows, e := tx.Query(ctx, "SELECT id,hostnames FROM sites WHERE enabled")
+	if e != nil {
+		return result, e
+	}
+	for originalRows.Next() {
+		var id int64
+		var hosts []string
+		if e = originalRows.Scan(&id, &hosts); e != nil {
+			originalRows.Close()
+			return result, e
+		}
+		originalSites[id] = true
+		for _, host := range hosts {
+			originalHosts[host] = true
+		}
+	}
+	e = originalRows.Err()
+	originalRows.Close()
+	if e != nil {
+		return result, e
+	}
 	invocation := agentInvocation{Principal: principal, Pattern: pattern, Scope: scope, CandidateHash: digest}
 	simulated := context.WithValue(ctx, simulationTransactionKey{}, tx)
 	request = request.WithContext(context.WithValue(simulated, agentInvocationKey{}, invocation))
@@ -237,6 +261,9 @@ func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipa
 			return Fact{State: "unknown"}
 		}
 		outcome, _ := simulationMetadata(candidate, site, peer, country, get)
+		if outcome == "unroutable" && !originalSites[site] {
+			outcome = "unknown"
+		}
 		if outcome == "unknown" {
 			result.Unknown++
 		} else {
@@ -267,10 +294,11 @@ func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipa
 		if payload.Expected != "" && payload.Expected != "allow" && payload.Expected != "block" && payload.Expected != "challenge" && payload.Expected != "unroutable" {
 			return result, invalid("test expected must be allow, block, challenge or unroutable")
 		}
-		pass := payload.Expected == "" || payload.Expected == outcome
+		evaluable := outcome != "unknown" && (candidate.routes[requestHost(payload.Host)] != nil || originalHosts[requestHost(payload.Host)])
+		pass := evaluable && (payload.Expected == "" || payload.Expected == outcome)
 		allPassed = allPassed && pass
-		result.Harness = append(result.Harness, simulationHarnessResult{Index: i, Outcome: outcome, Passed: pass, RuleIDs: ids})
-		if outcome != "unknown" {
+		result.Harness = append(result.Harness, simulationHarnessResult{Index: i, Outcome: outcome, Passed: pass, RuleIDs: ids, Evaluable: evaluable})
+		if evaluable {
 			known++
 		}
 	}

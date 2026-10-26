@@ -1,6 +1,6 @@
 # Aegis documentation
 
-[Project overview and quickstart](../README.md) · [Current limitations](limitations.md) · [Security model](security.md)
+[Project overview and quickstart](../README.md) · [Current limitations](limitations.md) · [Limitations review](limitations-review.md) · [Security model](security.md)
 
 ## Install and operate
 
@@ -30,6 +30,7 @@
 
 | Goal                                            | Guide                                                                                   |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Scrape Prometheus and collect structured events | [Metrics and observability](observability.md) |
 | Understand dashboard metrics and traffic views  | [Dashboard](dashboard.md)                                                               |
 | Inspect an individual request                   | [Request investigation](request-investigation.md)                                       |
 | Collect structured security events              | [Logging and SIEM integration](logging.md) · [JSON Schema](security-events.schema.json) |

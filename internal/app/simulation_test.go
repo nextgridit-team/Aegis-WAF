@@ -69,6 +69,11 @@ func TestSimulationIntegration(t *testing.T) {
 		}
 		return s
 	}
+	wrongHost := input
+	wrongHost.TestPayloads = []simulationPayload{{Host: "never-configured.test", Path: "/", Expected: "unroutable"}}
+	if s := simulate(wrongHost); s.ID != "" || s.Eligible || s.Harness[0].Evaluable {
+		t.Fatal("unconfigured test host authorized a receipt", s)
+	}
 	summary := simulate(input)
 	if !summary.Eligible || summary.ID == "" || len(summary.Harness) != 2 || !summary.Harness[0].Passed || !summary.Harness[1].Passed {
 		t.Fatalf("bad simulation %+v", summary)

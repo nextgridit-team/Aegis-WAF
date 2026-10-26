@@ -101,6 +101,7 @@ type accessEvent struct {
 	exemptions                                           []string
 }
 type App struct {
+	prom                          *gatewayTelemetry
 	publicIPHTTP                  http.RoundTripper
 	regions                       atomic.Pointer[regionCache]
 	geoHTTP                       http.RoundTripper
@@ -146,6 +147,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		return nil, errors.New("database pool initialization failed")
 	}
 	a := &App{simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a.prom = newGatewayTelemetry(a)
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {
 			slog.Warn("snapshot cache unavailable; database startup required")
@@ -423,20 +425,25 @@ func (a *App) TLSConfig() *tls.Config {
 }
 func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") {
-		a.challenge(w, r)
+		rec := &statusWriter{ResponseWriter: w, status: 200}
+		defer func() { a.prom.recordHTTP(rec.status, "acme", "allowed") }()
+		a.challenge(rec, r)
 		return
 	}
 	s := a.active.Load()
 	if s == nil {
+		a.prom.recordHTTP(503, "unrouted", "blocked")
 		http.Error(w, "configuration unavailable", 503)
 		return
 	}
 	rt := s.routes[requestHost(r.Host)]
 	if rt == nil {
+		a.prom.recordHTTP(421, "unrouted", "blocked")
 		http.Error(w, "unknown hostname", 421)
 		return
 	}
 	if r.TLS != nil && requestHost(r.TLS.ServerName) != requestHost(r.Host) {
+		a.prom.recordHTTP(421, "unrouted", "blocked")
 		http.Error(w, "SNI and Host must match", 421)
 		return
 	}
@@ -557,6 +564,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		}
 		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP, reliableIdentity)
 	}
+	a.prom.observeInspection("request", time.Since(start))
 	defer func() {
 		if len(managedResult.RuleIDs) > 0 {
 			signals = append(signals, "managed_signature")
@@ -571,6 +579,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 
 		peer := clientIP.String()
 		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
 			event.securitySamples = capture.Settings.SecuritySamples

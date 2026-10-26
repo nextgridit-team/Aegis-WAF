@@ -482,7 +482,8 @@ async function poll() {
     page === "activity" ||
     page === "traffic" ||
     page === "live-map" ||
-    page === "ai"
+    page === "ai" ||
+    page === "system"
   )
     return;
   polling = true;

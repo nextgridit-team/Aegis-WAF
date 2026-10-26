@@ -133,6 +133,8 @@ func (b *streamSignatureBody) failure(reason string) error {
 }
 func (b *streamSignatureBody) inspectWindow() (err error) {
 	s := b.state
+	started := time.Now()
+	defer func() { s.app.prom.observeInspection("stream_window", time.Since(started)) }()
 	defer func() {
 		if recover() != nil {
 			err = b.failure("stream_error")

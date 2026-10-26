@@ -16,7 +16,7 @@ Assign an External policy with **All other clients · default** first. Then assi
 
 Client identity is resolved using the application's trusted proxy settings. A direct visitor cannot select an internal policy by forging forwarding headers. Missing or invalid identity from a trusted proxy is eligible only for the default policy. Selecting a trusted policy does not automatically allow traffic: its configured groups, mode and bot/flood protection determine the action.
 
-Assigned policies replace local bot/flood and standalone rule activation for that application. Applications without assignments keep existing local behavior. Headers, trusted proxies and component CIDR exemptions remain application settings. Flood budgets are per application, selected policy and replica; trusted-policy traffic does not consume an external policy's budget. Limits are not globally coordinated rate counters.
+Assigned policies replace local bot/flood and standalone rule activation for that application. Applications without assignments keep existing local behavior. Headers, trusted proxies and component CIDR exemptions remain application settings. Flood budgets are per application and selected policy; trusted-policy traffic does not consume an external policy's budget. Local mode is per replica; optional Redis/Dragonfly mode coordinates counters across replicas. See [shared rate state](shared-rate-state.md).
 
 Configuration and frozen signatures live in PostgreSQL and propagate through the normal two-second snapshot refresh. Requests select cached policies without database or model calls. Metadata logs identify the selected policy and version. Policy saves, default reassignment, deletion and rollback produce administrative audit events.
 

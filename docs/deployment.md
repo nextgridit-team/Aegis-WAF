@@ -96,7 +96,7 @@ Renewals begin before expiry using the shorter of 30 days or one-third of certif
 
 ## Multiple replicas
 
-Every replica runs the same complete application image. Give replicas the same database URL, external encryption key and key identifier. Sessions are server-side in PostgreSQL and work across replicas without sticky sessions. Database-backed locks coordinate certificate issuance and feed jobs; HTTP flood budgets remain local to each replica.
+Every replica runs the same complete application image. Give replicas the same database URL, external encryption key and key identifier. Sessions are server-side in PostgreSQL and work across replicas without sticky sessions. Database-backed locks coordinate certificate issuance and feed jobs; HTTP flood budgets use local memory by default or optional Redis/Dragonfly shared counters.
 
 The supplied Compose file publishes fixed host ports and starts one app replica. Running `--scale app=2` against those unchanged bindings causes port conflicts. For multiple replicas on one host, use a deployment configuration without per-replica fixed public port bindings and place an external load balancer in front. On separate hosts, map ports for each replica normally.
 

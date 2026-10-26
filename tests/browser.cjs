@@ -1334,7 +1334,7 @@ const { execFileSync } = require("node:child_process");
         .getByRole("heading", { name: "Proxy hosts", exact: true })
         .waitFor();
       await screenshot(`proxy-hosts-${width}`);
-      for (const label of ["Rules", "Traffic"]) {
+      for (const label of ["Rules", "Traffic", "System"]) {
         await nav(label).click();
         await page
           .getByRole("heading", {
@@ -1351,6 +1351,19 @@ const { execFileSync } = require("node:child_process");
       .getByRole("heading", { name: "Certificates", exact: true })
       .waitFor();
     await screenshot("certificates-desktop");
+    // Shared state is configured in the browser; failed checks do not activate a backend.
+    await nav("System").click();
+    await page.getByRole("heading",{name:"System",exact:true}).waitFor();
+    const rateForm=page.locator("#rate-state-form");
+    await rateForm.getByLabel("Counter backend",{exact:true}).selectOption("redis");
+    await rateForm.getByLabel("Server address",{exact:true}).fill("127.0.0.1:1");
+    await rateForm.getByRole("button",{name:"Test connection",exact:true}).click();
+    await page.getByRole("alert").filter({hasText:"could not connect/authenticate"}).waitFor();
+    await rateForm.getByLabel("Counter backend",{exact:true}).selectOption("memory");
+    await rateForm.getByRole("button",{name:"Save rate state",exact:true}).click();
+    await page.getByText("Rate-state settings saved. Replicas normally refresh within two seconds.",{exact:true}).waitFor();
+    const scrape=await page.evaluate(async()=>{const r=await fetch("/metrics");return {status:r.status,body:await r.text()};});
+    assert.equal(scrape.status,200);assert.ok(scrape.body.includes("aegis_requests_total"));assert.ok(scrape.body.includes("aegis_inspection_duration_seconds_bucket"));
     // The shipped baseline can be selected atomically while creating a host.
     await nav("Proxy hosts").click();
     await page.getByRole("button",{name:"Add proxy host",exact:true}).click();
@@ -1358,6 +1371,8 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByLabel("Domains",{exact:true}).fill("baseline.example.test");
     await dialog().getByLabel("Upstream URL",{exact:true}).fill(upstream);
     await dialog().getByLabel("Initial protection policy",{exact:true}).selectOption({label:"Baseline protection · block"});
+    await dialog().getByLabel("Endpoint type",{exact:true}).selectOption("streaming");
+    await dialog().getByLabel("Streaming inspection window (bytes)",{exact:true}).fill("4096");
     await screenshot("baseline-application-policy");
     await dialog().getByRole("button",{name:"Save proxy host",exact:true}).click();
     await dialog().waitFor({state:"detached"});
@@ -1430,7 +1445,7 @@ const { execFileSync } = require("node:child_process");
       (process.env.BROWSER_ACME_DIRECTORY
         ? "PASS: guided ACME account/issuance, automatic updates, certificate-to-proxy handoff and trusted HTTPS through both replicas; "
         : "PASS (ACME integration skipped: no BROWSER_ACME_DIRECTORY): ") +
-        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, 56 responsive checks, CPU/RAM replica telemetry, scoped agent keys, address objects, regional drill-down and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
+        "setup/login, PEM errors, form preservation, keyboard focus, rules draft/observe/block/disable/rollback, bounded redacted evidence, offline replay, responsive layouts, shared rate-state controls, streaming profiles, authenticated management metrics, CPU/RAM replica telemetry, scoped agent keys, address objects, regional drill-down and policy assignment, traffic dashboard/app filters, real country download/lookup, and bot observe/block and logout.",
     );
   } catch (error) {
     await screenshot("failure");
