@@ -60,3 +60,5 @@ View-only local filtering: `GET /live-traffic?exclude_local=true` excludes recor
 ## MCP simulation safety gate
 
 MCP protection mutations require `simulate_rule_impact` followed by the exact operation with its `simulation_id`. Receipts are single-use, expire after two minutes and bind the issuing key, candidate and configuration version. Missing or invalid receipts return 428; regular dashboard requests retain session/CSRF authorization. See [simulation inputs, coverage and workflow](agent-access.md#required-simulation-before-live-protection-changes).
+
+Site writes also accept `traffic_profile` (`web`, default, or `streaming`) and `stream_window_bytes` (4096–65536, default 8192). Streaming flushes immediately and uses bounded response windows when policy response inspection is enabled. A match can terminate remaining output, not retract previously sent bytes. See [streaming behavior and telemetry](body-inspection.md#sse-and-streaming-api-profiles).

@@ -84,8 +84,14 @@ func TestManagedSignaturesPreserveStreamingAndHTTP2(t *testing.T) {
 	if _, e = io.ReadFull(response.Body, first); e != nil || string(first) != "first\n" {
 		t.Fatal("stream was buffered", e)
 	}
+	// A delivered chunk may currently be undergoing its bounded window check.
+	// Once the stream is idle, it must release the shared reservation.
+	deadline := time.Now().Add(time.Second)
+	for len(a.managedSlots) != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 	if len(a.managedSlots) != 0 {
-		t.Fatal("stream held an inspection slot")
+		t.Fatal("idle stream held an inspection slot")
 	}
 	finish()
 	rest, e := io.ReadAll(response.Body)

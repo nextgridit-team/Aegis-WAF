@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/netip"
 	"sort"
 	"strings"
 	"sync"
@@ -19,13 +20,17 @@ type managedResponseKey struct{}
 // The transaction is used sequentially by request inspection and ModifyResponse.
 // A bounded reservation spans the two phases only when responses are enabled.
 type managedResponseState struct {
-	runtime *managedSignatureRuntime
-	result  *managedSignatureResult
-	blocked *bool
-	tx      types.Transaction
-	release func()
-	cancel  context.CancelFunc
-	once    sync.Once
+	app      *App
+	site     Site
+	clientIP netip.Addr
+	reliable bool
+	runtime  *managedSignatureRuntime
+	result   *managedSignatureResult
+	blocked  *bool
+	tx       types.Transaction
+	release  func()
+	cancel   context.CancelFunc
+	once     sync.Once
 }
 
 func (s *managedResponseState) Close() {
@@ -115,9 +120,8 @@ func (s *managedResponseState) inspect(response *http.Response) (err error) {
 		return nil
 	}
 	mediaType, _, _ := mime.ParseMediaType(response.Header.Get("Content-Type"))
-	if mediaType == "text/event-stream" {
-		s.result.ResponseInspection = "skipped_stream"
-		return nil
+	if mediaType == "text/event-stream" || s.site.TrafficProfile == "streaming" {
+		return s.stream(response, mediaType)
 	}
 	if !tx.IsResponseBodyAccessible() || !tx.IsResponseBodyProcessable() {
 		s.result.ResponseInspection = "skipped_content_type"

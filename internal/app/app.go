@@ -29,17 +29,19 @@ import (
 var schema string
 
 type Site struct {
-	Policies      []sitePolicySummary `json:"policies,omitempty"`
-	Headers       *HeaderSettings     `json:"headers,omitempty"`
-	Protection    *ProtectionSettings `json:"protection,omitempty"`
-	ID            int64               `json:"id"`
-	Name          string              `json:"name"`
-	Hostnames     []string            `json:"hostnames"`
-	Upstream      string              `json:"upstream"`
-	CertificateID *int64              `json:"certificate_id"`
-	RedirectHTTPS bool                `json:"redirect_https"`
-	PreserveHost  bool                `json:"preserve_host"`
-	Enabled       bool                `json:"enabled"`
+	TrafficProfile    string              `json:"traffic_profile"`
+	StreamWindowBytes int                 `json:"stream_window_bytes"`
+	Policies          []sitePolicySummary `json:"policies,omitempty"`
+	Headers           *HeaderSettings     `json:"headers,omitempty"`
+	Protection        *ProtectionSettings `json:"protection,omitempty"`
+	ID                int64               `json:"id"`
+	Name              string              `json:"name"`
+	Hostnames         []string            `json:"hostnames"`
+	Upstream          string              `json:"upstream"`
+	CertificateID     *int64              `json:"certificate_id"`
+	RedirectHTTPS     bool                `json:"redirect_https"`
+	PreserveHost      bool                `json:"preserve_host"`
+	Enabled           bool                `json:"enabled"`
 }
 type route struct {
 	site  Site
@@ -280,7 +282,7 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	if e != nil {
 		return nil, e
 	}
-	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
+	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,s.traffic_profile,s.stream_window_bytes,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
 	if e != nil {
 		return nil, e
 	}
@@ -288,7 +290,11 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	for rows.Next() {
 		var s Site
 		var rawHeaders []byte
-		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &rawHeaders); e != nil {
+		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &s.TrafficProfile, &s.StreamWindowBytes, &rawHeaders); e != nil {
+			rows.Close()
+			return nil, e
+		}
+		if e = normalizeSiteTraffic(&s); e != nil {
 			rows.Close()
 			return nil, e
 		}
@@ -312,7 +318,7 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 			return nil, e
 		}
 		r.site.Headers = &headers
-		r.proxy = newProxyWithHeaders(target, s.PreserveHost, headers)
+		r.proxy = newSiteProxy(target, s, headers)
 		for _, h := range s.Hostnames {
 			next.routes[h] = r
 		}
@@ -523,7 +529,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		if managed.Options.ResponseMode != "off" {
 			ctx, cancel := context.WithCancel(r.Context())
 			defer cancel()
-			state := &managedResponseState{runtime: managed, result: &managedResult, blocked: &managedBlocked, cancel: cancel}
+			state := &managedResponseState{runtime: managed, result: &managedResult, blocked: &managedBlocked, cancel: cancel, app: a, site: rt.site, clientIP: clientIP, reliable: reliableIdentity}
 			defer state.Close()
 			r = r.WithContext(context.WithValue(ctx, managedResponseKey{}, state))
 		}
@@ -537,7 +543,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			signals = append(signals, "signature_inspection_incomplete")
 		}
 		switch v := managedResult.ResponseInspection; v {
-		case "partial", "body_limit", "error", "read_error_or_timeout", "unsupported_encoding":
+		case "partial", "body_limit", "error", "read_error_or_timeout", "unsupported_encoding", "stream_busy", "stream_error", "stream_unavailable":
 			signals = append(signals, "response_inspection_"+v)
 		}
 

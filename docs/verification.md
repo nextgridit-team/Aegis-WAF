@@ -275,3 +275,9 @@ No provider keys or external challenge calls are required. CAPTCHA is opt-in and
 ## MCP simulation safety gate (2026-10-25)
 
 The complete Go suite passed with real isolated PostgreSQL, race detection and `go vet` (121.581 s for the application package). Focused authenticated MCP tests cover both generic and convenience routes. Offline simulation leaves rule/config/audit state and the active snapshot unchanged, sends no upstream requests, keeps missing facts unknown, withholds receipts after failed assertions, and rejects missing, altered, reused, expired, stale and cross-key receipts. Concurrent use of one receipt permits exactly one committed mutation. This verifies the bounded harness and authorization contract, not production false-positive rates or the legitimacy of recorded allowed traffic.
+
+## Streaming profile verification (2026-10-25)
+
+Focused real-PostgreSQL/race tests passed (15.443 s), covering profile defaults/validation/API persistence and activation, immediate HTTP/2 SSE first-chunk delivery, WebSocket upgrades, a real CRS SQL disclosure split across two chunks, termination after detection, Observe byte preservation, bounded 4 KiB rolling-window memory across a 256 KiB stream, busy handling and concurrent Close unblocking Read. Frontend strict typecheck/embedded production build passed. Tests explicitly retain status 200 for an already-started stream that is subsequently terminated; this is not a pre-disclosure blocking guarantee.
+
+The complete PostgreSQL-backed `go test -race -count=1 ./...` suite and `go vet ./...` also passed after streaming changes (147.196 s for the app package).

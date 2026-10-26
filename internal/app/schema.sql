@@ -127,3 +127,7 @@ INSERT INTO schema_version VALUES(15) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS mcp_simulations(token_hash text PRIMARY KEY,agent_id bigint NOT NULL REFERENCES agent_keys ON DELETE CASCADE,candidate_hash text NOT NULL,config_version bigint NOT NULL,expires_at timestamptz NOT NULL,used boolean NOT NULL DEFAULT false,summary jsonb NOT NULL);
 CREATE INDEX IF NOT EXISTS mcp_simulations_expiry ON mcp_simulations(expires_at);
 INSERT INTO schema_version VALUES(16) ON CONFLICT DO NOTHING;
+
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS traffic_profile text NOT NULL DEFAULT 'web';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS stream_window_bytes integer NOT NULL DEFAULT 8192;
+INSERT INTO schema_version(version) VALUES (17) ON CONFLICT DO NOTHING;

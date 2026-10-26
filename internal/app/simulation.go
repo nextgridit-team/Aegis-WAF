@@ -455,7 +455,7 @@ func simulatePayload(ctx context.Context, app *App, snapshot *snapshot, payload 
 	if managed != nil {
 		result := managedSignatureResult{}
 		managedBlocked := false
-		state := &managedResponseState{runtime: managed, result: &result, blocked: &managedBlocked, cancel: func() {}}
+		state := &managedResponseState{runtime: managed, result: &result, blocked: &managedBlocked, cancel: func() {}, app: app, site: route.site, clientIP: ip, reliable: true}
 		if managed.Options.ResponseMode != "off" && payload.Response != nil {
 			request = request.WithContext(context.WithValue(request.Context(), managedResponseKey{}, state))
 			defer state.Close()
@@ -488,6 +488,10 @@ func simulatePayload(ctx context.Context, app *App, snapshot *snapshot, payload 
 			if e = state.inspect(upstream); e != nil {
 				return "block", ids, nil
 			}
+			if _, e = io.Copy(io.Discard, upstream.Body); e != nil {
+				return "block", ids, nil
+			}
+			upstream.Body.Close()
 		}
 	}
 	if policy != nil && policy.BotChallenge.Enabled && policy.BotMode == "block" {

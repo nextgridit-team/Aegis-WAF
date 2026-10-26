@@ -193,8 +193,11 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 		if e != nil {
 			return nil, e
 		}
+		if e = normalizeSiteTraffic(&site); e != nil {
+			return nil, e
+		}
 		site.Headers = &headers
-		r := &route{site: site, proxy: newProxyWithHeaders(target, site.PreserveHost, headers)}
+		r := &route{site: site, proxy: newSiteProxy(target, site, headers)}
 		if site.CertificateID != nil {
 			r.cert = s.certificates[*site.CertificateID]
 			if r.cert == nil {

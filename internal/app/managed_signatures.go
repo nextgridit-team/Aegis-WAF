@@ -53,9 +53,12 @@ type managedSignatureRuntime struct {
 	Options    managedSignatureOptions
 	Set        signatureSet
 	WAF        coraza.WAF
+	StreamWAF  coraza.WAF
 	Reportable map[int]bool
 }
 type managedSignatureResult struct {
+	StreamBytes        int64  `json:"stream_bytes,omitempty"`
+	StreamWindows      int    `json:"stream_windows,omitempty"`
 	SetID              string `json:"set_id,omitempty"`
 	Version            string `json:"version,omitempty"`
 	Mode               string `json:"mode,omitempty"`
@@ -285,7 +288,7 @@ SecAuditEngine Off
 SecDebugLogLevel 0
 SecResponseBodyAccess %s
 SecResponseBodyMimeTypesClear
-SecResponseBodyMimeType text/plain text/html text/xml application/json application/xml application/xhtml+xml
+SecResponseBodyMimeType text/plain text/html text/xml application/json application/xml application/xhtml+xml text/event-stream application/x-ndjson
 SecResponseBodyLimit %d
 SecResponseBodyLimitAction ProcessPartial
 SecRequestBodyAccess On
@@ -295,7 +298,10 @@ SecRequestBodyInMemoryLimit %d
 SecRequestBodyLimitAction ProcessPartial
 SecAction "id:100000,phase:1,pass,nolog,t:none,setvar:tx.paranoia_level=%d,setvar:tx.blocking_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d,setvar:tx.outbound_anomaly_score_threshold=%d"
 `, engineMode, responseAccess, options.ResponseBodyLimit+1, options.BodyLimit+1, options.BodyLimit+1, options.BodyLimit+1, options.Paranoia, options.Paranoia, options.Threshold, options.OutboundThreshold)
-	configuration := coraza.NewWAFConfig().WithRootFS(set.Files).WithDebugLogger(debuglog.Noop()).WithErrorCallback(func(types.MatchedRule) {}).WithDirectivesFromFile("@coraza.conf-recommended").WithDirectivesFromFile("@crs-setup.conf.example").WithDirectives(settings + "\n" + exceptionDirectives(options.ScopedExclusions)).WithDirectivesFromFile("@owasp_crs/REQUEST-*.conf")
+	configuration := coraza.NewWAFConfig().WithRootFS(set.Files).WithDebugLogger(debuglog.Noop()).WithErrorCallback(func(types.MatchedRule) {}).WithDirectivesFromFile("@coraza.conf-recommended").WithDirectivesFromFile("@crs-setup.conf.example").WithDirectives(settings + "\n" + exceptionDirectives(options.ScopedExclusions))
+	requestConfiguration := configuration.WithDirectivesFromFile("@owasp_crs/REQUEST-*.conf")
+	streamConfiguration := configuration.WithDirectivesFromFile("@owasp_crs/REQUEST-901-INITIALIZATION.conf")
+	configuration = requestConfiguration
 	if options.ResponseMode == "observe" {
 		configuration = configuration.WithDirectives(`SecAction "id:100001,phase:3,pass,nolog,ctl:ruleEngine=DetectionOnly"`)
 	}
@@ -319,7 +325,25 @@ SecAction "id:100000,phase:1,pass,nolog,t:none,setvar:tx.paranoia_level=%d,setva
 	if e != nil {
 		return nil, invalid("managed signature configuration could not compile")
 	}
-	return &managedSignatureRuntime{Options: options, Set: set, WAF: waf, Reportable: reportable}, nil
+	var streamWAF coraza.WAF
+	if options.ResponseMode != "off" {
+		if options.ResponseMode == "observe" {
+			streamConfiguration = streamConfiguration.WithDirectives(`SecAction "id:100001,phase:3,pass,nolog,ctl:ruleEngine=DetectionOnly"`)
+		}
+		streamConfiguration = streamConfiguration.WithDirectivesFromFile("@owasp_crs/RESPONSE-*.conf")
+		if len(options.Exclusions) > 0 {
+			ids := []string{}
+			for _, id := range options.Exclusions {
+				ids = append(ids, strconv.Itoa(id))
+			}
+			streamConfiguration = streamConfiguration.WithDirectives("SecRuleRemoveById " + strings.Join(ids, " "))
+		}
+		streamWAF, e = coraza.NewWAF(streamConfiguration)
+		if e != nil {
+			return nil, invalid("streaming signature configuration could not compile")
+		}
+	}
+	return &managedSignatureRuntime{Options: options, Set: set, WAF: waf, StreamWAF: streamWAF, Reportable: reportable}, nil
 }
 func managedRuntimeKey(o managedSignatureOptions) string {
 	raw, _ := json.Marshal(o)
