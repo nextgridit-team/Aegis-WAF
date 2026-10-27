@@ -4,7 +4,9 @@
   "scripts": {
     "test": "node browser.cjs",
     "test:onboarding": "node certificate-onboarding.cjs",
-    "test:feeds": "node feed-ui.cjs"
+    "test:feeds": "node feed-ui.cjs",
+    "test:policies": "node policy-editor-ui.cjs",
+    "test:help": "node context-help-ui.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

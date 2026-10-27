@@ -16,7 +16,7 @@ A bounded prefix is buffered before forwarding so Block can decide before sendin
 
 ## False-positive tuning
 
-Policy **Advanced signature tuning** supports global rule-ID exclusions and **Scoped signature exclusions (JSON)**. Settings persist through the dashboard/API in PostgreSQL; no configuration files need editing. For example:
+Policy **Signature protection → Signature exceptions** supports global rule-ID exclusions and guided scoped exceptions. Choose rules, then enter path, parameter and/or client conditions. **Edit scoped exclusions as JSON** provides the equivalent advanced representation. Settings persist through the dashboard/API in PostgreSQL; no configuration files need editing. For example:
 
 ```json
 [

@@ -4,9 +4,34 @@ Use **Policies** to create reusable protection and assign it to one or more appl
 
 **Rules** is one workspace with Signatures, Rule feeds and Signature sets tabs. [Managed signature sets](managed-signatures.md) can be selected directly in a policy. Create or import signature drafts there, then select them in policy groups. A published policy stores frozen copies: editing a signature or syncing a feed never silently changes live policy enforcement. Check **Refresh selected rule snapshots from the library** and save to publish changes. Policy History restores protection and signature snapshots for current application assignments; it does not restore historical assignments. Revisions reject stale saves. Policies remain configured until explicitly changed or removed; standalone rule activation keeps its existing TTL behavior.
 
+## Creating and editing a policy
+
+Click the **?** beside a technical setting for a short explanation. **Read detailed explanation** opens the built-in glossary in a new tab and keeps this form open; [the same glossary](glossary.md) is available in the repository docs.
+
+The editor has six sections, with navigation on the left on desktop and a scrollable section bar on smaller screens:
+
+| Section | What to configure |
+| --- | --- |
+| Policy basics | Name, description and Off / Observe / Block mode cards |
+| Signature protection | Managed set, sensitivity, body/response inspection and rule exceptions |
+| Bot & flood protection | Feature switches, client/application budgets and selective CAPTCHA settings |
+| Access & location | Searchable address objects/groups, CIDR lists, allow behavior and countries |
+| Targeted rules | Community mitigations and application-specific native groups |
+| Application assignments | Default or client-scoped assignments and matching priority |
+
+The preview explains the overall mode, including when Observe caps signature enforcement. Changes apply only after **Save policy** succeeds. A failed save keeps the editor and entered settings available for correction or retry.
+
+Use the sliders for rates, burst allowances, suspicion scores, clearance duration, inspection limits and assignment priority. The adjacent exact-value field remains available for precise settings. Rate/burst scales are logarithmic to make both small and large budgets practical; other scales use ordinary numeric steps. Burst must be at least the sustained rate. Turning flood protection off preserves its configured limits. Opening a policy never rounds its values to the nearest slider position; custom sensitivity and exact byte limits remain intact until deliberately changed.
+
+In **Access & location**, select objects/groups with searchable checkboxes and countries by name or two-letter code. Selected countries appear as removable chips; **Enter country codes directly** remains available. CIDR allow behavior explicitly chooses Geo-only bypass or all WAF protections. Blocking and allow-list order is unchanged.
+
+Under **Signature protection → Signature exceptions**, use **Add scoped exception** and **Choose rules**, then narrow the exception by request path, parameter names and/or verified client ranges. Conditions combine as described in [Security tuning](security-tuning.md#false-positive-tuning). The advanced JSON editor remains available for API-oriented workflows. Global rule exclusions remain separate. For native groups, method chips cover common HTTP methods and **Other methods / exact list** preserves custom methods such as PROPFIND.
+
+![Policy editor with flood controls and precise rate scales](screenshots/policy-editor-traffic.png)
+
 ## Sensitivity and reusable managed sets
 
-New dashboard policies start in Observe with the latest loaded original signature set and **2 · Standard** sensitivity. The 1–5 control updates paranoia plus inbound/outbound thresholds; Standard is PL1/5/4. Editing those fields under **Advanced signature tuning** shows Custom when no preset matches. The slider leaves modes, inspection limits, exclusions and response inspection enablement alone. Aggressive and Maximum need careful false-positive tuning.
+New dashboard policies start in Observe with the latest loaded original signature set and **2 · Standard** sensitivity. The 1–5 control updates paranoia plus inbound/outbound thresholds; Standard is PL1/5/4. Editing those fields under **Advanced signature tuning** or **Body and response inspection** shows Custom when no preset matches. The slider leaves modes, inspection limits, exclusions and response inspection enablement alone. Aggressive and Maximum need careful false-positive tuning.
 
 For a tailored detection subset, open **Rules → Signature sets → Create curated set**, select detections from one installed original CRS source and save. Required setup/scoring/enforcement helpers stay included. Choose the saved artifact from the policy's Signature set dropdown. **Apply to policy** preserves its existing settings and opens a different set in signature Observe; save explicitly after review. Each policy still references one managed set. Community mitigations and native groups remain separate controls.
 
@@ -34,7 +59,7 @@ Native rules use deterministic matching and blocking; managed CRS uses its own a
 
 - **Geo:** Edit the policy and expand **CIDR access and Geo blocking**. Set Geo mode, country-list behavior, country codes and unknown-location behavior. The Country database must be downloaded first. [Step-by-step Geo setup](geolocation.md#apply-geo-blocking-to-an-application).
 - **Selective CAPTCHA:** enable anti-bot signals and **Challenge suspected bots with self-hosted CAPTCHA**. Tune the threshold, frequency and clearance window; Observe never challenges. API/SSE hosts block high suspicion with JSON instead of a browser challenge. Clearance does not bypass other protections. [Bot verification](bot-protection.md).
-- **Response inspection:** use **Managed signatures → Advanced signature tuning**. Response mode defaults Off. Web profiles buffer eligible bodies; SSE/streaming profiles inspect after delivery. Endpoint type/window belong to the proxy host. [Inspection controls](body-inspection.md).
+- **Response inspection:** use **Signature protection → Body and response inspection**. Response mode defaults Off. Web profiles buffer eligible bodies; SSE/streaming profiles inspect after delivery. Endpoint type/window belong to the proxy host. [Inspection controls](body-inspection.md).
 - **Shared budgets:** select the deployment-wide backend under **System → Rate-limit state**; policy rates still set the budgets. Local is per replica; optional Redis/Dragonfly is shared. [Backend setup](shared-rate-state.md).
 
 MCP agents must simulate the exact protection mutation and provide a fresh `simulation_id`; dashboard administrators continue using session/CSRF authorization. Rules, CIDR lists and TLS configuration compile into a new snapshot before an atomic swap. Open requests keep their admitted configuration; new requests use the refreshed one. [Agent safety gate](agent-access.md#required-simulation-before-live-protection-changes) · [Reload behavior](architecture.md#atomic-reload-and-active-connections).

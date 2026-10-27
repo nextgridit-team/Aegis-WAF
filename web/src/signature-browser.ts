@@ -17,6 +17,7 @@ type Context = {
   esc: (value: unknown) => string;
   exclusions?: HTMLInputElement;
   selection?: Set<number>;
+  selectionLimit?: number;
   onSelectionChange?: () => void;
 };
 
@@ -151,7 +152,17 @@ export async function mountSignatureBrowser(
     host.querySelector(selector)?.addEventListener(
       "click",
       () => {
-        for (const rule of filteredRules())
+        const matching = filteredRules().filter((rule) => rule.selectable);
+        if (
+          include &&
+          c.selection &&
+          new Set([...c.selection, ...matching.map((rule) => rule.id)]).size >
+            (c.selectionLimit ?? Infinity)
+        ) {
+          count.textContent = `Select at most ${c.selectionLimit} detection rules.`;
+          return;
+        }
+        for (const rule of matching)
           if (rule.selectable) {
             if (include) c.selection?.add(rule.id);
             else c.selection?.delete(rule.id);
@@ -170,6 +181,15 @@ export async function mountSignatureBrowser(
       ).closest<HTMLInputElement>("[data-select-signature]");
       if (selectionBox && c.selection) {
         const id = Number(selectionBox.dataset.selectSignature);
+        if (
+          selectionBox.checked &&
+          !c.selection.has(id) &&
+          c.selection.size >= (c.selectionLimit ?? Infinity)
+        ) {
+          selectionBox.checked = false;
+          count.textContent = `Select at most ${c.selectionLimit} detection rules.`;
+          return;
+        }
         if (selectionBox.checked) c.selection.add(id);
         else c.selection.delete(id);
         c.onSelectionChange?.();

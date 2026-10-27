@@ -15,7 +15,7 @@ An optional management MCP endpoint lets your own agents read security telemetry
 
 ![Aegis WAF: automatic TLS with ACME or PEM, application policies with Coraza and OWASP CRS, and traffic investigation; one application container plus PostgreSQL](docs/graphics/aegis-overview.png)
 
-[Get started](#quickstart) · [Documentation](docs/README.md) · [Security](docs/security.md) · [What changed](CHANGELOG.md) · [Performance](#performance-at-a-glance) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
+[Get started](#quickstart) · [Documentation](docs/README.md) · [Glossary](docs/glossary.md) · [Security](docs/security.md) · [What changed](CHANGELOG.md) · [Performance](#performance-at-a-glance) · [Report an issue](https://github.com/nextgridit-team/Aegis-WAF/issues)
 
 <a id="deploy-with-docker-compose"></a>
 

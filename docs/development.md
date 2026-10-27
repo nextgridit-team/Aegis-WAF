@@ -69,3 +69,21 @@ Run `BROWSER_EXECUTABLE=/path/to/chromium node tests/local-flow-ui.cjs` after in
 ## Community catalogue validation
 
 Run `python3 scripts/build-rule-feed.py --check` and `go test ./internal/app -run 'TestCommunityCatalogue|TestCatalogue'` after editing individual rule files. The authoring guide is in [rules/community](../rules/community/README.md). Real-PostgreSQL tests cover atomic sync, conflicting revisions, pinned policy updates, multiple replicas and persistent removal of the default subscription. The browser suite exercises policy-owned all/individual/off selection and search, preserves an existing policy, and verifies enforcement on two replicas. See [rule contribution checks and review](rule-contributions.md).
+
+## Dashboard contextual help
+
+The shared catalogue in `web/src/help-topics.json` defines each topic’s short explanation, longer detail, guide filename and exact dashboard captions. The dashboard annotates authored labels/headings, leaving controls and their values intact; it does not rewrite request samples or logs. Prefer plain language, one or two short sentences for the callout, and more specific caveats in the detail. Avoid generic matches such as a user’s application name.
+
+The build embeds `/help.html` and `/help.css` on the management listener. Callouts link to this local glossary in a new tab so an unsaved form stays open. Full configuration guides link to GitHub and need Internet access. These static help assets contain no installation configuration or request data.
+
+After editing the catalogue:
+
+```sh
+npm --prefix web run build
+node web/scripts/build-help.mjs --docs
+node web/scripts/build-help.mjs --check
+BROWSER_EXECUTABLE=/path/to/chromium npm --prefix tests run test:help
+BROWSER_EXECUTABLE=/path/to/chromium npm --prefix tests run test:policies
+```
+
+The checker validates unique topics/captions, the presence of each linked repository guide, and matching generated Markdown/HTML. Browser tests cover keyboard focus, Escape, modal boundaries, checkbox safety, no API writes from help, unchanged form values, asynchronous form rendering, local links, dark mode, zoom and narrow layouts.

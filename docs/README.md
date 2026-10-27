@@ -2,6 +2,8 @@
 
 [Project overview and quickstart](../README.md) · [Change history](../CHANGELOG.md) · [Current limitations](limitations.md) · [Limitations review](limitations-review.md) · [Security model](security.md)
 
+New to the terminology? Open the dashboard’s **Help & glossary**, or read the [plain-language glossary](glossary.md). Click **?** beside a setting for a short explanation and its detailed guide.
+
 ## Install and operate
 
 | Goal                                                                         | Guide                                                                                     |

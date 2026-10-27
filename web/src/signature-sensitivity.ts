@@ -86,6 +86,8 @@ export function mountSensitivity(form: HTMLFormElement) {
     [p.paranoia, p.inbound, p.outbound].forEach(
       (value, index) => (fields[index].value = String(value)),
     );
+    for (const field of fields)
+      field.dispatchEvent(new Event("input", { bubbles: true }));
     update();
   };
   slider.addEventListener("input", applyPreset);

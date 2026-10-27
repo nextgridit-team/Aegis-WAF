@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && esbuild src/main.ts --bundle --minify --outfile=../internal/app/assets/app.js && cp index.html src/style.css ../internal/app/assets/"
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --minify --outfile=../internal/app/assets/app.js && cp index.html src/style.css src/help.css ../internal/app/assets/ && node scripts/build-help.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.12",
