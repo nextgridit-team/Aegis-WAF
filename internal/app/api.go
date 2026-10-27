@@ -167,6 +167,7 @@ func (a *App) Management() http.Handler {
 		return nil
 	}))
 	m.HandleFunc("GET /api/sites", a.wrap(true, a.listSites))
+	m.HandleFunc("POST /api/upstreams/test", a.wrap(true, a.testUpstream))
 	m.HandleFunc("POST /api/sites", a.wrap(true, a.saveSite))
 	m.HandleFunc("PUT /api/sites/{id}", a.wrap(true, a.saveSite))
 	m.HandleFunc("DELETE /api/sites/{id}", a.wrap(true, a.deleteSite))
@@ -426,12 +427,16 @@ func (a *App) change(ctx context.Context, fn func(pgx.Tx) error) error {
 func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error {
 	var input struct {
 		Site
-		InitialPolicyID int64 `json:"initial_policy_id"`
+		InitialPolicyID int64                `json:"initial_policy_id"`
+		UpstreamTLS     *upstreamTLSSettings `json:"upstream_tls"`
 	}
 	if e := decode(w, r, &input); e != nil {
 		return e
 	}
 	s := input.Site
+	if input.UpstreamTLS != nil {
+		s.UpstreamTLS = *input.UpstreamTLS
+	}
 	if e := normalizeSiteTraffic(&s); e != nil {
 		return e
 	}
@@ -475,6 +480,19 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 		s.ID = 0
 	}
 	e = a.change(r.Context(), func(tx pgx.Tx) error {
+		if s.ID != 0 && input.UpstreamTLS == nil {
+			var raw []byte
+			e := tx.QueryRow(r.Context(), "SELECT upstream_tls FROM sites WHERE id=$1", s.ID).Scan(&raw)
+			if errors.Is(e, pgx.ErrNoRows) {
+				return apiError{404, "site not found"}
+			}
+			if e != nil {
+				return e
+			}
+			if s.UpstreamTLS, e = decodeUpstreamTLS(raw); e != nil {
+				return e
+			}
+		}
 		if s.CertificateID != nil {
 			var chain string
 			e := tx.QueryRow(r.Context(), "SELECT chain_pem FROM certificates WHERE id=$1", *s.CertificateID).Scan(&chain)
@@ -502,11 +520,11 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 			}
 		}
 		if s.ID == 0 {
-			if e := tx.QueryRow(r.Context(), "INSERT INTO sites(name,hostnames,upstream,certificate_id,redirect_https,preserve_host,enabled,traffic_profile,stream_window_bytes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id", s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes).Scan(&s.ID); e != nil {
+			if e := tx.QueryRow(r.Context(), "INSERT INTO sites(name,hostnames,upstream,certificate_id,redirect_https,preserve_host,enabled,traffic_profile,stream_window_bytes,upstream_tls) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id", s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes, marshalUpstreamTLS(s.UpstreamTLS)).Scan(&s.ID); e != nil {
 				return e
 			}
 		} else {
-			tag, e := tx.Exec(r.Context(), "UPDATE sites SET name=$2,hostnames=$3,upstream=$4,certificate_id=$5,redirect_https=$6,preserve_host=$7,enabled=$8,traffic_profile=$9,stream_window_bytes=$10 WHERE id=$1", s.ID, s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes)
+			tag, e := tx.Exec(r.Context(), "UPDATE sites SET name=$2,hostnames=$3,upstream=$4,certificate_id=$5,redirect_https=$6,preserve_host=$7,enabled=$8,traffic_profile=$9,stream_window_bytes=$10,upstream_tls=CASE WHEN $12 THEN $11::jsonb ELSE upstream_tls END WHERE id=$1", s.ID, s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes, marshalUpstreamTLS(s.UpstreamTLS), input.UpstreamTLS != nil)
 			if e != nil {
 				return e
 			}

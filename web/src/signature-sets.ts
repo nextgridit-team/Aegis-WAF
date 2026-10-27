@@ -15,6 +15,8 @@ export type SignatureSet = {
   rule_count: number;
 };
 export type ManagedSignatures = {
+  allowed_methods?: string[];
+  stream_window_bytes?: number;
   set_id: string;
   mode: string;
   paranoia_level: number;

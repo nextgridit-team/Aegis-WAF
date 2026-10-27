@@ -126,6 +126,7 @@ func agentOperations() []agentOperation {
 		"POST /api/rules/{id}/rollback",
 		"POST /api/signature-sets",
 		"POST /api/sites",
+		"POST /api/upstreams/test",
 		"PUT /api/address-groups/{id}",
 		"PUT /api/address-objects/{id}",
 		"PUT /api/agent-access",

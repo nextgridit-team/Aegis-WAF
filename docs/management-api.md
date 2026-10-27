@@ -105,3 +105,15 @@ Use `refresh_rule_ids` to refresh selected mitigation snapshots, or `refresh_rul
 Set summaries include nullable `curation:{source_set_id,source_version,source_digest,selected_rule_ids}`. Inventory entries include `selectable`; curated inventories contain the chosen detections plus retained support entries. Stored `rule_count` retains its source-file ID accounting. Normal APIs omit raw directive files. `GET /api/signature-sets/{id}/updates` returns `{source,available,changed_rule_ids,removed_rule_ids}`; changes conservatively mean selected rules affected by changed detector files, retained helper files or shared data in the current newer bundled source. Reads require authenticated management access or MCP `read`. Review/save creates another artifact and requires an explicit policy update to adopt it.
 
 Sensitivity is frontend-only and adds no writable policy field. Presets (paranoia/inbound/outbound) are Relaxed 1/10/10, Standard 1/5/4, Elevated 2/5/4, Aggressive 3/3/3 and Maximum 4/2/2. Custom values remain supported. Policy mutation simulation requirements and Observe caps are unchanged.
+
+## Upstream TLS and connection checks
+
+`POST /sites` and `PUT /sites/{id}` accept `upstream_tls:{server_name:"backend.internal",trusted_certificates_pem:"...PEM..."}`. Omission on update preserves stored trust; `{}` clears it. Only public certificates are accepted. TLS verification remains enabled. A server-certificate pin requires updating when that certificate rotates; prefer the issuing CA when possible.
+
+`POST /upstreams/test` accepts `{upstream,upstream_tls,host_header}` with the same draft settings. It returns `{reachable,status?,stage,message,tls_verified,duration_ms,certificate?}`. Optional public certificate metadata includes PEM, SHA-256, subject, issuer, expiry and eligibility for explicit per-host trust; no private keys are returned. The test uses an eight-second bounded GET with no redirects or application credentials and saves no configuration; it is audited. Session/CSRF or Configuration-scoped agent access is required. At most four checks run concurrently per replica. See [upstream diagnostics and trust](upstreams.md).
+
+## API/SSE policy fields
+
+Policy `spec.managed_signatures.allowed_methods` optionally supplies up to 16 explicit method names; empty/omitted selects the host-profile defaults. `stream_window_bytes` is a policy override 4096–65536; 0/omitted retains legacy `Site.stream_window_bytes` behavior. The host field remains supported for API compatibility; the dashboard configures new overrides in policies. Method enforcement depends on the selected CRS method rule.
+
+Optional policy `spec.connection_limits` supplies `enabled`, `max_concurrent`, `max_per_client`, `max_duration_seconds`, and `idle_timeout_seconds`; [ranges, modes and exact failure semantics](body-inspection.md#policy-connection-and-streaming-safeguards). These are local admission/lifetime safeguards, not global Redis counters. They are persisted and restored with policy snapshots and use the existing management authorization and simulation requirements.

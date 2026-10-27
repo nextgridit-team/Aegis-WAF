@@ -33,9 +33,11 @@ type ProtectionSettings struct {
 	BotExemptCIDRs        []string             `json:"bot_exempt_cidrs"`
 }
 type protectionPolicy struct {
-	network        *networkAccessPolicy
-	budgetScope    int64
-	botFingerprint string
+	connectionLimits *connectionLimitSettings
+	connectionMode   string
+	network          *networkAccessPolicy
+	budgetScope      int64
+	botFingerprint   string
 	ProtectionSettings
 	trusted                []netip.Prefix
 	floodExempt, botExempt []netip.Prefix

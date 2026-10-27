@@ -158,3 +158,7 @@ CREATE TABLE IF NOT EXISTS built_in_rule_feeds(key text PRIMARY KEY,feed_id inte
 
 ALTER TABLE signature_sets ADD COLUMN IF NOT EXISTS curation jsonb;
 INSERT INTO schema_version VALUES(21) ON CONFLICT DO NOTHING;
+
+-- Version22: per-host verified upstream TLS trust.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS upstream_tls jsonb NOT NULL DEFAULT '{}';
+INSERT INTO schema_version VALUES(22) ON CONFLICT DO NOTHING;

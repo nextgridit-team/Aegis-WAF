@@ -19,6 +19,8 @@ The editor has six sections, with navigation on the left on desktop and a scroll
 | Targeted rules | Community mitigations and application-specific native groups |
 | Application assignments | Default or client-scoped assignments and matching priority |
 
+**API starting settings** provides an explicit Observe-mode starting point for REST/AI services. Allowed methods and streaming inspection windows are policy settings under Signature protection; connection, duration and idle limits are under Bot & flood protection. Routing, endpoint type and upstream certificate trust stay on the proxy host. [API and stream behavior](body-inspection.md).
+
 The preview explains the overall mode, including when Observe caps signature enforcement. Changes apply only after **Save policy** succeeds. A failed save keeps the editor and entered settings available for correction or retry.
 
 Use the sliders for rates, burst allowances, suspicion scores, clearance duration, inspection limits and assignment priority. The adjacent exact-value field remains available for precise settings. Rate/burst scales are logarithmic to make both small and large budgets practical; other scales use ordinary numeric steps. Burst must be at least the sustained rate. Turning flood protection off preserves its configured limits. Opening a policy never rounds its values to the nearest slider position; custom sensitivity and exact byte limits remain intact until deliberately changed.

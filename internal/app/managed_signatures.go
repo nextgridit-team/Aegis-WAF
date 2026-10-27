@@ -28,6 +28,8 @@ import (
 const maxSignatureBundleBytes = 8 << 20
 
 type managedSignatureOptions struct {
+	AllowedMethods          []string             `json:"allowed_methods,omitempty"`
+	StreamWindowBytes       int                  `json:"stream_window_bytes,omitempty"`
 	ScopedExclusions        []signatureException `json:"scoped_exclusions,omitempty"`
 	SetID                   string               `json:"set_id"`
 	Mode                    string               `json:"mode"`
@@ -76,6 +78,30 @@ var bundledSet signatureSet
 var bundledSetError error
 
 func normalizeManagedSignatures(o managedSignatureOptions) (managedSignatureOptions, error) {
+	if len(o.AllowedMethods) > 16 {
+		return o, invalid("at most 16 allowed HTTP methods")
+	}
+	seenMethods := map[string]bool{}
+	methods := []string{}
+	for _, method := range o.AllowedMethods {
+		method = strings.ToUpper(strings.TrimSpace(method))
+		if !methodName.MatchString(method) {
+			return o, invalid("allowed methods must be HTTP method names of 1–24 letters")
+		}
+		if !seenMethods[method] {
+			methods = append(methods, method)
+			seenMethods[method] = true
+		}
+	}
+	if len(methods) > 0 {
+		sort.Strings(methods)
+		o.AllowedMethods = methods
+	} else {
+		o.AllowedMethods = nil
+	}
+	if o.StreamWindowBytes != 0 && (o.StreamWindowBytes < 4096 || o.StreamWindowBytes > 65536) {
+		return o, invalid("policy streaming window must be 4096–65536 bytes or 0 to retain the legacy host setting")
+	}
 	if o.Mode == "" {
 		o.Mode = "off"
 	}

@@ -1,3 +1,4 @@
+import {upstreamCheckMarkup,bindUpstreamCheck,readUpstreamTLS} from "./upstream-check";
 import { installContextHelp } from "./context-help";
 import { botChallengeMarkup, readBotChallenge } from "./bot-challenge";
 import { makeLiveMap } from "./live-map";
@@ -564,7 +565,7 @@ async function siteForm(site?: Site, certificate?: Certificate) {
     : certificate;
   openEditor(
     site ? "Edit proxy host" : "Connect an application",
-    `<p class="form-intro">Choose the domain visitors will use and the address where your application runs.</p><form id="site-form">${field("name", "Name", site?.name || c?.name || "", "text", 'required maxlength="120" placeholder="My application"')}${field("hostnames", "Domains", site?.hostnames.join(", ") || c?.domains.filter((h) => !h.includes("*")).join(", ") || "", "text", 'required placeholder="app.example.com"')}<small>Separate multiple domains with commas.</small>${field("upstream", "Upstream URL", site?.upstream || "", "url", 'required placeholder="http://192.168.1.20:3000"')}<label class="field" for="site-traffic-profile">Endpoint type</label><select id="site-traffic-profile" name="traffic_profile"><option value="web" ${!site?.traffic_profile || site.traffic_profile === "web" ? "selected" : ""}>Website · browser protection and optional CAPTCHA</option><option value="api" ${site?.traffic_profile === "api" ? "selected" : ""}>API · JSON denials, no browser CAPTCHA</option><option value="streaming" ${site?.traffic_profile === "streaming" ? "selected" : ""}>SSE / streaming API · immediate chunk forwarding</option></select><small>Policies control signatures and body limits for every type. Website supports selective CAPTCHA. API and SSE return JSON denials without browser challenges or browser-header scoring. API responses use optional bounded inspection; SSE forwards chunks immediately and inspections can stop future output, not recall sent bytes. Binary gRPC and WebSocket messages are not body-inspected.</small>${field("stream_window_bytes", "Streaming inspection window (bytes)", String(site?.stream_window_bytes || 8192), "number", 'required min="4096" max="65536"')}<div class="form-divider"></div><label class="field" for="site-certificate">TLS certificate</label><select id="site-certificate" name="certificate_id"><option value="">HTTP only · no certificate</option>${state.certs
+    `<p class="form-intro">Choose the domain visitors will use and the address where your application runs.</p><form id="site-form">${field("name", "Name", site?.name || c?.name || "", "text", 'required maxlength="120" placeholder="My application"')}${field("hostnames", "Domains", site?.hostnames.join(", ") || c?.domains.filter((h) => !h.includes("*")).join(", ") || "", "text", 'required placeholder="app.example.com"')}<small>Separate multiple domains with commas.</small>${field("upstream", "Upstream URL", site?.upstream || "", "url", 'required placeholder="http://192.168.1.20:3000"')}${upstreamCheckMarkup(site?.upstream_tls)}<label class="field" for="site-traffic-profile">Endpoint type</label><select id="site-traffic-profile" name="traffic_profile"><option value="web" ${!site?.traffic_profile || site.traffic_profile === "web" ? "selected" : ""}>Website · browser protection and optional CAPTCHA</option><option value="api" ${site?.traffic_profile === "api" ? "selected" : ""}>API · JSON denials, no browser CAPTCHA</option><option value="streaming" ${site?.traffic_profile === "streaming" ? "selected" : ""}>SSE / streaming API · immediate chunk forwarding</option></select><small>Policies control signatures and body limits for every type. Website supports selective CAPTCHA. API and SSE return JSON denials without browser challenges or browser-header scoring. API responses use optional bounded inspection; SSE forwards chunks immediately and inspections can stop future output, not recall sent bytes. Binary gRPC and WebSocket messages are not body-inspected.</small><p class="muted">Streaming inspection windows and connection limits are configured in the assigned policy.${site && site.stream_window_bytes!==8192 ? ` Legacy host window: ${(site.stream_window_bytes||8192)/1024} KiB, used only when the policy has no override.` : ""}</p><div class="form-divider"></div><label class="field" for="site-certificate">TLS certificate</label><select id="site-certificate" name="certificate_id"><option value="">HTTP only · no certificate</option>${state.certs
       .filter((v) => v.validity === "valid" || v.id === site?.certificate_id)
       .map(
         (v) =>
@@ -591,6 +592,7 @@ async function siteForm(site?: Site, certificate?: Certificate) {
         (e.target as HTMLSelectElement).value === "off";
     });
   bindHeaderEditor(document.getElementById("site-form") as HTMLFormElement);
+ bindUpstreamCheck(document.getElementById("site-form") as HTMLFormElement,api);
   formHandler("site-form", async (f) => {
     await api("/sites" + (site ? "/" + site.id : ""), site ? "PUT" : "POST", {
       ...(!site
@@ -599,8 +601,9 @@ async function siteForm(site?: Site, certificate?: Certificate) {
       name: f.get("name"),
       hostnames: names(f.get("hostnames")),
       upstream: f.get("upstream"),
+ upstream_tls:readUpstreamTLS(f),
       traffic_profile: f.get("traffic_profile"),
-      stream_window_bytes: Number(f.get("stream_window_bytes")),
+      stream_window_bytes: site?.stream_window_bytes||8192,
       certificate_id: f.get("certificate_id")
         ? Number(f.get("certificate_id"))
         : null,

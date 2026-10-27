@@ -114,6 +114,11 @@ func (a *App) inspectManaged(runtime *managedSignatureRuntime, r *http.Request, 
 		result.Inspection = "error"
 		return result, true, http.StatusServiceUnavailable
 	}
+	profile, _ := r.Context().Value(endpointProfileKey{}).(string)
+	if err := applyManagedMethods(transaction, profile, runtime.Options.AllowedMethods, r.Method); err != nil {
+		result.Inspection = "error"
+		return result, true, http.StatusServiceUnavailable
+	}
 	transaction.ProcessURI(r.URL.RequestURI(), r.Method, r.Proto)
 	transaction.SetServerName(requestHost(r.Host))
 	for key, values := range r.Header {

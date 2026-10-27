@@ -50,6 +50,11 @@ This file and the embedded glossary are generated from [the help catalogue](../w
 - [Audit events and access logs](#audit)
 - [Local traffic map location](#local-location)
 - [Bootstrap secret](#bootstrap)
+- [Upstream TLS trust](#upstream-tls)
+- [Allowed HTTP methods](#http-methods)
+- [API starting settings](#api-start)
+- [Connection and stream limits](#connection-limits)
+- [Streaming inspection window](#stream-window)
 
 <a id="policy"></a>
 
@@ -510,3 +515,53 @@ This is the one-time setup secret created when Aegis was deployed. It proves you
 Obtain it from the person who deployed Aegis or the deployment secret file. It is separate from your administrator password and is not a default credential. After the first administrator exists, use the account login instead; do not share bootstrap values in screenshots or support requests.
 
 [Configuration guide](deployment.md)
+
+<a id="upstream-tls"></a>
+
+## Upstream TLS trust
+
+This lets Aegis accept a selected private CA or backend certificate for this proxy host. It keeps hostname and expiration checks enabled.
+
+Prefer the private CA certificate so backend renewals keep working. Trusting a server certificate pins that exact certificate and requires updating it when it rotates. A server-name override selects the expected TLS identity when connecting to an IP; it does not change the HTTP Host header. Test upstream uses the current unsaved values, sends a GET without credentials, does not follow redirects, and never disables certificate verification. When Test upstream finds an unknown issuer, review the displayed subject, issuer, expiry and SHA-256 fingerprint before checking Trust a private upstream certificate. The checkbox copies that public certificate into the unsaved trust setting; it never turns off verification. Name-mismatched or expired certificates are not offered for this shortcut.
+
+[Configuration guide](upstreams.md)
+
+<a id="http-methods"></a>
+
+## Allowed HTTP methods
+
+An HTTP method describes an operation: GET reads, POST sends, PUT/PATCH update, and DELETE removes. Choose which operations your API should accept.
+
+Automatic Website methods follow the CRS source; API and SSE additionally allow PUT, PATCH and DELETE. Explicit policy methods override these defaults. The CRS method-enforcement rule must remain selected for this setting to enforce; excluding that rule disables its check. TRACE and CONNECT are excluded from automatic defaults. Methods are not application authentication or permission to access particular records.
+
+[Configuration guide](body-inspection.md)
+
+<a id="api-start"></a>
+
+## API starting settings
+
+This fills the policy form with starting values for API or AI traffic in Observe mode. You can review matches before allowing those checks to block requests.
+
+The button chooses Standard sensitivity, common API methods, a 1 MiB request limit, an 8 KiB policy stream window, response inspection Off, and bot/empty-User-Agent checks Off. It preserves the selected rule set, custom/community rules, assignments, flood budgets and connection limits. Nothing applies until Save policy. SQL/HTML in prompts can match generic website signatures, so this is not automatic prompt-injection protection.
+
+[Configuration guide](policies.md)
+
+<a id="connection-limits"></a>
+
+## Connection and stream limits
+
+Concurrent means requests running at the same time, including open streams. These limits cap simultaneous requests and how long they can run or wait without progress.
+
+Budgets belong to the application, selected policy and replica, even when request-rate counters use Redis. Block enforces, Observe records exceedances, Off disables them, and full WAF bypass skips them. A client cap uses the resolved IP and can include multiple users behind one public IP. Existing connections retain their admission settings across reloads. Limits before headers can return 429 or 504; a stream already delivering data can be cut off with its original status. WebSocket frame activity is not used for the idle timer.
+
+[Configuration guide](body-inspection.md)
+
+<a id="stream-window"></a>
+
+## Streaming inspection window
+
+Aegis checks a stream in small, overlapping chunks of text. A larger window sees more text at once and uses more processing and memory.
+
+The policy window ranges from 4–64 KiB and is capped by its response-body limit. New policies use an 8 KiB override. Existing policies without an override retain the legacy host window until explicitly changed. Inspection happens after delivery: Block can stop future chunks but cannot recall bytes already sent. Scores reset for each window and this does not understand AI prompts or MCP tool semantics.
+
+[Configuration guide](body-inspection.md)

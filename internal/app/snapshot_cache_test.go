@@ -33,6 +33,7 @@ func TestSealedSnapshotCache(t *testing.T) {
 	rule.ID = 1
 	rule.Expires = now.Add(-time.Second)
 	site := Site{ID: 1, Hostnames: []string{"cached.test"}, Upstream: "http://127.0.0.1:9", CertificateID: ptrInt64(1), Headers: &HeaderSettings{ResponseSet: map[string]string{"X-Cache": "restored"}}}
+	site.UpstreamTLS = upstreamTLSSettings{TrustedCertsPEM: chain}
 	s := &snapshot{version: 2, certificates: map[int64]*tls.Certificate{1: &pair}, routes: map[string]*route{"cached.test": {site: site}}, rules: map[int64][]compiledRule{1: {rule}}, capture: map[int64]*capturePolicy{}, protection: map[int64]*protectionPolicy{1: p}, policyBindings: map[int64][]compiledPolicyBinding{1: {{ID: 3, Revision: 2, Name: "External", Priority: 10000, Protection: p}}}}
 	sealed, e := a.archiveSnapshot(s, now)
 	if e != nil {
@@ -44,6 +45,9 @@ func TestSealedSnapshotCache(t *testing.T) {
 	restored, e := a.decodeSnapshot(sealed, now)
 	if e != nil {
 		t.Fatal(e)
+	}
+	if restored.routes["cached.test"].site.UpstreamTLS.TrustedCertsPEM != chain {
+		t.Fatal("cached upstream trust lost")
 	}
 	if restored.routes["cached.test"].cert == nil || restored.policyBindings[1][0].ID != 3 || restored.routes["cached.test"].site.Headers.ResponseSet["X-Cache"] != "restored" {
 		t.Fatal("snapshot configuration lost")

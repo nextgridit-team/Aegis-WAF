@@ -14,6 +14,8 @@ New to the terminology? Open the dashboard’s **Help & glossary**, or read the 
 | Understand replicas, cached configuration and database failure               | [Architecture](architecture.md) · [Optional sealed recovery cache](snapshot-cache.md)     |
 | Set up TLS and renew certificates                                            | [Certificate lifecycle and storage](certificates.md) · [Cloudflare DNS-01](cloudflare.md) |
 
+[Test upstream connectivity and configure private TLS trust](upstreams.md).
+
 ## Protect applications
 
 | Goal                                                   | Guide                                                                                                                                                                          |

@@ -29,6 +29,7 @@ import (
 var schema string
 
 type Site struct {
+	UpstreamTLS       upstreamTLSSettings `json:"upstream_tls"`
 	TrafficProfile    string              `json:"traffic_profile"`
 	StreamWindowBytes int                 `json:"stream_window_bytes"`
 	Policies          []sitePolicySummary `json:"policies,omitempty"`
@@ -101,6 +102,8 @@ type accessEvent struct {
 	exemptions                                           []string
 }
 type App struct {
+	connections                   connectionLimiter
+	upstreamTests                 chan struct{}
 	prom                          *gatewayTelemetry
 	publicIPHTTP                  http.RoundTripper
 	regions                       atomic.Pointer[regionCache]
@@ -147,7 +150,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	a := &App{notificationTests: make(chan struct{}, 2), simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a := &App{upstreamTests: make(chan struct{}, 4), notificationTests: make(chan struct{}, 2), simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
 	a.prom = newGatewayTelemetry(a)
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {
@@ -309,15 +312,19 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	if e != nil {
 		return nil, e
 	}
-	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,s.traffic_profile,s.stream_window_bytes,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
+	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,s.traffic_profile,s.stream_window_bytes,s.upstream_tls,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
 	if e != nil {
 		return nil, e
 	}
 	next := &snapshot{version: version, routes: map[string]*route{}, certificates: certs}
 	for rows.Next() {
 		var s Site
-		var rawHeaders []byte
-		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &s.TrafficProfile, &s.StreamWindowBytes, &rawHeaders); e != nil {
+		var rawHeaders, rawTLS []byte
+		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &s.TrafficProfile, &s.StreamWindowBytes, &rawTLS, &rawHeaders); e != nil {
+			rows.Close()
+			return nil, e
+		}
+		if s.UpstreamTLS, e = decodeUpstreamTLS(rawTLS); e != nil {
 			rows.Close()
 			return nil, e
 		}
@@ -393,6 +400,7 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 			pr.Out.Host = pr.In.Host
 		}
 	}, ModifyResponse: func(response *http.Response) error {
+		prepareLimitedResponse(response)
 		if err := inspectManagedResponse(response); err != nil {
 			return err
 		}
@@ -488,6 +496,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	clientIP, reliableIdentity := policy.resolveClientIP(r)
 	selected := selectPolicy(s.policyBindings[rt.site.ID], clientIP, reliableIdentity)
 	activeRules := s.rules[rt.site.ID]
+	var connectionState *connectionRequestState
 	var policyID, policyRevision int64
 	var policyName string
 	var managed *managedSignatureRuntime
@@ -586,6 +595,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			defer state.Close()
 			r = r.WithContext(context.WithValue(ctx, managedResponseKey{}, state))
 		}
+		r = r.WithContext(withEndpointProfile(r.Context(), rt.site.TrafficProfile))
 		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP, reliableIdentity)
 	}
 	a.prom.observeInspection("request", time.Since(start))
@@ -601,6 +611,23 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			signals = append(signals, "response_inspection_"+v)
 		}
 
+		if connectionState != nil {
+			if connectionState.overCapacity {
+				signals = append(signals, "connection_limit_exceeded")
+			}
+			if connectionState.durationExceeded.Load() {
+				signals = append(signals, "upstream_duration_exceeded")
+				if connectionState.enforce {
+					protectionBlocked = true
+				}
+			}
+			if connectionState.idleExceeded.Load() {
+				signals = append(signals, "upstream_idle_timeout")
+				if connectionState.enforce {
+					protectionBlocked = true
+				}
+			}
+		}
 		peer := clientIP.String()
 		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		a.prom.observeEvent(event)
@@ -701,12 +728,28 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(rec, r, "https://"+requestHost(r.Host)+r.URL.RequestURI(), http.StatusPermanentRedirect)
 		return
 	}
+	if !network.BypassWAF {
+		var allowed bool
+		r, connectionState, allowed = a.beginConnectionLimits(r, policy, rt.site.ID, clientIP, rec.ResponseWriter)
+		if !allowed {
+			signals = append(signals, "connection_limit_exceeded")
+			protectionBlocked = true
+			rec.Header().Set("Retry-After", "1")
+			rt.site.rejectRequest(rec, http.StatusTooManyRequests, "connection_limit_reached")
+			return
+		}
+		if connectionState != nil {
+			rec.limits = connectionState
+			defer connectionState.finish(rec.ResponseWriter)
+		}
+	}
 	r = r.WithContext(context.WithValue(r.Context(), proxyIdentityKey{}, proxyIdentity{clientIP, policy.forwardedProto(r)}))
 	rec.responseSource = "upstream"
 	rt.proxy.ServeHTTP(rec, r)
 }
 
 type statusWriter struct {
+	limits         *connectionRequestState
 	responseSource string
 	http.ResponseWriter
 	status       int
@@ -716,6 +759,12 @@ type statusWriter struct {
 }
 
 func (w *statusWriter) WriteHeader(n int) {
+	if n >= 200 {
+		if w.limits != nil {
+			w.limits.responseStarted.Store(true)
+		}
+		w.limits.writeDeadline(w.ResponseWriter, n)
+	}
 	if !w.wrote && n >= 200 {
 		w.status = n
 		w.wrote = true
@@ -726,10 +775,15 @@ func (w *statusWriter) WriteHeader(n int) {
 	w.ResponseWriter.WriteHeader(n)
 }
 func (w *statusWriter) Write(p []byte) (int, error) {
+	w.limits.writeDeadline(w.ResponseWriter, w.status)
 	if !w.wrote {
 		w.WriteHeader(200)
 	}
-	return w.ResponseWriter.Write(p)
+	n, e := w.ResponseWriter.Write(p)
+	if n > 0 {
+		w.limits.progress()
+	}
+	return n, e
 }
 func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	conn, buffer, e := http.NewResponseController(w.ResponseWriter).Hijack()

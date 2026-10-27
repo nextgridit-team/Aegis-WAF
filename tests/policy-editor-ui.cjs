@@ -268,7 +268,19 @@ const path = require("node:path");
       await form().locator("[data-sensitivity-label]").innerText(),
       /Custom/,
     );
+    await expand("Advanced signature tuning");
     await expand("Body and response inspection");
+    const sensitivity = form().getByLabel("Signature sensitivity", {exact:true});
+    await sensitivity.press("End");
+    await form().locator("[name=signature_outbound_threshold]").fill("6");
+    await sensitivity.evaluate(el=>el.scrollIntoView({block:"center",behavior:"instant"}));
+    const sensitivityBox = await sensitivity.boundingBox();
+    await sensitivity.click({position:{x:sensitivityBox.width-8,y:sensitivityBox.height/2}});
+    assert.equal(await form().locator("[data-sensitivity-label]").textContent(), "Custom");
+    for (const [name,value] of [["signature_paranoia","2"],["signature_threshold","7"],["signature_outbound_threshold","6"]]) {
+      const field=form().locator(`[name=${name}]`);
+      if (name==="signature_paranoia") await field.selectOption(value); else await field.fill(value);
+    }
     assert.equal(
       await form().locator("[name=signature_body_kib]").inputValue(),
       "64.0625",
@@ -457,6 +469,66 @@ const path = require("node:path");
       "4",
     );
     await page.screenshot({ path: path.join(artifacts, "create.png") });
+    // Policy-owned API starting values and connection controls round-trip explicitly.
+    await section("Signature protection");
+    await form()
+      .getByRole("button", { name: "Use API starting settings", exact: true })
+      .click();
+    assert.equal(
+      await form().locator("[name=signature_body_kib]").inputValue(),
+      "1024",
+    );
+    assert.equal(
+      await form().locator("[name=signature_response_mode]").inputValue(),
+      "off",
+    );
+    assert.equal(await form().locator("[name=bot_enabled]").isChecked(), false);
+    await expand("API methods and stream inspection");
+    assert.equal(
+      await form().locator("[name=signature_methods_auto]").isChecked(),
+      false,
+    );
+    assert.deepEqual(
+      new Set(
+        (
+          await form().locator("[name=signature_allowed_methods]").inputValue()
+        ).split(/[, ]+/),
+      ),
+      new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]),
+    );
+    await form().locator("[name=signature_stream_window_kib]").fill("16");
+    await section("Bot & flood protection");
+    await expand("Connection and stream limits");
+    await form()
+      .getByLabel("Enable connection and stream limits", { exact: true })
+      .check();
+    await form().locator("[name=connection_client_max]").fill("2");
+    await form().locator("[name=connection_max]").fill("5");
+    await form().locator("[name=connection_duration]").fill("90");
+    await form().locator("[name=connection_idle]").fill("30");
+    await form().locator("[name=name]").fill("API starting policy");
+    failSave = false;
+    await page
+      .getByRole("button", { name: "Save policy", exact: true })
+      .click();
+    await form().waitFor({ state: "detached" });
+    assert.equal(saved.spec.managed_signatures.stream_window_bytes, 16384);
+    assert.equal(saved.spec.mode, "observe");
+    assert.equal(saved.spec.managed_signatures.body_limit_bytes, 1048576);
+    assert.deepEqual(saved.spec.connection_limits, {
+      enabled: true,
+      max_concurrent: 5,
+      max_per_client: 2,
+      max_duration_seconds: 90,
+      idle_timeout_seconds: 30,
+    });
+    const savedAPI = structuredClone(saved.spec);
+    await open();
+    await page
+      .getByRole("button", { name: "Save policy", exact: true })
+      .click();
+    await form().waitFor({ state: "detached" });
+    assert.deepEqual(saved.spec, savedAPI);
     assert.deepEqual(errors, []);
     console.log(
       "PASS: exact edit round trip; mode keyboard; scales; validation; scoped exceptions; country/method selection; failed save; responsive layouts; creation defaults",

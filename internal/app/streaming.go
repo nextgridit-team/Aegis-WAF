@@ -14,6 +14,9 @@ import (
 )
 
 func normalizeSiteTraffic(site *Site) error {
+	if _, err := upstreamTLSConfig(site.UpstreamTLS); err != nil {
+		return err
+	}
 	if site.TrafficProfile == "" {
 		site.TrafficProfile = "web"
 	}
@@ -30,12 +33,25 @@ func normalizeSiteTraffic(site *Site) error {
 }
 func newSiteProxy(target *url.URL, site Site, headers HeaderSettings) *httputil.ReverseProxy {
 	proxy := newProxyWithHeaders(target, site.PreserveHost, headers)
+	transport := proxy.Transport.(*http.Transport)
+	config, err := upstreamTLSConfig(site.UpstreamTLS)
+	transport.TLSClientConfig = config
+	if err != nil {
+		proxy.Transport = rejectedUpstreamTransport{err}
+	}
 	if site.TrafficProfile == "streaming" {
 		proxy.FlushInterval = -1
-		proxy.Transport.(*http.Transport).ResponseHeaderTimeout = 2 * time.Minute
+		transport.ResponseHeaderTimeout = 2 * time.Minute
 	}
 	if site.machineEndpoint() {
 		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+			if code, limited := connectionFailure(r.Context()); limited {
+				if status, ok := w.(*statusWriter); ok {
+					status.responseSource = "gateway_error"
+				}
+				site.rejectRequest(w, http.StatusGatewayTimeout, code)
+				return
+			}
 			source, code := "gateway_error", "upstream_unavailable"
 			var rejected managedResponseError
 			if errors.As(err, &rejected) {
@@ -46,6 +62,20 @@ func newSiteProxy(target *url.URL, site Site, headers HeaderSettings) *httputil.
 			}
 			site.rejectRequest(w, http.StatusBadGateway, code)
 		}
+	}
+	previous := proxy.ErrorHandler
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		if code, limited := connectionFailure(r.Context()); limited {
+			if state, ok := r.Context().Value(connectionRequestKey{}).(*connectionRequestState); ok {
+				state.allowGatewayTimeoutResponse()
+			}
+			if status, ok := w.(*statusWriter); ok {
+				status.responseSource = "gateway_error"
+			}
+			site.rejectRequest(w, http.StatusGatewayTimeout, code)
+			return
+		}
+		previous(w, r, err)
 	}
 	return proxy
 }
@@ -89,7 +119,10 @@ func (s *managedResponseState) stream(response *http.Response, mediaType string)
 		}
 		return nil
 	}
-	window := s.site.StreamWindowBytes
+	window := s.runtime.Options.StreamWindowBytes
+	if window == 0 {
+		window = s.site.StreamWindowBytes
+	}
 	if window == 0 {
 		window = 8192
 	}

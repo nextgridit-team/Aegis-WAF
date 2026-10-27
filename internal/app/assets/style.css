@@ -2147,3 +2147,6 @@ dialog:has(#policy-form) > .dialog-heading { position:sticky;top:0;z-index:12;ba
 .context-help-inline { margin-left:8px;vertical-align:middle; }
 .context-help-trigger { min-height:26px; }
 @media(pointer:coarse) { .context-help-trigger { min-height:32px;height:32px;width:32px;min-width:32px; } .context-help-caption { padding-right:36px; } .context-help-check-host { grid-template-columns:minmax(0,1fr) 32px; } }
+.upstream-check { margin:10px 0 16px; }
+.upstream-check [role="status"] { margin-top:10px;font-size:12px;line-height:1.6;overflow-wrap:anywhere; }
+.success-text { color:var(--accent); }

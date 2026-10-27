@@ -137,7 +137,7 @@ func (a *App) addAgentSimulation(server *mcp.Server, principal agentPrincipal, m
 	})
 }
 func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipal, mux *http.ServeMux, input simulationInput) (simulationSummary, error) {
-	result := simulationSummary{Harness: []simulationHarnessResult{}, Warnings: []string{"Recorded allowed requests are not verified legitimate traffic. Uncaptured/redacted facts remain unknown.", "Rate state, browser clearance, upstream behavior and uncaptured CRS payloads cannot be reconstructed from access metadata."}}
+	result := simulationSummary{Harness: []simulationHarnessResult{}, Warnings: []string{"Recorded allowed requests are not verified legitimate traffic. Uncaptured/redacted facts remain unknown.", "Rate state, live connection counts, streaming duration/idle limits, browser clearance, upstream behavior and uncaptured CRS payloads cannot be reconstructed from access metadata."}}
 	if input.LookbackMinutes == 0 {
 		input.LookbackMinutes = 60
 	}
@@ -488,6 +488,7 @@ func simulatePayload(ctx context.Context, app *App, snapshot *snapshot, payload 
 			request = request.WithContext(context.WithValue(request.Context(), managedResponseKey{}, state))
 			defer state.Close()
 		}
+		request = request.WithContext(withEndpointProfile(request.Context(), route.site.TrafficProfile))
 		result, blocked, _ = app.inspectManaged(managed, request, ip, true)
 		if blocked {
 			return "block", ids, nil

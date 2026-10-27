@@ -24,21 +24,22 @@ type policyGroup struct {
 	Rules      []policyRule `json:"rules"`
 }
 type policySpec struct {
-	Community             *policyCommunity        `json:"community_mitigations,omitempty"`
-	BotChallenge          botChallengeSettings    `json:"bot_challenge"`
-	NetworkAccess         networkAccessSettings   `json:"network_access"`
-	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
-	Name                  string                  `json:"name"`
-	Description           string                  `json:"description"`
-	Mode                  string                  `json:"mode"`
-	FloodEnabled          bool                    `json:"flood_enabled"`
-	BotEnabled            bool                    `json:"bot_enabled"`
-	BlockEmptyUA          bool                    `json:"block_empty_user_agent"`
-	RequestsPerSecond     int                     `json:"requests_per_second"`
-	Burst                 int                     `json:"burst"`
-	SiteRequestsPerSecond int                     `json:"site_requests_per_second"`
-	SiteBurst             int                     `json:"site_burst"`
-	Groups                []policyGroup           `json:"groups"`
+	ConnectionLimits      *connectionLimitSettings `json:"connection_limits,omitempty"`
+	Community             *policyCommunity         `json:"community_mitigations,omitempty"`
+	BotChallenge          botChallengeSettings     `json:"bot_challenge"`
+	NetworkAccess         networkAccessSettings    `json:"network_access"`
+	ManagedSignatures     managedSignatureOptions  `json:"managed_signatures"`
+	Name                  string                   `json:"name"`
+	Description           string                   `json:"description"`
+	Mode                  string                   `json:"mode"`
+	FloodEnabled          bool                     `json:"flood_enabled"`
+	BotEnabled            bool                     `json:"bot_enabled"`
+	BlockEmptyUA          bool                     `json:"block_empty_user_agent"`
+	RequestsPerSecond     int                      `json:"requests_per_second"`
+	Burst                 int                      `json:"burst"`
+	SiteRequestsPerSecond int                      `json:"site_requests_per_second"`
+	SiteBurst             int                      `json:"site_burst"`
+	Groups                []policyGroup            `json:"groups"`
 }
 type policyGroupInput struct {
 	Name       string   `json:"name"`
@@ -47,21 +48,22 @@ type policyGroupInput struct {
 	RuleIDs    []int64  `json:"rule_ids"`
 }
 type policySpecInput struct {
-	Community             *policyCommunityInput   `json:"community_mitigations,omitempty"`
-	BotChallenge          botChallengeSettings    `json:"bot_challenge"`
-	NetworkAccess         networkAccessSettings   `json:"network_access"`
-	ManagedSignatures     managedSignatureOptions `json:"managed_signatures"`
-	Name                  string                  `json:"name"`
-	Description           string                  `json:"description"`
-	Mode                  string                  `json:"mode"`
-	FloodEnabled          bool                    `json:"flood_enabled"`
-	BotEnabled            bool                    `json:"bot_enabled"`
-	BlockEmptyUA          bool                    `json:"block_empty_user_agent"`
-	RequestsPerSecond     int                     `json:"requests_per_second"`
-	Burst                 int                     `json:"burst"`
-	SiteRequestsPerSecond int                     `json:"site_requests_per_second"`
-	SiteBurst             int                     `json:"site_burst"`
-	Groups                []policyGroupInput      `json:"groups"`
+	ConnectionLimits      *connectionLimitSettings `json:"connection_limits,omitempty"`
+	Community             *policyCommunityInput    `json:"community_mitigations,omitempty"`
+	BotChallenge          botChallengeSettings     `json:"bot_challenge"`
+	NetworkAccess         networkAccessSettings    `json:"network_access"`
+	ManagedSignatures     managedSignatureOptions  `json:"managed_signatures"`
+	Name                  string                   `json:"name"`
+	Description           string                   `json:"description"`
+	Mode                  string                   `json:"mode"`
+	FloodEnabled          bool                     `json:"flood_enabled"`
+	BotEnabled            bool                     `json:"bot_enabled"`
+	BlockEmptyUA          bool                     `json:"block_empty_user_agent"`
+	RequestsPerSecond     int                      `json:"requests_per_second"`
+	Burst                 int                      `json:"burst"`
+	SiteRequestsPerSecond int                      `json:"site_requests_per_second"`
+	SiteBurst             int                      `json:"site_burst"`
+	Groups                []policyGroupInput       `json:"groups"`
 }
 type policyAssignment struct {
 	SiteID      int64    `json:"site_id"`
@@ -122,6 +124,11 @@ func policyProtection(base *protectionPolicy, s policySpec, id int64) (*protecti
 	p.BotChallenge = s.BotChallenge
 	compiled, e := compileProtection(p)
 	if e == nil {
+		compiled.connectionLimits, e = normalizeConnectionLimits(s.ConnectionLimits)
+		if e != nil {
+			return nil, e
+		}
+		compiled.connectionMode = s.Mode
 		compiled.budgetScope = id
 		compiled.network, e = compileNetworkAccess(s.NetworkAccess, s.Mode)
 	}
@@ -238,7 +245,11 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 	if e != nil {
 		return policySpec{}, e
 	}
-	s := policySpec{BotChallenge: challenge, NetworkAccess: network.Settings, ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
+	limits, e := normalizeConnectionLimits(in.ConnectionLimits)
+	if e != nil {
+		return policySpec{}, e
+	}
+	s := policySpec{ConnectionLimits: limits, BotChallenge: challenge, NetworkAccess: network.Settings, ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
 	if len(in.Groups) > 10 {
 		return s, invalid("at most 10 groups per policy")
 	}
