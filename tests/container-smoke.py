@@ -121,6 +121,13 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
             assert response.status == expected, f"{path}: HTTP {response.status}, expected {expected}"
             return data
 
+    def stdout_events(service):
+        output = run("docker", "logs", container(service))
+        events = [json.loads(line) for line in output.stdout.splitlines() if line.strip()]
+        assert all(isinstance(event, dict) and "level" in event for event in events)
+        assert "PRIVATE KEY" not in output.stdout and password not in output.stdout
+        return events
+
     def public(service, tls=False):
         published = port(service, 8443 if tls else 8080)
         if tls:
@@ -158,6 +165,11 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
             "secret": (secret_dir / "bootstrap_secret").read_text().strip()}, 201)
         csrf = api("app", "/api/login", "POST", {"username": "container-admin", "password": password})["csrf"]
         api("app_alt", "/api/me")
+        retention = api("app", "/api/log-settings")
+        assert retention["retention_hours"] == 6
+        api("app", "/api/log-settings", "PUT", {"retention_hours": 12, "revision": retention["revision"]})
+        assert api("app_alt", "/api/log-settings")["retention_hours"] == 12
+        api("app_alt", "/api/log-settings", "PUT", {"retention_hours": 6, "revision": retention["revision"] + 1})
         chain, key = temp / "chain.pem", temp / "key.pem"
         run("openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
             "-keyout", str(key), "-out", str(chain), "-days", "90", "-subj", "/CN=container.example.com",
@@ -175,6 +187,16 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         terms = api("app", "/api/acme/directory?url=staging")
         assert terms["terms_url"].startswith("https://")
         print("PASS: setup, cross-replica sessions, encrypted certificate upload, cached HTTP/TLS routing on both replicas, private-key readback exclusion, ACME staging directory connectivity with packaged CAs", flush=True)
+        def logging_coverage():
+            events = stdout_events("app") + stdout_events("app_alt")
+            requests = [event for event in events if event.get("event") == "http_access"]
+            assert len(requests) >= 4
+            assert all(event["request_id"] and event["site_name"] == "Container verification" and event["matched_payload"] is None for event in requests)
+            audits = [event for event in events if event.get("event") == "admin_audit"]
+            assert any(event["action"] == "logging.retention.updated" for event in audits)
+            assert all(event["event_id"] and event["timestamp"] and event["actor"] for event in audits)
+        eventually(logging_coverage)
+        print("PASS: ordinary access and committed audit JSON in Docker stdout; no credentials/private keys; retention settings shared across replicas", flush=True)
         if os.environ.get("AEGIS_BENCHMARK_REPORT"):
             import importlib.util
             module_spec = importlib.util.spec_from_file_location("latency_benchmark", ROOT / "tests/latency-benchmark.py")
@@ -239,6 +261,7 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         eventually(lambda: api("app_cached", "/readyz"))
         assert (cache_dir / "snapshot.bin").exists(), "Recovery snapshot was not written"
         dc("stop", "app_cached")
+        outage_counts = {service: sum(event.get("event") == "http_access" for event in stdout_events(service)) for service in ("app", "app_alt")}
         dc("stop", "db")
         time.sleep(3)
         for service in ("app", "app_alt"):
@@ -246,6 +269,11 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
             public(service, True)
             api(service, "/readyz")
         api("app", "/api/sites", "POST", {}, 503)
+        def outage_stdout():
+            for service, count in outage_counts.items():
+                assert sum(event.get("event") == "http_access" for event in stdout_events(service)) >= count + 2
+        eventually(outage_stdout, seconds=10)
+        print("PASS: both replicas continue emitting request JSON while PostgreSQL is stopped", flush=True)
         dc("up", "--no-build", "--no-deps", "-d", "app_fresh")
         eventually(lambda: api("app_fresh", "/livez"))
         api("app_fresh", "/readyz", expected=503)
@@ -291,6 +319,8 @@ with tempfile.TemporaryDirectory(prefix="aegis-container-") as temp:
         assert tls_request("/api/logout","POST",{},cookie,data["csrf"])[0] == 200
         assert tls_request("/api/me",cookie=cookie)[0] == 401
         dc("stop", "app_tls")
+        final_events = stdout_events("app_tls")
+        assert any(event.get("event") == "admin_audit" and event.get("action") == "logout" for event in final_events), "logout audit was not flushed before clean exit"
         print("PASS: direct management HTTPS, stored certificate trust/hostname validation, arbitrary UID, native HTTPS healthcheck, Secure cookie login/session/logout",flush=True)
 
     except BaseException:

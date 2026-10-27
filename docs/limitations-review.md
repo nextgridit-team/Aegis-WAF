@@ -2,6 +2,8 @@
 
 Reviewed against release `ccdc48e` on 2026-10-26, including the real-PostgreSQL/Redis race suite, focused catalogue/MCP checks and two-replica browser/Pebble acceptance. This is a documentation and capability review, not a new independent penetration test. [Current limitations](limitations.md) contains the remaining operator-facing boundaries.
 
+Logging/retention updated on 2026-10-27: all-request stdout export, committed audit export, global six-hour retention and bounded coordinated cleanup are now implemented.
+
 Most of the earlier feature gaps have been addressed. They should no longer be described as absent. Optional controls still need to be enabled, and their implementation does not remove their documented bounds.
 
 ## Completed improvements
@@ -19,6 +21,7 @@ Most of the earlier feature gaps have been addressed. They should no longer be d
 | Request evidence lacked redaction controls | Capture allowlists, built-in sensitive-value controls and custom capture-time redaction patterns | [Evidence privacy](evidence-privacy.md); `TestCustomEvidenceRedactionBeforePersistence` |
 | Background panic could terminate the proxy | Supervised loops contain/log panics and restart with backoff | [Worker behavior](logging.md); `TestWorkerPanicIsContainedAndRestarted` |
 | No measured forwarding performance | Hot-path benchmarks and published end-to-end mean/p99 reports | [Benchmarks](benchmarks.md), [comparison limits](proxy-comparison.md); `benchmark_test.go` |
+| No automatic access/audit retention | Global six-hour default, configurable window, export-before-delete and coordinated bounded cleanup | [Logging](logging.md); `TestLogRetentionExportAndCoordination` |
 | No standard security telemetry | Structured JSON events, authenticated Prometheus counters/histograms, dashboard CPU/RAM metrics | [Logging](logging.md), [observability](observability.md); telemetry/privacy and metric regressions |
 | No alerting or agent wake-up integration | Alert inbox, configurable triggers and notification destinations, signed automation webhook | [Alerts](alerts.md); `TestAlertingIntegration`, provider/signature fixtures |
 | Shared rules required manual application-specific imports | Per-rule manifests/files, CVE search, pack selection, reusable policy groups and explicitly pinned updates | [Rule catalogues](rule-feeds.md); `TestWorkspaceCatalogueIntegration`, passing catalogue browser flow |
@@ -28,13 +31,12 @@ Detailed execution evidence and its scope are in [verification](verification.md)
 
 ## Remaining feature gaps
 
-1. **Automatic access/audit retention.** These tables still grow unless an operator manages them. Evidence expiry and alert-inbox cleanup already exist but are separate. Add independent retention windows, bounded database-coordinated cleanup and progress/error reporting, with an explicit default that preserves existing data.
-2. **Administrator MFA and recovery.** Add TOTP or WebAuthn with enrollment, recovery, one-use backup codes, rate limits and security audits. Neither MCP bearer keys nor CAPTCHA provides administrator MFA.
-3. **Per-application/resource authority.** Current MCP scopes restrict management domains across the workspace; administrators do not have granular roles. Enforce any future resource scope consistently through direct APIs and generic MCP operations.
-4. **Verified-bot identity.** Challenge clearance is available; authenticated crawler identity is not. Provider verification or bounded forward-confirmed reverse DNS would need an explicit trust/failure design.
-5. **Online encryption-key rotation.** Ciphertexts have key identifiers, but there is no overlapping keyring and transactional resealing/recovery workflow. Changing one external key while old ciphertext remains is not rotation.
+1. **Administrator MFA and recovery.** Add TOTP or WebAuthn with enrollment, recovery, one-use backup codes, rate limits and security audits. Neither MCP bearer keys nor CAPTCHA provides administrator MFA.
+2. **Per-application/resource authority.** Current MCP scopes restrict management domains across the workspace; administrators do not have granular roles. Enforce any future resource scope consistently through direct APIs and generic MCP operations.
+3. **Verified-bot identity.** Challenge clearance is available; authenticated crawler identity is not. Provider verification or bounded forward-confirmed reverse DNS would need an explicit trust/failure design.
+4. **Online encryption-key rotation.** Ciphertexts have key identifiers, but there is no overlapping keyring and transactional resealing/recovery workflow. Changing one external key while old ciphertext remains is not rotation.
 
-Automatic retention remains the strongest next operational improvement, followed by administrator MFA. Protocol-specific protections for AI/MCP traffic and upstream API-key brokerage are separate proposed capabilities, not implied by the existing API/SSE endpoint profiles.
+Administrator MFA remains a priority operational improvement. Protocol-specific protections for AI/MCP traffic and upstream API-key brokerage are separate proposed capabilities, not implied by the existing API/SSE endpoint profiles.
 
 ## Boundaries to retain
 

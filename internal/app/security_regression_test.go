@@ -158,8 +158,8 @@ func TestSecurityTelemetryPrivacy(t *testing.T) {
 	output.Reset()
 	event.securityDisabled = true
 	emitSecurityEvent(logger, event)
-	if output.Len() != 0 {
-		t.Fatal("disabled event emitted")
+	if !strings.Contains(output.String(), `"event":"waf_block"`) || strings.Contains(output.String(), "private sample") {
+		t.Fatal("legacy disable setting must retain metadata but suppress payload context")
 	}
 }
 func FuzzRequestBodyReplay(f *testing.F) {

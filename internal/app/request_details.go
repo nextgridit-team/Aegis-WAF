@@ -31,7 +31,7 @@ func (a *App) requestDetails(w http.ResponseWriter, r *http.Request, _ identity)
 	var siteName *string
 	var domains []string
 	var evidenceExpires *time.Time
-	e = tx.QueryRow(r.Context(), `SELECT to_jsonb(l),s.name,s.hostnames,CASE WHEN e.expires_at>now() THEN e.data END,e.expires_at FROM access_logs l LEFT JOIN sites s ON s.id=l.site_id LEFT JOIN traffic_evidence e ON e.id=l.event_id AND e.site_id=l.site_id WHERE l.id=$1`, id).Scan(&raw, &siteName, &domains, &evidence, &evidenceExpires)
+	e = tx.QueryRow(r.Context(), `SELECT to_jsonb(l),s.name,s.hostnames,CASE WHEN e.expires_at>now() AND e.at>now()-`+evidenceRetentionWindowSQL+` THEN e.data END,least(e.expires_at,e.at+`+evidenceRetentionWindowSQL+`) FROM access_logs l LEFT JOIN sites s ON s.id=l.site_id LEFT JOIN traffic_evidence e ON e.id=l.event_id AND e.site_id=l.site_id WHERE l.id=$1`, id).Scan(&raw, &siteName, &domains, &evidence, &evidenceExpires)
 	if errors.Is(e, pgx.ErrNoRows) {
 		return apiError{404, "request log not found"}
 	}

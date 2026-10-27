@@ -3,6 +3,11 @@ services:
     image: ${AEGIS_IMAGE:-ghcr.io/nextgridit-team/aegis-waf:latest}
     pull_policy: always
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "${AEGIS_DOCKER_LOG_MAX_SIZE:-100m}"
+        max-file: "${AEGIS_DOCKER_LOG_MAX_FILES:-5}"
     environment:
       DATABASE_URL_FILE: /run/secrets/database_url
       ENCRYPTION_KEY_FILE: /run/secrets/encryption_key

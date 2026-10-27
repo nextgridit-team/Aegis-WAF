@@ -73,6 +73,8 @@ type snapshot struct {
 	geo            *maxminddb.Reader
 }
 type accessEvent struct {
+	requestID, host, siteName                            string
+	stdoutEmitted                                        bool
 	localGeo                                             *localGeoPolicy
 	observedCountry, locationSource, locationReferenceIP string
 	securityDisabled, securitySamples                    bool
@@ -136,6 +138,7 @@ type App struct {
 	initialized                   atomic.Bool
 	access                        chan accessEvent
 	dropped                       atomic.Uint64
+	stdoutDropped                 atomic.Uint64
 }
 
 func New(ctx context.Context, cfg Config) (*App, error) {
@@ -448,9 +451,13 @@ func (a *App) TLSConfig() *tls.Config {
 	}}
 }
 func (a *App) Public(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
 	if strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") {
 		rec := &statusWriter{ResponseWriter: w, status: 200}
-		defer func() { a.prom.recordHTTP(rec.status, "acme", "allowed") }()
+		defer func() {
+			a.prom.recordHTTP(rec.status, "acme", "allowed")
+			a.logEarlyRequest(r, started, rec.status, "acme", "")
+		}()
 		a.challenge(rec, r)
 		return
 	}
@@ -458,17 +465,20 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	if s == nil {
 		a.prom.recordHTTP(503, "unrouted", "blocked")
 		http.Error(w, "configuration unavailable", 503)
+		a.logEarlyRequest(r, started, 503, "gateway_error", "configuration_unavailable")
 		return
 	}
 	rt := s.routes[requestHost(r.Host)]
 	if rt == nil {
 		a.prom.recordHTTP(421, "unrouted", "blocked")
 		http.Error(w, "unknown hostname", 421)
+		a.logEarlyRequest(r, started, 421, "gateway_error", "unknown_hostname")
 		return
 	}
 	if r.TLS != nil && requestHost(r.TLS.ServerName) != requestHost(r.Host) {
 		a.prom.recordHTTP(421, "unrouted", "blocked")
 		http.Error(w, "SNI and Host must match", 421)
+		a.logEarlyRequest(r, started, 421, "gateway_error", "sni_host_mismatch")
 		return
 	}
 	if s.rateState != nil && s.rateState.stored.Settings.Backend == "redis" {
@@ -629,7 +639,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		peer := clientIP.String()
-		event := accessEvent{localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
@@ -642,6 +652,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		if len(a.access) >= cap(a.access) {
 			evidence.discard()
 			a.dropped.Add(1)
+			a.stdoutDropped.Add(1)
 			return
 		}
 		event.prepareEvidence = evidence.finish()
@@ -653,6 +664,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		default:
 			evidence.release()
 			a.dropped.Add(1)
+			a.stdoutDropped.Add(1)
 		}
 	}()
 	if network.Blocked {
@@ -830,63 +842,4 @@ func (a *App) challenge(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Cache-Control", "no-store")
 	fmt.Fprint(w, response)
-}
-func (a *App) logWorker(ctx context.Context) {
-	tick := time.NewTicker(time.Second)
-	defer tick.Stop()
-	batch := make([]accessEvent, 0, 1000)
-	defer func() {
-		a.dropped.Add(uint64(len(batch)))
-		for n := range batch {
-			if batch[n].releaseEvidence != nil {
-				batch[n].releaseEvidence()
-			}
-		}
-	}()
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-		c, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		for n := range batch {
-			batch[n].enrich()
-			emitSecurityEvent(slog.Default(), batch[n])
-		}
-		if e := a.storeAccessBatch(c, batch); e != nil {
-			a.dropped.Add(uint64(len(batch)))
-			slog.Warn("access/evidence log batch unavailable")
-		}
-
-		batch = batch[:0]
-	}
-	for {
-		select {
-		case e := <-a.access:
-			batch = append(batch, e)
-			if len(batch) == 1000 {
-				flush()
-			}
-		case <-tick.C:
-			flush()
-			if a.initialized.Load() {
-				a.publishMetrics(ctx)
-			}
-			if a.initialized.Load() {
-				cleanup, cancel := context.WithTimeout(ctx, time.Second)
-				_, _ = a.db.Exec(cleanup, "DELETE FROM traffic_evidence WHERE id IN (SELECT id FROM traffic_evidence WHERE expires_at<=now() LIMIT 1000)")
-				cancel()
-			}
-		case <-ctx.Done():
-			for {
-				select {
-				case e := <-a.access:
-					batch = append(batch, e)
-				default:
-					flush()
-					return
-				}
-			}
-		}
-	}
 }

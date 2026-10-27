@@ -77,7 +77,7 @@ func TestSecuritySampleSchema(t *testing.T) {
 	}
 	output.Reset()
 	emitSecurityEvent(logger, accessEvent{status: 403, responseSource: "upstream"})
-	if output.Len() != 0 {
+	if !strings.Contains(output.String(), `"event":"http_access"`) || !strings.Contains(output.String(), `"action":"allowed"`) {
 		t.Fatal("upstream 403 was mislabeled as a WAF block")
 	}
 }

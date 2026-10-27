@@ -55,6 +55,7 @@ func agentOperations() []agentOperation {
 		"GET /api/notification-channels", "POST /api/notification-channels", "PUT /api/notification-channels/{id}", "DELETE /api/notification-channels/{id}", "POST /api/notification-channels/{id}/test",
 		"GET /api/alert-rules", "POST /api/alert-rules", "PUT /api/alert-rules/{id}", "DELETE /api/alert-rules/{id}",
 		"GET /api/metrics",
+		"GET /api/log-settings", "PUT /api/log-settings",
 		"GET /api/rate-state",
 		"PUT /api/rate-state",
 		"POST /api/rate-state/test",

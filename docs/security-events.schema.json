@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/nextgridit-team/Aegis-WAF/main/docs/security-events.schema.json",
-  "title": "Aegis security event v1",
+  "title": "Aegis request and security event v1",
   "type": "object",
   "required": [
     "schema_version",
@@ -31,7 +31,8 @@
       "enum": [
         "waf_block",
         "waf_observe",
-        "waf_allow"
+        "waf_allow",
+        "http_access"
       ]
     },
     "action": {
@@ -102,6 +103,27 @@
     "duration_ms": {
       "type": "integer",
       "minimum": 0
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "host": {
+      "type": "string"
+    },
+    "site_name": {
+      "type": "string"
+    },
+    "policy_name": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "region_code": {
+      "type": "string"
+    },
+    "region_name": {
+      "type": "string"
     }
   },
   "allOf": [
@@ -142,6 +164,22 @@
         "properties": {
           "event": {
             "const": "waf_allow"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "allowed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "http_access"
           }
         }
       },

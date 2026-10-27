@@ -127,6 +127,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("GET /api/metrics", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error { a.serveMetrics(w, r); return nil }))
 	alertAPI(a, m)
 	rateStateAPI(a, m)
+	logSettingsAPI(a, m)
 	dashboardAPI(a, m)
 	signatureAPI(a, m)
 	aiAPI(a, m)
@@ -163,7 +164,7 @@ func (a *App) Management() http.Handler {
 		if s := a.active.Load(); s != nil {
 			v = s.version
 		}
-		respond(w, 200, map[string]any{"configuration_version": v, "database_available": a.dbOK.Load(), "propagation_seconds": a.cfg.Refresh.Seconds(), "dropped_evidence_samples": a.evidenceDropped.Load(), "background_worker_panics": a.workerPanics.Load(), "snapshot_cache_enabled": a.cfg.SnapshotCacheFile != "", "snapshot_cache_available": a.cacheAvailable.Load(), "snapshot_cache_restored": a.cacheRestored.Load(), "dropped_access_logs": a.dropped.Load()})
+		respond(w, 200, map[string]any{"configuration_version": v, "database_available": a.dbOK.Load(), "propagation_seconds": a.cfg.Refresh.Seconds(), "dropped_evidence_samples": a.evidenceDropped.Load(), "background_worker_panics": a.workerPanics.Load(), "snapshot_cache_enabled": a.cfg.SnapshotCacheFile != "", "snapshot_cache_available": a.cacheAvailable.Load(), "snapshot_cache_restored": a.cacheRestored.Load(), "dropped_access_logs": a.dropped.Load(), "dropped_stdout_logs": a.stdoutDropped.Load()})
 		return nil
 	}))
 	m.HandleFunc("GET /api/sites", a.wrap(true, a.listSites))

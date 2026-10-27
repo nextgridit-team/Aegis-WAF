@@ -8,6 +8,7 @@
     "test:policies": "node policy-editor-ui.cjs",
     "test:help": "node context-help-ui.cjs",
     "test:upstreams": "node upstream-ui.cjs",
+    "test:logging": "node log-retention-ui.cjs",
     "test:applications": "node applications-ui.cjs"
   },
   "devDependencies": {

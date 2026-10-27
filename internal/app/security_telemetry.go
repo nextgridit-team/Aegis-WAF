@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 )
 
 // Called from the bounded logging worker after the request action. Never write
 // stdout or wait for a log sink from the forwarding goroutine.
-func emitSecurityEvent(logger *slog.Logger, e accessEvent) {
-	if e.securityDisabled {
-		return
-	}
+func emitSecurityEvent(logger *slog.Logger, e accessEvent) error {
 	ids := []int64{}
 	triggers := []string{}
 	seen := map[string]bool{}
@@ -42,10 +40,10 @@ func emitSecurityEvent(logger *slog.Logger, e accessEvent) {
 	for _, signal := range signals {
 		add("signal:" + signal)
 	}
-	if !e.blocked && len(signals) == 0 && len(ids) == 0 && len(signatureIDs) == 0 && !e.network.BypassWAF {
-		return
+	kind, action := "http_access", "allowed"
+	if len(signals) > 0 || len(ids) > 0 || len(signatureIDs) > 0 {
+		kind, action = "waf_observe", "observed"
 	}
-	kind, action := "waf_observe", "observed"
 	if e.blocked {
 		kind, action = "waf_block", "blocked"
 	} else if e.network.BypassWAF {
@@ -63,7 +61,7 @@ func emitSecurityEvent(logger *slog.Logger, e accessEvent) {
 	var payload *string
 	source := "disabled"
 	truncated := false
-	if e.securitySamples {
+	if e.securitySamples && !e.securityDisabled {
 		source = "unavailable"
 		if e.evidence != nil {
 			var sample TrafficEvidence
@@ -85,6 +83,8 @@ func emitSecurityEvent(logger *slog.Logger, e accessEvent) {
 		}
 	}
 	attrs := []slog.Attr{
+		slog.String("request_id", e.requestID), slog.String("host", e.host), slog.String("site_name", e.siteName), slog.String("policy_name", e.policyName),
+		slog.String("country", e.country), slog.String("region_code", e.regionCode), slog.String("region_name", e.regionName),
 		slog.Int("schema_version", 1), slog.String("event", kind), slog.String("action", action), slog.Time("timestamp", e.at.UTC()), slog.Time("request_at", e.at),
 		slog.Int64("site_id", e.site), slog.Int64("policy_id", e.policyID), slog.Int64("policy_revision", e.policyRevision), slog.String("client_ip", e.peer), slog.String("method", e.method), slog.Int("status", e.status), slog.String("response_source", responseSource), slog.Int64("duration_ms", e.duration),
 		slog.Any("rule_triggered", triggers), slog.Any("matched_payload", payload), slog.String("matched_payload_source", source), slog.Bool("payload_truncated", truncated),
@@ -96,5 +96,7 @@ func emitSecurityEvent(logger *slog.Logger, e accessEvent) {
 	if payload != nil {
 		attrs = append(attrs, slog.String("request_sample", *payload))
 	}
-	logger.LogAttrs(context.Background(), slog.LevelInfo, "security decision", attrs...)
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "request completed", 0)
+	record.AddAttrs(attrs...)
+	return logger.Handler().Handle(context.Background(), record)
 }

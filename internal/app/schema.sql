@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS traffic_settings(site_id bigint PRIMARY KEY REFERENCE
 CREATE TABLE IF NOT EXISTS traffic_evidence(id text PRIMARY KEY, at timestamptz NOT NULL, site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE, expires_at timestamptz NOT NULL, data jsonb NOT NULL);
 CREATE INDEX IF NOT EXISTS traffic_evidence_site_at ON traffic_evidence(site_id,at DESC);
 CREATE INDEX IF NOT EXISTS traffic_evidence_expiry ON traffic_evidence(expires_at);
+CREATE INDEX IF NOT EXISTS traffic_evidence_at ON traffic_evidence(at);
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS rule_results jsonb NOT NULL DEFAULT '[]';
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS event_id text NOT NULL DEFAULT '';
 INSERT INTO schema_version VALUES (2) ON CONFLICT DO NOTHING;
@@ -162,3 +163,18 @@ INSERT INTO schema_version VALUES(21) ON CONFLICT DO NOTHING;
 -- Version22: per-host verified upstream TLS trust.
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS upstream_tls jsonb NOT NULL DEFAULT '{}';
 INSERT INTO schema_version VALUES(22) ON CONFLICT DO NOTHING;
+
+-- Version 23: stdout delivery state and a short global database log window.
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS request_id text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS host text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS site_name text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS stdout_emitted boolean NOT NULL DEFAULT false;
+ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS stdout_emitted boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS access_logs_stdout_pending ON access_logs(id) WHERE NOT stdout_emitted;
+CREATE INDEX IF NOT EXISTS audit_events_stdout_pending ON audit_events(id) WHERE NOT stdout_emitted;
+CREATE INDEX IF NOT EXISTS audit_events_at ON audit_events(at);
+CREATE TABLE IF NOT EXISTS log_settings(id boolean PRIMARY KEY DEFAULT true CHECK(id),retention_hours integer NOT NULL DEFAULT 6 CHECK(retention_hours BETWEEN 1 AND 8760),revision bigint NOT NULL DEFAULT 1);
+INSERT INTO log_settings(id) VALUES(true) ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS log_maintenance(id boolean PRIMARY KEY DEFAULT true CHECK(id),last_cleanup_at timestamptz,last_export_at timestamptz,cleanup_error text NOT NULL DEFAULT '',export_error text NOT NULL DEFAULT '',access_deleted bigint NOT NULL DEFAULT 0,audit_deleted bigint NOT NULL DEFAULT 0,evidence_deleted bigint NOT NULL DEFAULT 0);
+INSERT INTO log_maintenance(id) VALUES(true) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version VALUES(23) ON CONFLICT DO NOTHING;

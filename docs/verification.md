@@ -296,7 +296,7 @@ The combined PostgreSQL/Redis-backed Go race suite and vet passed after the fina
 
 `govulncheck` v1.9.0 with Go 1.26.10 found zero reachable vulnerabilities and zero vulnerable imported packages. Five module-only HTTP/2 advisories were eliminated by updating `golang.org/x/net` to v0.60.0. The remaining module-only GO-2026-5932 concerns unmaintained `golang.org/x/crypto/openpgp`; Aegis does not import that package and no fixed version is available. Its bcrypt/other used crypto packages are not affected by that advisory. Re-review this unused-package finding by 2026-11-25 or on a dependency/import change. Frontend lockfile audit found zero vulnerabilities. Distributed dependency notices were regenerated with go-licenses v2.0.1; its warnings concern assembly dependency inspection, not missing license attribution.
 
-The [limitations review](limitations-review.md) prioritizes automatic access/audit retention and administrator MFA next, while retaining explicit bounded-inspection, streaming, logging-durability and network-DDoS boundaries. The user's new README motivation section and demo graphics remain untouched.
+At that review, automatic access/audit retention and administrator MFA were prioritized; retention has since shipped (see the current [limitations review](limitations-review.md)), while retaining explicit bounded-inspection, streaming, logging-durability and network-DDoS boundaries. The user's new README motivation section and demo graphics remain untouched.
 
 The final production-container browser/Pebble acceptance passed after correcting the System selector's explicit accessible label and protecting inline form drafts from background polling. It exercised local/shared state controls (including an accurately reported failed draft connection), session-authenticated Prometheus exposition, streaming-profile selection, baseline assignment, self-hosted CAPTCHA image/answer verification and clearance on a second replica, plus the existing certificate/routing/policy/map flows. Artifacts were saved to `/tmp/aegis-platform-browser-final`.
 
@@ -345,3 +345,18 @@ The final browser/Pebble acceptance passed in `/tmp/aegis-policy-ux-review` usin
 The [benchmark record](benchmarks/policy-ux-20261026.md) retains three raw samples before and after for native rules at 100/1000, resolved protection and forwarding. Hot-path allocation counts stayed unchanged; these samples do not establish a small timing regression or improvement. A separate full-source versus single-SQL-detector example deliberately differs in protection coverage and is not a production-capacity comparison.
 
 Pre-commit review identified and corrected two edge cases: a stationary pointer release now preserves Custom sensitivity values, and upstream review includes changes to retained CRS setup/scoring/enforcement helpers. The affected PostgreSQL/race/MCP checks passed again (35.271 seconds), and the final browser/Pebble run passed in `/tmp/aegis-policy-publish-browser` using local image `78464a411490`, including the real pointer regression. Independent code review passed after those corrections. Documentation links and the embedded API contract were also checked.
+
+## Stdout logging and global retention — 2026-10-27
+
+The logging release adds ordinary completed-request JSON, committed administrative audit export, independent bounded stdout/database queues and a shared six-hour database retention default. The image was verified with:
+
+- Full `go test -race -count=1 ./...` against real PostgreSQL18 and Redis8, plus `go vet ./...` (app suite248.637s). Formatting and public/embedded API-contract parity checks passed.
+- Focused PostgreSQL tests for export-before-delete, sink failure, uncommitted audits, concurrent replicas, optimistic retention updates, authentication/CSRF, shutdown flushing and bounded backlog catch-up. Evidence reads/replay honor the global window before physical deletion.
+- A stalled database-writer regression demonstrating that stdout continues independently.
+- Desktop/mobile logging-page checks for six-hour defaults, presets/custom values, validation, stale revisions, unsaved-value preservation and escaped status errors.
+- Disposable container acceptance confirming ordinary request/audit JSON in Docker logs, no default credential/private-key output, shared retention settings, stdout during database outage, graceful shutdown and final logout-audit export. Existing non-root/read-only, TLS/session and recovery checks passed.
+- Two-replica browser/Pebble acceptance for dashboard workflows, actual ACME issuance and verified HTTPS forwarding.
+
+Independent review identified and verified fixes for final shutdown export and cleanup catch-up scheduling. These checks do not establish lossless delivery: queue saturation, crashes and downstream collection/rotation can still lose history. See [logging](logging.md).
+
+Before publication with the Applications workflow, the complete PostgreSQL18/Redis8 race suite passed again (246.251 seconds), followed by vet. The dashboard build, generated-help check, formatting, API-contract parity and logging/Applications/contextual-help browser fixtures passed. Container acceptance passed against local image `04e5c0611ee0`, including stdout during database outages and final audit export. The local Go proxy download was unavailable; verification used cached dependencies, and the image build used `GOPROXY=direct`.

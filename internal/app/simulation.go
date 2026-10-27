@@ -220,7 +220,7 @@ func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipa
 	if e != nil {
 		return result, e
 	}
-	rows, e := tx.Query(ctx, `SELECT l.id,l.site_id,l.method,l.peer,l.country,l.blocked,CASE WHEN $3 THEN coalesce(t.data,'{}'::jsonb) ELSE '{}'::jsonb END FROM access_logs l LEFT JOIN traffic_evidence t ON t.id=l.event_id AND t.expires_at>now() WHERE l.at>now()-$1::integer*interval '1 minute' ORDER BY l.id DESC LIMIT $2`, input.LookbackMinutes, input.MaxEvents+1, principal.has("evidence"))
+	rows, e := tx.Query(ctx, `SELECT l.id,l.site_id,l.method,l.peer,l.country,l.blocked,CASE WHEN $3 THEN coalesce(t.data,'{}'::jsonb) ELSE '{}'::jsonb END FROM access_logs l LEFT JOIN traffic_evidence t ON t.id=l.event_id AND t.expires_at>now() AND t.at>now()-`+evidenceRetentionWindowSQL+` WHERE l.at>now()-$1::integer*interval '1 minute' ORDER BY l.id DESC LIMIT $2`, input.LookbackMinutes, input.MaxEvents+1, principal.has("evidence"))
 	if e != nil {
 		return result, e
 	}

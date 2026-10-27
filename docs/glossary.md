@@ -55,6 +55,7 @@ This file and the embedded glossary are generated from [the help catalogue](../w
 - [API starting settings](#api-start)
 - [Connection and stream limits](#connection-limits)
 - [Streaming inspection window](#stream-window)
+- [Database log retention](#log-retention)
 
 <a id="policy"></a>
 
@@ -565,3 +566,13 @@ Aegis checks a stream in small, overlapping chunks of text. A larger window sees
 The policy window ranges from 4–64 KiB and is capped by its response-body limit. New policies use an 8 KiB override. Existing policies without an override retain the legacy host window until explicitly changed. Inspection happens after delivery: Block can stop future chunks but cannot recall bytes already sent. Scores reset for each window and this does not understand AI prompts or MCP tool semantics.
 
 [Configuration guide](body-inspection.md)
+
+<a id="log-retention"></a>
+
+## Database log retention
+
+How long Aegis keeps traffic and administrative history in PostgreSQL. The default is six hours; Docker and your SIEM keep their own copies according to their settings.
+
+Applies across applications and replicas. Stored traffic and audits are written to stdout before automatic cleanup can remove them. Request samples also follow this ceiling or their earlier capture expiry. Shorter history limits dashboard investigations and replay. Bounded queues can lose traffic records during saturation or crashes, and a stdout write is not an acknowledgement from an external collector. Changing this value does not configure Docker rotation, alerts or policy revision history.
+
+[Configuration guide](logging.md)

@@ -687,5 +687,17 @@
       "Streaming inspection window (KiB)",
       "Set the streaming inspection window in this policy"
     ]
+  },
+  {
+    "id": "log-retention",
+    "title": "Database log retention",
+    "summary": "How long Aegis keeps traffic and administrative history in PostgreSQL. The default is six hours; Docker and your SIEM keep their own copies according to their settings.",
+    "detail": "Applies across applications and replicas. Stored traffic and audits are written to stdout before automatic cleanup can remove them. Request samples also follow this ceiling or their earlier capture expiry. Shorter history limits dashboard investigations and replay. Bounded queues can lose traffic records during saturation or crashes, and a stdout write is not an acknowledgement from an external collector. Changing this value does not configure Docker rotation, alerts or policy revision history.",
+    "guide": "logging.md",
+    "labels": [
+      "Database log retention",
+      "Retention hours",
+      "Logs & retention"
+    ]
   }
 ]

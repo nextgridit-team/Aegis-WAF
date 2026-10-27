@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Aegis administrative audit event v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event",
+    "event_id",
+    "timestamp",
+    "audit_id",
+    "actor",
+    "action",
+    "resource"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "event": {
+      "const": "admin_audit"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^audit:[0-9]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "audit_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "actor": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "resource": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

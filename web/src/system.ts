@@ -1,4 +1,9 @@
 import { esc, heading, field, check } from "./ui";
+import {
+  logSettingsMarkup,
+  bindLogSettings,
+  type LogSettings,
+} from "./log-settings";
 type Settings = {
   backend: "memory" | "redis";
   address: string;
@@ -23,15 +28,20 @@ export function makeSystemPage(c: Context) {
   let serial = 0;
   async function render(view: HTMLElement) {
     const stamp = ++serial;
-    const status = await c.api<Status>("/rate-state");
+    const [status, logs] = await Promise.all([
+      c.api<Status>("/rate-state"),
+      c.api<LogSettings>("/log-settings"),
+    ]);
     if (stamp !== serial || !view.isConnected) return;
     const s = status.settings;
     view.innerHTML =
       heading(
         "System",
-        "Configure shared rate budgets for replicated gateways.",
+        "Manage logging, retention and shared gateway settings.",
       ) +
+      logSettingsMarkup(logs) +
       `<section class="dashboard-panel"><h2>Rate-limit state</h2><p>Rules, IP lists and policy settings already share PostgreSQL. Choose where live HTTP flood and bot-frequency counters are coordinated.</p><form id="rate-state-form"><label class="field" for="rate-state-backend">Counter backend</label><select id="rate-state-backend" name="backend"><option value="memory" ${s.backend === "memory" ? "selected" : ""}>Local memory · budget per replica</option><option value="redis" ${s.backend === "redis" ? "selected" : ""}>Redis / Dragonfly · shared budget</option></select><div id="redis-options" ${s.backend === "memory" ? "hidden" : ""}>${field("address", "Server address", s.address, "text", 'maxlength="300" placeholder="redis:6379"')}${field("username", "Username (optional)", s.username, "text", 'maxlength="128" autocomplete="off"')}${field("password", "Password (write only)", "", "password", `maxlength="4096" autocomplete="new-password" placeholder="${status.has_password ? "Stored · leave blank to keep" : "No stored password"}"`)}${check("clear_password", "Clear stored password")}${check("tls", "Use TLS with certificate verification", s.tls)}${field("timeout_ms", "Maximum counter lookup time (milliseconds)", String(s.timeout_ms), "number", 'min="20" max="250" required')}<p class="muted">Use a private backend shared by all replicas. Credentials are encrypted in PostgreSQL and never returned. Changing the address, username or TLS requires resupplying or explicitly clearing stored credentials.</p><button type="button" class="secondary" id="rate-test">Test connection</button><p id="rate-test-result" aria-live="polite"></p></div><p class="muted">If shared counters are unavailable, enforcing controls return 503. Observe records incomplete coverage. There is no automatic fallback to local budgets. Store restarts/eviction can reset counters; use a dedicated, non-evicting backend.</p><div class="form-actions"><button type="submit" class="primary" data-label="Save rate state">Save rate state</button></div></form><p>Saved revision ${status.revision} · this replica loaded ${status.loaded_revision} · backend failures ${status.backend_failures}</p></section><section class="dashboard-panel"><h2>Prometheus metrics</h2><p><a href="/metrics" target="_blank" rel="noopener">View this replica’s metrics</a> using your dashboard session. Scrapers can use a source-restricted Read API key from Agent access over HTTPS; the MCP endpoint can remain disabled.</p><p>Request totals, inspection histograms, MCP action counts and process resources are replica-local. Scrape every replica and aggregate in your monitoring system.</p></section><section class="info-panel"><h3>Deployment stays simple</h3><p>Local mode needs only Aegis and PostgreSQL. The optional Compose overlay adds a private Redis container; an existing Redis or Dragonfly endpoint can also be used. Configure settings here, then allow the normal two-second propagation interval. Test an application before enforcing.</p></section>`;
+    bindLogSettings(view, logs, c, () => render(view));
     const form = view.querySelector<HTMLFormElement>("#rate-state-form")!;
     const input = () => {
       const f = new FormData(form);

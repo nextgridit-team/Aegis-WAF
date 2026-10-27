@@ -91,7 +91,7 @@ func (a *App) saveRule(w http.ResponseWriter, r *http.Request, i identity) error
 		}
 		if len(spec.EvidenceIDs) > 0 {
 			var n int
-			if e := tx.QueryRow(ctx, "SELECT count(*) FROM traffic_evidence WHERE site_id=$1 AND id=ANY($2) AND expires_at>now()", spec.Scope.SiteID, spec.EvidenceIDs).Scan(&n); e != nil {
+			if e := tx.QueryRow(ctx, "SELECT count(*) FROM traffic_evidence WHERE site_id=$1 AND id=ANY($2) AND expires_at>now() AND at>now()-"+evidenceRetentionWindowSQL, spec.Scope.SiteID, spec.EvidenceIDs).Scan(&n); e != nil {
 				return e
 			}
 			seen := map[string]bool{}
@@ -321,7 +321,7 @@ func (a *App) listTrafficEvents(w http.ResponseWriter, r *http.Request, _ identi
 		}
 	}
 	var data []byte
-	e := a.db.QueryRow(r.Context(), "SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (SELECT id,at,site_id,expires_at,data FROM traffic_evidence WHERE expires_at>now() AND ($1::bigint=0 OR site_id=$1) ORDER BY at DESC LIMIT 100) x", site).Scan(&data)
+	e := a.db.QueryRow(r.Context(), "SELECT coalesce(jsonb_agg(x),'[]'::jsonb) FROM (SELECT id,at,site_id,least(expires_at,at+"+evidenceRetentionWindowSQL+") AS expires_at,data FROM traffic_evidence WHERE expires_at>now() AND at>now()-"+evidenceRetentionWindowSQL+" AND ($1::bigint=0 OR site_id=$1) ORDER BY at DESC LIMIT 100) x", site).Scan(&data)
 	if e != nil {
 		return e
 	}
@@ -350,7 +350,7 @@ func (a *App) replayRule(w http.ResponseWriter, r *http.Request, _ identity) err
 		}
 		seen[id] = true
 	}
-	rows, e := a.db.Query(r.Context(), "SELECT id,data FROM traffic_evidence WHERE site_id=$1 AND id=ANY($2) AND expires_at>now() ORDER BY at", body.Rule.Scope.SiteID, body.EventIDs)
+	rows, e := a.db.Query(r.Context(), "SELECT id,data FROM traffic_evidence WHERE site_id=$1 AND id=ANY($2) AND expires_at>now() AND at>now()-"+evidenceRetentionWindowSQL+" ORDER BY at", body.Rule.Scope.SiteID, body.EventIDs)
 	if e != nil {
 		return e
 	}

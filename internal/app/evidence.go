@@ -13,6 +13,9 @@ import (
 	"unicode/utf8"
 )
 
+// Used only by management/evidence queries, never routing or inspection.
+const evidenceRetentionWindowSQL = "(SELECT make_interval(hours=>retention_hours) FROM log_settings WHERE id)"
+
 // Capture is disabled by default. Field values require a per-site allowlist.
 type TrafficSettings struct {
 	SecurityEventsDisabled bool     `json:"security_events_disabled"`
@@ -321,9 +324,9 @@ func (a *App) storeAccessBatch(ctx context.Context, batch []accessEvent) error {
 		botJSON, _ := json.Marshal(event.bot)
 		managedJSON, _ := json.Marshal(event.managed)
 		networkJSON, _ := json.Marshal(event.network)
-		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON, networkJSON, event.regionCode, event.regionName, event.responseSource, event.observedCountry, event.locationSource, event.locationReferenceIP, botJSON}
+		items[i] = []any{event.at, event.site, event.method, event.status, event.duration, event.peer, resultJSON, id, event.country, event.blocked, signalJSON, exemptJSON, event.policyID, event.policyRevision, event.policyName, managedJSON, networkJSON, event.regionCode, event.regionName, event.responseSource, event.observedCountry, event.locationSource, event.locationReferenceIP, botJSON, event.requestID, event.host, event.siteName, event.stdoutEmitted}
 	}
-	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures", "network_access", "region_code", "region_name", "response_source", "observed_country", "location_source", "location_reference_ip", "bot"}, pgx.CopyFromRows(items)); e != nil {
+	if _, e = tx.CopyFrom(ctx, pgx.Identifier{"access_logs"}, []string{"at", "site_id", "method", "status", "duration_ms", "peer", "rule_results", "event_id", "country", "blocked", "signals", "protection_exemptions", "policy_id", "policy_revision", "policy_name", "managed_signatures", "network_access", "region_code", "region_name", "response_source", "observed_country", "location_source", "location_reference_ip", "bot", "request_id", "host", "site_name", "stdout_emitted"}, pgx.CopyFromRows(items)); e != nil {
 		return e
 	}
 	if len(evidenceRows) > 0 {

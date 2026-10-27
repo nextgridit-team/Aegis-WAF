@@ -63,6 +63,7 @@ For custom ports, native management TLS, backups and multiple replicas, see [dep
 - **Control who reaches your applications.** Reuse IP address objects and groups, configure trusted proxies, HSTS and headers, and tune CIDR/Geo decisions and HTTP flood rates. Selective self-hosted image/audio CAPTCHA challenges suspicious traffic and grants bounded clearance after a successful solve.
 - **Handle streaming APIs.** Choose Website, API or SSE/streaming per proxy host. API/SSE return JSON denials without browser CAPTCHA. Policies provide API method controls and optional connection, duration and idle limits. Optional response inspection uses bounded overlapping windows for streams; it can stop future output but cannot retract bytes already delivered.
 - **Connect your own agent.** An optional management MCP endpoint offers scoped, expiring keys, a downloadable skill and enforced offline simulation before live protection changes. Your agent and model run outside Aegis; no built-in inference is required.
+- **Keep your logs where you need them.** Completed requests, security decisions and administrative audits reach Docker stdout as structured JSON. Keep six hours of database history by default, adjust it under **System → Logs & retention**, and use your collector or SIEM for longer retention. [Logging guide](docs/logging.md).
 - **Own the deployment.** The app runs as non-root with a read-only root filesystem. Private keys and saved provider credentials are encrypted before storage with an external encryption key. [Security boundaries](docs/security.md).
 
 ## Protect your first application
@@ -89,7 +90,7 @@ Each replica runs the complete application. PostgreSQL holds authoritative confi
 | Aegis, no rules             |       13,029 |     1.218 ms |    4.401 ms |
 | Aegis, bundled CRS baseline |       10,808 |     1.471 ms |    3.793 ms |
 
-**Latest lab reference, 2026-10-25:** one verification run on an AMD Ryzen 9 7950X3D, Linux/amd64, Go 1.26.10. Each phase used 64,000 small HTTP/1.1 keep-alive GETs and 16 client threads. PostgreSQL access logging and gateway instrumentation were on; evidence capture, response inspection and bot/flood controls were off. CRS used Block mode, PL1 and threshold 5, without exclusions. The CRS mean was approximately 0.45 ms above the direct path; its total mean was 1.47 ms. [Raw report](docs/benchmarks/platform-hardening-20261025.json).
+**Latest lab reference, 2026-10-25:** one verification run on an AMD Ryzen 9 7950X3D, Linux/amd64, Go 1.26.10. Each phase used 64,000 small HTTP/1.1 keep-alive GETs and 16 client threads. These measurements predate all-request stdout export. PostgreSQL access logging and gateway instrumentation were on; evidence capture, response inspection and bot/flood controls were off. CRS used Block mode, PL1 and threshold 5, without exclusions. The CRS mean was approximately 0.45 ms above the direct path; its total mean was 1.47 ms. [Raw report](docs/benchmarks/platform-hardening-20261025.json).
 
 All components shared a Docker host. These short tests are a reference for this workload, not production capacity; TLS handshakes, uploads and adversarial traffic need separate measurements. [Methodology, reproduction and raw reports](docs/benchmarks.md) · [Comparison with other proxies](docs/proxy-comparison.md).
 
@@ -126,7 +127,7 @@ Start with the **[documentation index](docs/README.md)**, or go directly to:
 
 ## Current limits
 
-Aegis is under active development. Body inspection is bounded and response inspection is opt-in. Streaming detections occur after delivery; WebSocket frames, binary gRPC and unsupported types have no body inspection. Bot scoring remains heuristic even with CAPTCHA. Local budgets and connection limits are per replica; shared request-rate counters require optional Redis/Dragonfly. Access logs are asynchronous and best effort; administrative changes use transactional audits. Existing replicas retain loaded configuration during database outages; default cold starts and management authentication need PostgreSQL. Aegis runs no built-in AI traffic analysis. Administrator MFA, automatic access/audit retention and online encryption-key rotation remain open. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
+Aegis is under active development. Body inspection is bounded and response inspection is opt-in. Streaming detections occur after delivery; WebSocket frames, binary gRPC and unsupported types have no body inspection. Bot scoring remains heuristic even with CAPTCHA. Local budgets and connection limits are per replica; shared request-rate counters require optional Redis/Dragonfly. Access logs are asynchronous and best effort; administrative changes use transactional audits. Existing replicas retain loaded configuration during database outages; default cold starts and management authentication need PostgreSQL. Aegis runs no built-in AI traffic analysis. Administrator MFA and online encryption-key rotation remain open. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
 
 ## Support and contributions
 

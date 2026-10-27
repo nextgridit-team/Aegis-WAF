@@ -109,16 +109,19 @@ func run() error {
 		}
 		servers = append(servers, s)
 	}
+	workerCtx, stopWorkers := context.WithCancel(context.Background())
+	defer stopWorkers()
 	wg.Add(6)
-	go func() { defer wg.Done(); a.RunWorker(ctx, "configuration", a.Background) }()
-	go func() { defer wg.Done(); a.RunWorker(ctx, "acme", a.ACMEWorker) }()
-	go func() { defer wg.Done(); a.RunWorker(ctx, "rule-feeds", a.FeedWorker) }()
-	go func() { defer wg.Done(); a.RunWorker(ctx, "geolocation-sync", a.GeoSyncWorker) }()
-	go func() { defer wg.Done(); a.RunWorker(ctx, "region-cache", a.RegionCacheWorker) }()
-	go func() { defer wg.Done(); a.RunWorker(ctx, "bot-challenge-cleanup", a.BotChallengeWorker) }()
-	wg.Add(2)
-	go func() { defer wg.Done(); a.RunWorker(ctx, "alert-evaluation", a.AlertWorker) }()
-	go func() { defer wg.Done(); a.RunWorker(ctx, "notification-delivery", a.NotificationWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "configuration", a.Background) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "acme", a.ACMEWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "rule-feeds", a.FeedWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "geolocation-sync", a.GeoSyncWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "region-cache", a.RegionCacheWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "bot-challenge-cleanup", a.BotChallengeWorker) }()
+	wg.Add(3)
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "alert-evaluation", a.AlertWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "notification-delivery", a.NotificationWorker) }()
+	go func() { defer wg.Done(); a.RunWorker(workerCtx, "log-maintenance", a.LogMaintenanceWorker) }()
 	errs := make(chan error, 3)
 	for i, s := range servers {
 		go func(i int, s *http.Server) {
@@ -152,7 +155,16 @@ func run() error {
 		}
 	}
 	cancel()
+	stopWorkers()
 	wg.Wait()
+	// Background waits for access persistence, and every audit producer has
+	// stopped. Export their final committed records using a fresh context.
+	flush, stopFlush := context.WithTimeout(context.Background(), 5*time.Second)
+	flushErr := a.FlushStoredLogs(flush)
+	stopFlush()
+	if flushErr != nil {
+		slog.Warn("final log export unavailable; stored records retained")
+	}
 	if e != nil && !strings.Contains(e.Error(), "closed network connection") {
 		return e
 	}
