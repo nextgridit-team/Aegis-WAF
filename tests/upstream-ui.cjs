@@ -83,7 +83,7 @@ const assert = require("node:assert/strict"),
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/#proxy-hosts`);
     await page
-      .getByRole("button", { name: "Add proxy host", exact: true })
+      .getByRole("button", { name: "Add application", exact: true })
       .first()
       .click();
     const form = page.locator("#site-form"),
@@ -169,7 +169,7 @@ const assert = require("node:assert/strict"),
       );
     }
     await form
-      .getByRole("button", { name: "Save proxy host", exact: true })
+      .getByRole("button", { name: "Save application", exact: true })
       .click();
     await page.waitForFunction(() => !document.querySelector("#editor").open);
     assert.equal(writes.length, 1);

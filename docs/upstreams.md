@@ -4,7 +4,7 @@ Aegis connects to the upstream from its application container. A backend reachab
 
 ## Test before saving
 
-In **Proxy hosts → Add/Edit**, enter the upstream URL and click **Test upstream**. The check uses the currently entered URL, original Host-header choice, TLS server name and trusted certificates. It does not save the host or change routing. Changing these fields makes an earlier result stale.
+In **Applications → Add/Edit**, enter the upstream URL and click **Test upstream**. The check uses the currently entered URL, original Host-header choice, TLS server name and trusted certificates. It does not save the host or change routing. Changing these fields makes an earlier result stale.
 
 The check sends a single GET from the management replica, waits up to eight seconds, follows no redirects and does not retain the response body. GET is used because some backends reject HEAD. It sends no browser cookies, application credentials or configured custom request headers; an authenticated backend may therefore return 401/403 even when it is reachable. The check does not create a continuous health monitor or prove all application routes work.
 

@@ -1,5 +1,7 @@
 # Investigate a request
 
+You can also start in **Applications → Open → Recent traffic**, where requests are already scoped to the selected application. From a request, **Review current policy** opens the latest policy. **Draft exception** beside an eligible managed detection rule seeds an unsaved exception; choose its scope and review shared application assignments before saving. The editor uses the current policy, while request details retain the recorded revision. [Application workflow](applications.md).
+
 Every listed request has **View details**, including Allowed, Flagged · allowed and Blocked outcomes. Open it from **Dashboard → Recent requests** or **Activity → Application requests**. The Dashboard lists the latest 20 requests in its selected scope; Activity lists the latest 200. The authenticated management API can fetch a retained log by ID with `GET /api/access-logs/{id}`.
 
 The detail view shows timestamp, resolved client IP, method, application, response status, duration, country, selected policy/version, recorded signals, component exemptions and custom/managed signature results. An upstream HTTP error is distinct from a WAF block: the stored block decision determines the outcome label.

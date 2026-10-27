@@ -17,6 +17,8 @@ TEST_DATABASE_URL='postgres://user:password@localhost:5432/testdb?sslmode=disabl
 
 Production assets are checked in for convenient Go-only development; rebuild them after dashboard edits. The Docker build always regenerates them from TypeScript. `make build`, `make test`, and `make integration` wrap the commands above. See [verification evidence](verification.md) for checks performed in the implementation environment and remaining deployment checks.
 
+Run `BROWSER_EXECUTABLE=/path/to/chromium npm --prefix tests run test:applications` for the isolated Applications fixture. It serves built assets and intercepts APIs with synthetic data; it does not contact a deployment. It checks effective component modes, CIDR scopes, routing/TLS states, search/filtering, scoped traffic, request-to-exception drafting and saves, missing data, stale navigation replies, escaping, responsive layouts and themes. Screenshots default to `/tmp/aegis-applications-ui`.
+
 Verify the built image and its runtime constraints with Docker, Compose, Python 3, and OpenSSL:
 
 ```sh

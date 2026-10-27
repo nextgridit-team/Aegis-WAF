@@ -1,4 +1,9 @@
-import {upstreamCheckMarkup,bindUpstreamCheck,readUpstreamTLS} from "./upstream-check";
+import {
+  upstreamCheckMarkup,
+  bindUpstreamCheck,
+  readUpstreamTLS,
+} from "./upstream-check";
+import { makeApplications } from "./applications";
 import { installContextHelp } from "./context-help";
 import { botChallengeMarkup, readBotChallenge } from "./bot-challenge";
 import { makeLiveMap } from "./live-map";
@@ -179,10 +184,12 @@ function formHandler(id: string, submit: (data: FormData) => Promise<void>) {
 function currentPage() {
   const aliases: Record<string, string> = {
     overview: "dashboard",
-    sites: "proxy-hosts",
+    sites: "applications",
+    "proxy-hosts": "applications",
     acme: "authorities",
   };
-  const raw = location.hash.slice(1) || "dashboard";
+  const raw = location.hash.slice(1).split("?")[0] || "dashboard";
+  if (/^applications\/\d+$/.test(raw)) return "applications";
   return (
     aliases[raw] ||
     ([
@@ -196,7 +203,7 @@ function currentPage() {
       "live-map",
       "dashboard",
       "certificates",
-      "proxy-hosts",
+      "applications",
       "authorities",
       "activity",
       "rules",
@@ -209,8 +216,8 @@ function currentPage() {
 function shell() {
   const nav = [
     ["dashboard", "activity", "Dashboard"],
+    ["applications", "globe", "Applications"],
     ["certificates", "certificate", "Certificates"],
-    ["proxy-hosts", "globe", "Proxy hosts"],
     ["address-objects", "globe", "Address objects"],
     ["rules", "shield", "Rules"],
     ["policies", "shield", "Policies"],
@@ -220,7 +227,7 @@ function shell() {
     ["alerts", "activity", "Alerts"],
     ["system", "activity", "System"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools"><a class="header-help" href="/help.html" target="_blank" rel="noopener noreferrer">Help &amp; glossary</a>${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools"><a class="header-help" href="/help.html" target="_blank" rel="noopener noreferrer">Help &amp; glossary</a>${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -279,31 +286,22 @@ function jobsList() {
     )
     .join("")}</div></section>`;
 }
-function sitesList() {
-  if (!state.sites.length)
-    return `<section class="empty-state"><div class="empty-icon">${icon("globe")}</div><h2>Connect your first application</h2><p>A proxy host connects a public domain to your application.<br class="desktop-only"> Attach a certificate to serve it securely over HTTPS.</p>${button("new-site", `${icon("plus")}Add proxy host`)}</section>`;
-  return table(
-    ["Proxy host", "Upstream", "Certificate", "Status", ""],
-    state.sites.map((s) => [
-      `<div class="resource"><span class="resource-icon">${icon("globe")}</span><div><strong>${esc(s.name)}</strong><small class="domain">${s.hostnames.map(esc).join(", ")}</small></div></div>`,
-      `<span class="domain">${esc(s.upstream)}</span><small>${s.traffic_profile === "streaming" ? "SSE / streaming" : s.traffic_profile === "api" ? "API" : "Website"} · ${s.redirect_https ? "HTTP → HTTPS" : "HTTP allowed"} · ${s.preserve_host ? "Original host header" : "Upstream host header"}</small>`,
-      esc(
-        state.certs.find((c) => c.id === s.certificate_id)?.name || "HTTP only",
-      ),
-      badge(
-        s.enabled ? "Enabled" : "Disabled",
-        s.enabled ? "success" : "neutral",
-      ),
-      `<div class="row-actions">${button("edit-site", "Edit", "secondary compact", s.id)}${button("delete-site", "Delete", "danger compact", s.id)}</div>`,
-    ]),
-    "Proxy hosts",
-  );
-}
 async function render() {
   const view = document.getElementById("view");
   if (!view) return;
-  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", "proxy-hosts": "Proxy hosts", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
-  if (page === "dashboard") await dashboardUI.mount(view, state.sites);
+  view.classList.toggle("applications-view", page === "applications");
+  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  if (page === "dashboard")
+    await dashboardUI.mount(
+      view,
+      state.sites,
+      new URLSearchParams(location.hash.split("?")[1]).get("site_id") ??
+        undefined,
+    );
+  if (page === "applications") {
+    const match = location.hash.match(/^#applications\/(\d+)$/);
+    await applicationsUI.mount(view, match ? Number(match[1]) : undefined);
+  }
   if (page === "policies") {
     const stamp = epoch;
     const html = await policyPage.render();
@@ -339,14 +337,6 @@ async function render() {
       ) +
       onboarding() +
       `<section class="inventory"><div class="inventory-heading"><h2>Certificate inventory <span class="count">${state.certs.length}</span></h2><span class="muted">${state.certs.filter((c) => c.origin === "acme").length} automatically managed</span></div><div id="certificate-list">${certificateList()}</div></section><div id="job-list">${jobsList()}</div><div class="page-note">${icon("shield")}ACME certificates renew automatically before they expire. Existing certificates stay active during retries.</div>`;
-  if (page === "proxy-hosts")
-    view.innerHTML =
-      heading(
-        "Proxy hosts",
-        "Route your domains to the applications behind them.",
-        button("new-site", `${icon("plus")}Add proxy host`),
-      ) +
-      `<div class="route-guide"><span>Public domain</span>${icon("arrow")}<span class="route-active">${icon("shield")}Aegis WAF · TLS</span>${icon("arrow")}<span>Your upstream</span></div><div id="site-list">${sitesList()}</div><div class="page-note">${icon("clock")}Saved changes reach every gateway replica within 2 seconds.</div>`;
   if (page === "authorities")
     view.innerHTML =
       heading(
@@ -485,6 +475,7 @@ async function poll() {
     !username ||
     document.hidden ||
     (document.getElementById("editor") as HTMLDialogElement | null)?.open ||
+    page === "applications" ||
     page === "activity" ||
     page === "traffic" ||
     page === "live-map" ||
@@ -564,8 +555,8 @@ async function siteForm(site?: Site, certificate?: Certificate) {
     ? state.certs.find((c) => c.id === site.certificate_id)
     : certificate;
   openEditor(
-    site ? "Edit proxy host" : "Connect an application",
-    `<p class="form-intro">Choose the domain visitors will use and the address where your application runs.</p><form id="site-form">${field("name", "Name", site?.name || c?.name || "", "text", 'required maxlength="120" placeholder="My application"')}${field("hostnames", "Domains", site?.hostnames.join(", ") || c?.domains.filter((h) => !h.includes("*")).join(", ") || "", "text", 'required placeholder="app.example.com"')}<small>Separate multiple domains with commas.</small>${field("upstream", "Upstream URL", site?.upstream || "", "url", 'required placeholder="http://192.168.1.20:3000"')}${upstreamCheckMarkup(site?.upstream_tls)}<label class="field" for="site-traffic-profile">Endpoint type</label><select id="site-traffic-profile" name="traffic_profile"><option value="web" ${!site?.traffic_profile || site.traffic_profile === "web" ? "selected" : ""}>Website · browser protection and optional CAPTCHA</option><option value="api" ${site?.traffic_profile === "api" ? "selected" : ""}>API · JSON denials, no browser CAPTCHA</option><option value="streaming" ${site?.traffic_profile === "streaming" ? "selected" : ""}>SSE / streaming API · immediate chunk forwarding</option></select><small>Policies control signatures and body limits for every type. Website supports selective CAPTCHA. API and SSE return JSON denials without browser challenges or browser-header scoring. API responses use optional bounded inspection; SSE forwards chunks immediately and inspections can stop future output, not recall sent bytes. Binary gRPC and WebSocket messages are not body-inspected.</small><p class="muted">Streaming inspection windows and connection limits are configured in the assigned policy.${site && site.stream_window_bytes!==8192 ? ` Legacy host window: ${(site.stream_window_bytes||8192)/1024} KiB, used only when the policy has no override.` : ""}</p><div class="form-divider"></div><label class="field" for="site-certificate">TLS certificate</label><select id="site-certificate" name="certificate_id"><option value="">HTTP only · no certificate</option>${state.certs
+    site ? "Edit application" : "Connect an application",
+    `<p class="form-intro">Choose the domain visitors will use and the address where your application runs.</p><form id="site-form">${field("name", "Name", site?.name || c?.name || "", "text", 'required maxlength="120" placeholder="My application"')}${field("hostnames", "Domains", site?.hostnames.join(", ") || c?.domains.filter((h) => !h.includes("*")).join(", ") || "", "text", 'required placeholder="app.example.com"')}<small>Separate multiple domains with commas.</small>${field("upstream", "Upstream URL", site?.upstream || "", "url", 'required placeholder="http://192.168.1.20:3000"')}${upstreamCheckMarkup(site?.upstream_tls)}<label class="field" for="site-traffic-profile">Endpoint type</label><select id="site-traffic-profile" name="traffic_profile"><option value="web" ${!site?.traffic_profile || site.traffic_profile === "web" ? "selected" : ""}>Website · browser protection and optional CAPTCHA</option><option value="api" ${site?.traffic_profile === "api" ? "selected" : ""}>API · JSON denials, no browser CAPTCHA</option><option value="streaming" ${site?.traffic_profile === "streaming" ? "selected" : ""}>SSE / streaming API · immediate chunk forwarding</option></select><small>Policies control signatures and body limits for every type. Website supports selective CAPTCHA. API and SSE return JSON denials without browser challenges or browser-header scoring. API responses use optional bounded inspection; SSE forwards chunks immediately and inspections can stop future output, not recall sent bytes. Binary gRPC and WebSocket messages are not body-inspected.</small><p class="muted">Streaming inspection windows and connection limits are configured in the assigned policy.${site && site.stream_window_bytes !== 8192 ? ` Legacy host window: ${(site.stream_window_bytes || 8192) / 1024} KiB, used only when the policy has no override.` : ""}</p><div class="form-divider"></div><label class="field" for="site-certificate">TLS certificate</label><select id="site-certificate" name="certificate_id"><option value="">HTTP only · no certificate</option>${state.certs
       .filter((v) => v.validity === "valid" || v.id === site?.certificate_id)
       .map(
         (v) =>
@@ -573,7 +564,7 @@ async function siteForm(site?: Site, certificate?: Certificate) {
       )
       .join(
         "",
-      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${!site ? `<label class="field">Initial protection policy<select name="initial_policy_id" aria-label="Initial protection policy"><option value="">Local application settings · no policy assignment</option>${initialPolicies.map((p) => `<option value="${p.id}">${esc(p.spec.name)} · ${esc(p.spec.mode)}</option>`).join("")}</select></label><small>Choose Baseline protection for the included CRS policy, or keep local settings. Policy assignment replaces local bot/flood and standalone-rule activation. Manage later assignments in Policies.</small>` : ""}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save proxy host")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${!site ? `<label class="field">Initial protection policy<select name="initial_policy_id" aria-label="Initial protection policy"><option value="">Local application settings · no policy assignment</option>${initialPolicies.map((p) => `<option value="${p.id}">${esc(p.spec.name)} · ${esc(p.spec.mode)}</option>`).join("")}</select></label><small>Choose Baseline protection for the included CRS policy, or keep local settings. Policy assignment replaces local bot/flood and standalone-rule activation. Manage later assignments in Policies.</small>` : ""}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save application")}</form>`,
   );
   const select = document.getElementById(
     "site-certificate",
@@ -592,7 +583,10 @@ async function siteForm(site?: Site, certificate?: Certificate) {
         (e.target as HTMLSelectElement).value === "off";
     });
   bindHeaderEditor(document.getElementById("site-form") as HTMLFormElement);
- bindUpstreamCheck(document.getElementById("site-form") as HTMLFormElement,api);
+  bindUpstreamCheck(
+    document.getElementById("site-form") as HTMLFormElement,
+    api,
+  );
   formHandler("site-form", async (f) => {
     await api("/sites" + (site ? "/" + site.id : ""), site ? "PUT" : "POST", {
       ...(!site
@@ -601,9 +595,9 @@ async function siteForm(site?: Site, certificate?: Certificate) {
       name: f.get("name"),
       hostnames: names(f.get("hostnames")),
       upstream: f.get("upstream"),
- upstream_tls:readUpstreamTLS(f),
+      upstream_tls: readUpstreamTLS(f),
       traffic_profile: f.get("traffic_profile"),
-      stream_window_bytes: site?.stream_window_bytes||8192,
+      stream_window_bytes: site?.stream_window_bytes || 8192,
       certificate_id: f.get("certificate_id")
         ? Number(f.get("certificate_id"))
         : null,
@@ -627,7 +621,9 @@ async function siteForm(site?: Site, certificate?: Certificate) {
     });
     closeEditor();
     await refresh();
-    notice("Proxy host saved. Your gateway will apply it within 2 seconds.");
+    notice(
+      "Application saved. Changes reach replicas during their next configuration refresh.",
+    );
   });
 }
 root.addEventListener("click", async (e) => {
@@ -707,9 +703,9 @@ root.addEventListener("click", async (e) => {
         break;
       case "connect": {
         const c = state.certs.find((c) => c.id === id);
-        if (page !== "proxy-hosts") {
+        if (page !== "applications") {
           closeEditor();
-          history.pushState(null, "", "#proxy-hosts");
+          history.pushState(null, "", "#applications");
           await refresh();
         }
         await siteForm(undefined, c);
@@ -747,7 +743,7 @@ root.addEventListener("click", async (e) => {
         if (
           confirm(
             action === "delete-site"
-              ? "Delete this proxy host and stop routing its traffic?"
+              ? "Delete this application and stop routing its traffic?"
               : "Delete this certificate? Attached certificates must be disconnected first.",
           )
         ) {
@@ -759,7 +755,7 @@ root.addEventListener("click", async (e) => {
           await refresh();
           notice(
             action === "delete-site"
-              ? "Proxy host deleted."
+              ? "Application deleted."
               : "Certificate deleted.",
           );
         }
@@ -809,7 +805,15 @@ const policyPage = makePoliciesPage({
   refresh,
   notice,
 });
-const requestDetails = makeRequestDetails({ api, esc, table, openEditor });
+const applicationsUI = makeApplications({ api, state: () => state });
+const requestDetails = makeRequestDetails({
+  api,
+  esc,
+  table,
+  openEditor,
+  openPolicy: policyPage.openCurrentPolicy,
+  handleError,
+});
 const alertsPage = makeAlertsPage({
   api,
   formHandler,

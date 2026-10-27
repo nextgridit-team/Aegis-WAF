@@ -1,5 +1,11 @@
 # README screenshots
 
+## Applications workspace — 2026-10-27
+
+`applications-overview.png`, `application-detail.png` and `application-dark.png` are unedited browser captures from the passing `tests/applications-ui.cjs` fixture, using the Applications changes in the working tree based on `74d1493`. The fixture serves the built application assets and intercepts APIs with synthetic applications, certificates, policies and request records. It verifies search/filtering, effective modes, CIDR overrides, missing data, request-to-exception drafting and saves, browser history, escaping and 320–1440px layouts. These images show the rendered UI; they do not establish live proxy enforcement or public certificate validity. No production settings or credentials appear. Run `BROWSER_EXECUTABLE=/path/to/chromium npm --prefix tests run test:applications` to regenerate them under `/tmp/aegis-applications-ui`.
+
+## Earlier captures
+
 The original front-page images listed in the first table are real browser screenshots from the isolated acceptance deployment, using application source revision `49f23edd0ff47e02486e8733431bd3c088303fd3` and synthetic traffic on 2026-10-25. They use example domains, a test-only administrator and disposable certificates. They contain no production traffic, real credentials or customer configuration. The captured interface supports light and dark modes; a button label describes the theme it switches to.
 
 | README file                | Acceptance artifact            | Shown                                                |

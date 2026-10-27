@@ -79,7 +79,12 @@ type Spec = {
   groups: Group[];
 };
 type Assignment = { site_id: number; source_cidrs: string[]; priority: number };
-type Policy = {
+export type ExceptionDraft = {
+  ruleID: number;
+  requestID: number;
+  setID: string;
+};
+export type Policy = {
   built_in?: boolean;
   id: number;
   revision: number;
@@ -161,8 +166,18 @@ export function makePoliciesPage(c: C) {
     id?: number,
     assignmentFocus = false,
     signaturePreset?: SignatureSet,
+    exceptionDraft?: ExceptionDraft,
   ) {
+    const dialog = document.getElementById(
+      "editor",
+    ) as HTMLDialogElement | null;
+    const wasOpen = dialog?.open,
+      content = dialog?.firstElementChild;
     const p = policies.find((p) => p.id === id);
+    if (id !== undefined && !p)
+      throw new Error(
+        "This policy is no longer available. Refresh the application to review its assignments.",
+      );
     const [localRules, sets, objects, addressGroups, catalogue] =
       await Promise.all([
         api<Rule[]>("/rules"),
@@ -171,6 +186,11 @@ export function makePoliciesPage(c: C) {
         api<AddressGroup[]>("/address-groups"),
         api<CommunityRule[]>("/rule-catalog"),
       ]);
+    if (
+      !dialog?.isConnected ||
+      (wasOpen && (!dialog.open || dialog.firstElementChild !== content))
+    )
+      return;
     const rules = localRules;
     const spec: Spec = structuredClone(
       p?.spec || {
@@ -213,6 +233,20 @@ export function makePoliciesPage(c: C) {
               : "observe",
         }
       : savedManaged;
+    if (exceptionDraft) {
+      if (managed.set_id !== exceptionDraft.setID)
+        throw new Error(
+          "The policy now uses a different signature set. Review its current rules before adding an exception.",
+        );
+      if ((managed.scoped_exclusions?.length || 0) >= 32)
+        throw new Error(
+          "This policy already has 32 scoped exceptions. Review existing exceptions before adding another.",
+        );
+      managed.scoped_exclusions = [
+        ...(managed.scoped_exclusions || []),
+        { rule_ids: [exceptionDraft.ruleID] },
+      ];
+    }
     const number = (key: string, label: string, value: number, max: number) =>
       `<label class="field">${label}<input type="number" name="${key}" min="${key.endsWith("body_kib") ? 4 : 1}" max="${max}" value="${value}" required></label>`;
     const check = (key: string, label: string, value: boolean) =>
@@ -397,6 +431,24 @@ export function makePoliciesPage(c: C) {
       form
         .querySelector("#policy-assignment-section")!
         .scrollIntoView({ block: "start" });
+    if (exceptionDraft) {
+      const panel = form.querySelector<HTMLDetailsElement>(
+        "[data-policy-exceptions]",
+      )!;
+      panel.open = true;
+      const draftNotice = document.createElement("p");
+      draftNotice.className = "notice";
+      draftNotice.textContent = `Unsaved exception for rule #${exceptionDraft.ruleID} from request #${exceptionDraft.requestID}. Choose a path, parameter or client range before saving. This edits the current policy (v${p!.revision}), shared by ${new Set(p!.applications.map((a) => a.site_id)).size} applications. Review the scope and all assignments; no change has been applied.`;
+      panel.prepend(draftNotice);
+      form
+        .querySelector<HTMLButtonElement>('[data-policy-jump="signatures"]')
+        ?.click();
+      panel
+        .querySelector<HTMLInputElement>(
+          ".policy-exception-row:last-child [data-exception-path]",
+        )
+        ?.focus();
+    }
     c.formHandler("policy-form", async (f) => {
       const value = (name: string) => Number(f.get(name));
       const groups = Array.from(
@@ -528,7 +580,7 @@ export function makePoliciesPage(c: C) {
         await editor();
         return true;
       case "edit-policy":
-        await editor(id);
+        await openCurrentPolicy(id);
         return true;
       case "assign-policy":
         await editor(id, true);
@@ -582,5 +634,19 @@ export function makePoliciesPage(c: C) {
       await editor(Number(data.get("policy")) || undefined, false, set);
     });
   }
-  return { render, handle, applySignatureSet };
+  async function openCurrentPolicy(id: number, draft?: ExceptionDraft) {
+    const dialog = document.getElementById(
+      "editor",
+    ) as HTMLDialogElement | null;
+    const wasOpen = dialog?.open,
+      content = dialog?.firstElementChild;
+    policies = await api<Policy[]>("/policies");
+    if (
+      !dialog?.isConnected ||
+      (wasOpen && (!dialog.open || dialog.firstElementChild !== content))
+    )
+      return;
+    await editor(id, false, undefined, draft);
+  }
+  return { render, handle, applySignatureSet, openCurrentPolicy };
 }

@@ -229,10 +229,10 @@ const topics = require("../web/src/help-topics.json");
     // Reused callouts on other forms preserve their values and do not leak typed secrets.
     await page
       .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("link", { name: "Proxy hosts", exact: true })
+      .getByRole("link", { name: "Applications", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "Add proxy host", exact: true })
+      .getByRole("button", { name: "Add application", exact: true })
       .first()
       .click();
     const site = page.locator("#site-form");

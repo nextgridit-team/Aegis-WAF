@@ -255,12 +255,12 @@ const { execFileSync } = require("node:child_process");
         .selectOption("observe");
       await screenshot("connect-proxy");
       await dialog()
-        .getByRole("button", { name: "Save proxy host", exact: true })
+        .getByRole("button", { name: "Save application", exact: true })
         .click();
-      await message("Proxy host saved.").waitFor();
+      await message("Application saved.").waitFor();
       await page.reload();
       await page
-        .getByRole("heading", { name: "Proxy hosts", exact: true })
+        .getByRole("heading", { name: "Applications", exact: true })
         .waitFor();
       const root = fs.readFileSync(process.env.BROWSER_ISSUER_ROOT, "utf8");
       for (const port of [
@@ -289,7 +289,7 @@ const { execFileSync } = require("node:child_process");
         assert.equal((await httpsRequest(rotationPorts[index],'app.example.test',root)).status,200);
         await eventually(async()=>assert.notEqual(await tlsFingerprint(rotationPorts[index],'app.example.test',root),fingerprints[index]));
       }
-      await nav('Proxy hosts').click();
+      await nav('Applications').click();
       await screenshot("proxy-hosts-desktop");
     }
     // Upload and failed replacement preserve the working certificate and inputs.
@@ -319,9 +319,9 @@ const { execFileSync } = require("node:child_process");
       .click();
     await dialog().getByLabel("Upstream URL", { exact: true }).fill(upstream);
     await dialog()
-      .getByRole("button", { name: "Save proxy host", exact: true })
+      .getByRole("button", { name: "Save application", exact: true })
       .click();
-    await message("Proxy host saved.").waitFor();
+    await message("Application saved.").waitFor();
     await nav("Certificates").click();
     manual = page
       .locator("#certificate-list tbody tr")
@@ -846,9 +846,9 @@ const { execFileSync } = require("node:child_process");
       .getByRole("button", { name: "Save protection", exact: true })
       .click();
     await dialog().waitFor({ state: "detached" });
-    await nav("Proxy hosts").click();
+    await nav("Applications").click();
     const headerSite = () =>
-      page.locator("#site-list tbody tr").filter({ hasText: "Manual TLS" });
+      page.locator("#application-list tbody tr").filter({ hasText: "Manual TLS" });
     await headerSite()
       .getByRole("button", { name: "Edit", exact: true })
       .click();
@@ -893,7 +893,7 @@ const { execFileSync } = require("node:child_process");
     await addHeader("response", "Server", "", "remove");
     await addHeader("request", "x-aegis-test", "duplicate");
     await dialog()
-      .getByRole("button", { name: "Save proxy host", exact: true })
+      .getByRole("button", { name: "Save application", exact: true })
       .click();
     await dialog()
       .getByRole("alert")
@@ -915,7 +915,7 @@ const { execFileSync } = require("node:child_process");
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
     await dialog()
-      .getByRole("button", { name: "Save proxy host", exact: true })
+      .getByRole("button", { name: "Save application", exact: true })
       .click();
     await dialog().waitFor({ state: "detached" });
     await page.waitForTimeout(2500);
@@ -972,7 +972,7 @@ const { execFileSync } = require("node:child_process");
       })
       .uncheck();
     await dialog()
-      .getByRole("button", { name: "Save proxy host", exact: true })
+      .getByRole("button", { name: "Save application", exact: true })
       .click();
     await dialog().waitFor({ state: "detached" });
     await page.waitForTimeout(2500);
@@ -1340,7 +1340,7 @@ const { execFileSync } = require("node:child_process");
       for (const label of [
         "Dashboard",
         "Certificates",
-        "Proxy hosts",
+        "Applications",
         "Activity",
         "Certificate authorities",
         "Rules",
@@ -1376,9 +1376,9 @@ const { execFileSync } = require("node:child_process");
         .getByRole("heading", { name: "Certificates", exact: true })
         .waitFor();
       await screenshot(`certificates-${width}`);
-      await nav("Proxy hosts").click();
+      await nav("Applications").click();
       await page
-        .getByRole("heading", { name: "Proxy hosts", exact: true })
+        .getByRole("heading", { name: "Applications", exact: true })
         .waitFor();
       await screenshot(`proxy-hosts-${width}`);
       for (const label of ["Rules", "Traffic", "System"]) {
@@ -1412,8 +1412,8 @@ const { execFileSync } = require("node:child_process");
     const scrape=await page.evaluate(async()=>{const r=await fetch("/metrics");return {status:r.status,body:await r.text()};});
     assert.equal(scrape.status,200);assert.ok(scrape.body.includes("aegis_requests_total"));assert.ok(scrape.body.includes("aegis_inspection_duration_seconds_bucket"));
     // The shipped baseline can be selected atomically while creating a host.
-    await nav("Proxy hosts").click();
-    await page.getByRole("button",{name:"Add proxy host",exact:true}).click();
+    await nav("Applications").click();
+    await page.getByRole("button",{name:"Add application",exact:true}).click();
     await dialog().getByLabel("Name",{exact:true}).fill("Baseline-protected app");
     await dialog().getByLabel("Domains",{exact:true}).fill("baseline.example.test");
     await dialog().getByLabel("Upstream URL",{exact:true}).fill(upstream);
@@ -1421,7 +1421,7 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByLabel("Endpoint type",{exact:true}).selectOption("streaming");
     await dialog().getByText(/Streaming inspection windows and connection limits are configured in the assigned policy/).waitFor();
     await screenshot("baseline-application-policy");
-    await dialog().getByRole("button",{name:"Save proxy host",exact:true}).click();
+    await dialog().getByRole("button",{name:"Save application",exact:true}).click();
     await dialog().waitFor({state:"detached"});
     await eventually(async()=>{
       const response=await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"text/html"}});
@@ -1430,9 +1430,9 @@ const { execFileSync } = require("node:child_process");
     // A streaming host can be changed to API, persisted, and still enforce CRS.
     await page.locator("tbody tr").filter({hasText:"Baseline-protected app"}).getByRole("button",{name:"Edit",exact:true}).click();
     await dialog().getByLabel("Endpoint type",{exact:true}).selectOption("api");
-    await dialog().getByRole("button",{name:"Save proxy host",exact:true}).click();
+    await dialog().getByRole("button",{name:"Save application",exact:true}).click();
     await dialog().waitFor({state:"detached"});
-    await page.locator("tbody tr").filter({hasText:"Baseline-protected app"}).getByText(/API ·/).waitFor();
+    await page.locator("tbody tr").filter({hasText:"Baseline-protected app"}).getByText("API", {exact:true}).waitFor();
     await eventually(async()=>{
       const response=await page.request.get(process.env.BROWSER_PROXY_URL+"/search?q="+encodeURIComponent("1' UNION SELECT password FROM users --"),{headers:{Host:"baseline.example.test","User-Agent":"browser",Accept:"text/html"}});
       assert.equal(response.status(),403);
@@ -1466,7 +1466,7 @@ const { execFileSync } = require("node:child_process");
     await page.locator("tbody tr").filter({hasText:"Investigate fixture blocks"}).getByRole("button",{name:"Acknowledge",exact:true}).click();
     await page.locator("tbody tr").filter({hasText:"Investigate fixture blocks"}).getByRole("cell",{name:/^Acknowledged/}).waitFor();
     for(const width of [390,1440]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(out,`alerts-${width}.png`)});}
-    await nav("Proxy hosts").click();
+    await nav("Applications").click();
     // Fully self-hosted selective CAPTCHA: no provider keys or test bypass route.
     if (process.env.BROWSER_CAPTCHA_DATABASE_CONTAINER) {
       await nav("Policies").click();
@@ -1590,16 +1590,16 @@ const { execFileSync } = require("node:child_process");
       assert.equal((await httpsRequest(Number(port),"manual.example.test",null,"/search?q="+encodeURIComponent("<script>alert(1)</script>"),managedHeaders)).status,200);
     }
     // A mutation failure keeps the form editable and does not claim success.
-    await nav("Proxy hosts").click();
+    await nav("Applications").click();
     const manualSite = page
-      .locator("#site-list tbody tr")
+      .locator("#application-list tbody tr")
       .filter({ hasText: "Manual TLS" });
     await manualSite.getByRole("button", { name: "Edit", exact: true }).click();
     await dialog()
       .getByLabel("Domains", { exact: true })
       .fill("uncovered.example.test");
     await dialog()
-      .getByRole("button", { name: "Save proxy host", exact: true })
+      .getByRole("button", { name: "Save application", exact: true })
       .click();
     await dialog()
       .getByRole("alert")

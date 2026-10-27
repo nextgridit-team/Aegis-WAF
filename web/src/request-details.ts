@@ -3,6 +3,7 @@ import { responseSource } from "./response-status";
 import type { Access } from "./types";
 import { managedSignatureSummary } from "./signature-sets";
 import type { SignatureEntry } from "./signature-browser";
+import type { ExceptionDraft } from "./policy-page";
 type Detail = {
   event: Access & {
     country: string;
@@ -36,10 +37,14 @@ type Context = {
   esc: (v: unknown) => string;
   table: (headers: string[], rows: string[][], label: string) => string;
   openEditor: (title: string, html: string) => void;
+  openPolicy: (id: number, draft?: ExceptionDraft) => Promise<void>;
+  handleError: (error: unknown) => Promise<void>;
 };
 export function makeRequestDetails(c: Context) {
   return async (id: number) => {
+    const dialog = document.getElementById("editor") as HTMLDialogElement;
     const detail = await c.api<Detail>(`/access-logs/${id}`);
+    if (!dialog.isConnected) return;
     const { event } = detail;
     const { esc } = c;
     const flagged =
@@ -84,10 +89,45 @@ export function makeRequestDetails(c: Context) {
         `#${rule.id} · ${esc(rule.name)}`,
         `${esc(rule.category)}<small>${esc(rule.severity)} · phase ${rule.phase}${rule.paranoia_level ? ` · paranoia ${rule.paranoia_level}` : ""}</small>`,
         esc(rule.tags.join(", ")),
+        event.policy_id &&
+        event.managed_signatures?.set_id &&
+        ((rule.id >= 910000 && rule.id < 949000) ||
+          (rule.id >= 950000 && rule.id < 959000))
+          ? `<button type="button" class="secondary compact" data-request-rule="${rule.id}">Draft exception</button>`
+          : "—",
       ]);
     c.openEditor(
       `Request #${id}`,
-      `<section class="request-detail"><div class="info-panel"><h3>${esc(decision)}</h3><p>${esc(event.method)} · HTTP ${event.status} · ${esc(detail.application.name || `Application ${event.site_id}`)}</p></div><dl class="request-summary">${row("Time", new Date(event.at).toLocaleString())}${row("Client IP", event.peer)}${event.client_objects?.length ? row("Current IP objects", event.client_objects.join(", ")) : ""}${row("Response source", responseSource(event.response_source || (event.blocked ? "waf" : "unknown")))}${row("Duration", `${event.duration_ms} ms`)}${row("Country", event.country || "Unknown")}${localLocationNote(event) ? row("Location source", localLocationNote(event)) : ""}${event.location_source?.startsWith("local_") ? row("Observed client country", event.observed_country || "Unknown / private") : ""}${row("Region / state", event.region_name || event.region_code || "Unknown")}${row("Policy", event.policy_name ? `${event.policy_name} · v${event.policy_revision}` : "Local application settings")}${row("Current application domains", detail.application.current_hostnames?.join(", ") || "Application removed")}</dl>${event.network_access?.decision ? `<h3>Network access decision</h3><p>${esc(event.network_access.decision)} · ${esc(event.network_access.mode)}${event.network_access.cidr ? ` · ${esc(event.network_access.cidr)}` : ""}</p><p>${event.network_access.allow_scope ? `CIDR allow scope: ${esc(event.network_access.allow_scope === "all" ? "All WAF protections" : "Geo only")}` : event.network_access.geo_checked ? `Geo country: ${esc(event.network_access.country || "Unknown")}` : "Geo lookup skipped after CIDR decision"}</p>` : ""}${event.bot?.decision ? `<h3>Bot verification</h3><p>${esc(event.bot.decision)} · suspicion ${event.bot.score} / threshold ${event.bot.threshold}</p><p>${(event.bot.reasons || []).map((reason) => esc(reason.replaceAll("_", " "))).join(", ") || "No additional bot signals."}</p>` : ""}<h3>Decision and signals</h3><p>${event.signals.length ? event.signals.map((signal) => esc(signal.replaceAll("_", " "))).join(", ") : "No bot/flood or managed-signature signals recorded."}</p><p>Component exemptions: ${event.protection_exemptions?.length ? event.protection_exemptions.map(esc).join(", ") : "None"}</p><h3>Custom rule results</h3>${definitions.length ? c.table(["Rule", "Recorded result", "Definition"], definitions, "Request custom rule results") : "<p>No custom rule results recorded.</p>"}<h3>Managed signature matches</h3>${managedSignatureSummary(event.managed_signatures, esc)}${controlMatches.length ? `<p>${controlMatches.length} engine control matches in this older record are not attack detections.</p><details><summary>Engine control entries</summary><p>${controlMatches.map((rule) => `#${rule.id}`).join(", ")}</p></details>` : ""}${managed.length ? c.table(["Signature", "Classification", "Tags"], managed, "Request managed signature matches") : detail.managed_metadata === "unavailable" ? "<p>Stored signature metadata is unavailable. Recorded IDs above are retained.</p>" : "<p>No managed-signature matches recorded. An earlier decision may have skipped signature inspection.</p>"}<h3>Retained request evidence</h3>${detail.evidence ? `<p>${esc(detail.evidence.content_type || "Content type unavailable")} · declared body length ${detail.evidence.body_length} · expires ${esc(new Date(detail.evidence_expires_at!).toLocaleString())}</p>${c.table(["Field", "Capture state", "Retained values"], facts, "Request retained facts")}` : `<p>${esc(unavailable)}</p><p>Headers, query fields and body facts require opt-in capture under Traffic. Uncaptured data cannot be reconstructed.</p>`}${detail.policy_snapshot ? `<details><summary>Recorded policy definition</summary><pre>${esc(JSON.stringify(detail.policy_snapshot, null, 2))}</pre></details>` : ""}<details><summary>Recorded event JSON</summary><pre>${esc(JSON.stringify(event, null, 2))}</pre></details><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Close</button></div></section>`,
+      `<section class="request-detail"><div class="request-context"><a data-request-application href="#applications/${event.site_id}">Back to application</a>${event.policy_id ? '<button type="button" class="secondary compact" data-request-policy>Review current policy</button>' : ""}</div><div class="info-panel"><h3>${esc(decision)}</h3><p>${esc(event.method)} · HTTP ${event.status} · ${esc(detail.application.name || `Application ${event.site_id}`)}</p></div><dl class="request-summary">${row("Time", new Date(event.at).toLocaleString())}${row("Client IP", event.peer)}${event.client_objects?.length ? row("Current IP objects", event.client_objects.join(", ")) : ""}${row("Response source", responseSource(event.response_source || (event.blocked ? "waf" : "unknown")))}${row("Duration", `${event.duration_ms} ms`)}${row("Country", event.country || "Unknown")}${localLocationNote(event) ? row("Location source", localLocationNote(event)) : ""}${event.location_source?.startsWith("local_") ? row("Observed client country", event.observed_country || "Unknown / private") : ""}${row("Region / state", event.region_name || event.region_code || "Unknown")}${row("Policy", event.policy_name ? `${event.policy_name} · v${event.policy_revision}` : "Local application settings")}${row("Current application domains", detail.application.current_hostnames?.join(", ") || "Application removed")}</dl>${event.network_access?.decision ? `<h3>Network access decision</h3><p>${esc(event.network_access.decision)} · ${esc(event.network_access.mode)}${event.network_access.cidr ? ` · ${esc(event.network_access.cidr)}` : ""}</p><p>${event.network_access.allow_scope ? `CIDR allow scope: ${esc(event.network_access.allow_scope === "all" ? "All WAF protections" : "Geo only")}` : event.network_access.geo_checked ? `Geo country: ${esc(event.network_access.country || "Unknown")}` : "Geo lookup skipped after CIDR decision"}</p>` : ""}${event.bot?.decision ? `<h3>Bot verification</h3><p>${esc(event.bot.decision)} · suspicion ${event.bot.score} / threshold ${event.bot.threshold}</p><p>${(event.bot.reasons || []).map((reason) => esc(reason.replaceAll("_", " "))).join(", ") || "No additional bot signals."}</p>` : ""}<h3>Decision and signals</h3><p>${event.signals.length ? event.signals.map((signal) => esc(signal.replaceAll("_", " "))).join(", ") : "No bot/flood or managed-signature signals recorded."}</p><p>Component exemptions: ${event.protection_exemptions?.length ? event.protection_exemptions.map(esc).join(", ") : "None"}</p><h3>Custom rule results</h3>${definitions.length ? c.table(["Rule", "Recorded result", "Definition"], definitions, "Request custom rule results") : "<p>No custom rule results recorded.</p>"}<h3>Managed signature matches</h3>${event.policy_id ? '<p class="muted">Draft an exception only after reviewing a legitimate request. A draft opens the current shared policy and requires a scope before saving.</p>' : ""}${managedSignatureSummary(event.managed_signatures, esc)}${controlMatches.length ? `<p>${controlMatches.length} engine control matches in this older record are not attack detections.</p><details><summary>Engine control entries</summary><p>${controlMatches.map((rule) => `#${rule.id}`).join(", ")}</p></details>` : ""}${managed.length ? c.table(["Signature", "Classification", "Tags", ""], managed, "Request managed signature matches") : detail.managed_metadata === "unavailable" ? "<p>Stored signature metadata is unavailable. Recorded IDs above are retained.</p>" : "<p>No managed-signature matches recorded. An earlier decision may have skipped signature inspection.</p>"}<h3>Retained request evidence</h3>${detail.evidence ? `<p>${esc(detail.evidence.content_type || "Content type unavailable")} · declared body length ${detail.evidence.body_length} · expires ${esc(new Date(detail.evidence_expires_at!).toLocaleString())}</p>${c.table(["Field", "Capture state", "Retained values"], facts, "Request retained facts")}` : `<p>${esc(unavailable)}</p><p>Headers, query fields and body facts require opt-in capture under Traffic. Uncaptured data cannot be reconstructed.</p>`}${detail.policy_snapshot ? `<details><summary>Recorded policy definition</summary><pre>${esc(JSON.stringify(detail.policy_snapshot, null, 2))}</pre></details>` : ""}<details><summary>Recorded event JSON</summary><pre>${esc(JSON.stringify(event, null, 2))}</pre></details><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Close</button></div></section>`,
     );
+    dialog
+      .querySelectorAll<HTMLButtonElement>(
+        "[data-request-rule], [data-request-policy]",
+      )
+      .forEach((button) => {
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            const ruleID = Number(button.dataset.requestRule);
+            await c.openPolicy(
+              event.policy_id,
+              ruleID
+                ? {
+                    ruleID,
+                    requestID: id,
+                    setID: event.managed_signatures!.set_id!,
+                  }
+                : undefined,
+            );
+          } catch (error) {
+            await c.handleError(error);
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+    dialog
+      .querySelector("[data-request-application]")
+      ?.addEventListener("click", () => dialog.close());
   };
 }

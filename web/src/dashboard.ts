@@ -47,7 +47,7 @@ export type Protection = {
   flood_exempt_cidrs?: string[];
   bot_exempt_cidrs?: string[];
 };
-type Report = {
+export type Report = {
   geo_sources?: GeoSource[];
   systems?: {
     id: string;
@@ -155,9 +155,10 @@ export function makeDashboardUI(d: Deps) {
     minutes = "15",
     serial = 0,
     sites: Site[] = [];
-  async function mount(view: HTMLElement, apps: Site[]) {
+  async function mount(view: HTMLElement, apps: Site[], initialSite?: string) {
     hideLocal = hideLocalTraffic();
     sites = apps;
+    if (initialSite !== undefined) site = initialSite;
     if (site && !sites.some((s) => String(s.id) === site)) site = "";
     view.innerHTML =
       heading(
@@ -170,6 +171,14 @@ export function makeDashboardUI(d: Deps) {
       .querySelector<HTMLSelectElement>("#dashboard-site")!
       .addEventListener("change", (e) => {
         site = (e.target as HTMLSelectElement).value;
+        const params = new URLSearchParams(location.hash.split("?")[1]);
+        if (site) params.set("site_id", site);
+        else params.delete("site_id");
+        history.replaceState(
+          null,
+          "",
+          `#dashboard${params.size ? "?" + params : ""}`,
+        );
         void update().catch(d.handleError);
       });
     view

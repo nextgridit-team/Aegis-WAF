@@ -4,6 +4,8 @@
 
 New to the terminology? Open the dashboard’s **Help & glossary**, or read the [plain-language glossary](glossary.md). Click **?** beside a setting for a short explanation and its detailed guide.
 
+Start in **[Applications](applications.md)** to review routing, certificates, effective protection and recent requests for one application, or to connect your first application.
+
 ## Install and operate
 
 | Goal                                                                         | Guide                                                                                     |
