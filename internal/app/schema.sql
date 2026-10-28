@@ -178,3 +178,24 @@ INSERT INTO log_settings(id) VALUES(true) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS log_maintenance(id boolean PRIMARY KEY DEFAULT true CHECK(id),last_cleanup_at timestamptz,last_export_at timestamptz,cleanup_error text NOT NULL DEFAULT '',export_error text NOT NULL DEFAULT '',access_deleted bigint NOT NULL DEFAULT 0,audit_deleted bigint NOT NULL DEFAULT 0,evidence_deleted bigint NOT NULL DEFAULT 0);
 INSERT INTO log_maintenance(id) VALUES(true) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES(23) ON CONFLICT DO NOTHING;
+
+-- Version 24: make the existing community enforcement inheritance explicit.
+-- Keep historical revisions intact; an absent mode there still means inherit.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM schema_version WHERE version=24) THEN
+    PERFORM version FROM config_version WHERE id FOR UPDATE;
+    WITH updated AS (
+      UPDATE policies SET spec=jsonb_set(spec,'{community_mitigations,mode}','"inherit"'),revision=revision+1
+      WHERE jsonb_typeof(spec->'community_mitigations')='object'
+        AND NOT (spec->'community_mitigations' ? 'mode')
+      RETURNING id,revision,spec
+    ), recorded AS (
+      INSERT INTO policy_revisions(policy_id,revision,spec,actor)
+      SELECT id,revision,spec,'system' FROM updated RETURNING policy_id
+    )
+    INSERT INTO audit_events(actor,action,resource)
+      SELECT 'system','policy.community_mode_migrated',policy_id::text FROM recorded;
+    UPDATE config_version SET version=version+1 WHERE id;
+    INSERT INTO schema_version VALUES(24);
+  END IF;
+END $$;

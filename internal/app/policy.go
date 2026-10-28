@@ -156,6 +156,9 @@ func policyRuleCount(s policySpec) int {
 }
 func validatePolicySpec(s policySpec) error {
 	if s.Community != nil {
+		if _, e := normalizeCommunityMode(s.Community.Mode); e != nil {
+			return e
+		}
 		if s.Community.Enabled && len(s.Community.Rules) == 0 {
 			return invalid("select at least one community mitigation")
 		}
@@ -426,10 +429,13 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 				return e
 			}
 			if input.Spec.Community == nil && prior.Community != nil {
-				input.Spec.Community = &policyCommunityInput{Enabled: prior.Community.Enabled, RuleIDs: []int64{}}
+				input.Spec.Community = &policyCommunityInput{Enabled: prior.Community.Enabled, Mode: prior.Community.Mode, RuleIDs: []int64{}}
 				for _, r := range prior.Community.Rules {
 					input.Spec.Community.RuleIDs = append(input.Spec.Community.RuleIDs, r.RuleID)
 				}
+			}
+			if input.Spec.Community != nil && input.Spec.Community.Mode == "" && prior.Community != nil {
+				input.Spec.Community.Mode = prior.Community.Mode
 			}
 			if !input.RefreshRules {
 				for _, g := range storedPolicyGroups(prior) {
@@ -607,7 +613,7 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 					continue
 				}
 				rule.Spec.Scope.SiteID = site
-				rule.Spec.Action = spec.Mode
+				rule.Spec.Action = effectivePolicyRuleAction(spec, rule)
 				compiled, e := compileRule(rule.Spec)
 				if e != nil {
 					return e

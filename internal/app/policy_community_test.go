@@ -60,6 +60,31 @@ func TestPolicyCommunityEnableSelection(t *testing.T) {
 		}
 	}
 	check(403, 403)
+	// Community enforcement is explicit and still capped by policy mode.
+	p.Spec.Community.Mode = "observe"
+	api.call("PUT", path, p, 200)
+	p.Revision++
+	check(200, 200)
+	p.Spec.Community.Mode = "" // Older API clients must not reset an explicit mode.
+	api.call("PUT", path, p, 200)
+	p.Revision++
+	check(200, 200)
+	p.Spec.Community.Mode = "block"
+	p.Spec.Mode = "observe"
+	api.call("PUT", path, p, 200)
+	p.Revision++
+	check(200, 200)
+	p.Spec.Mode = "off"
+	api.call("PUT", path, p, 200)
+	p.Revision++
+	check(200, 200)
+	p.Spec.Mode = "block"
+	api.call("PUT", path, p, 200)
+	p.Revision++
+	check(403, 403)
+	p.Spec.Community.Mode = "invalid"
+	api.call("PUT", path, p, 400)
+	p.Spec.Community.Mode = "inherit"
 	p.Spec.Community.Enabled = false
 	api.call("PUT", path, p, 200)
 	p.Revision++

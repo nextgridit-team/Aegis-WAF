@@ -211,7 +211,7 @@ function enhanceChoice(select: HTMLSelectElement) {
       ? {
           off: "Keep settings, pause protection",
           observe: "Evaluate matches and allow traffic",
-          block: "Enforce the enabled controls",
+          block: "Honor configured rule actions",
         }
       : undefined;
   const buttons = Array.from(select.options).map((option) => {

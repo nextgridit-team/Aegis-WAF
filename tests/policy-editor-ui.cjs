@@ -90,7 +90,7 @@ const path = require("node:path");
         countries: ["US", "CA", "AX"],
         unknown_country: "allow",
       },
-      community_mitigations: { enabled: false, rules: [] },
+      community_mitigations: { enabled: false, mode: "observe", rules: [] },
       groups: [
         {
           name: "WebDAV",
@@ -174,6 +174,7 @@ const path = require("node:path");
                 groups: saved.spec.groups.map((g) => ({ ...g, rules: [] })),
                 community_mitigations: {
                   enabled: saved.spec.community_mitigations.enabled,
+                  mode: saved.spec.community_mitigations.mode,
                   rules: [],
                 },
               },
@@ -216,7 +217,11 @@ const path = require("node:path");
       .click();
     await form().waitFor({ state: "detached" });
     const expected = structuredClone(original);
-    expected.community_mitigations = { enabled: false, rule_ids: [] };
+    expected.community_mitigations = {
+      enabled: false,
+      mode: "observe",
+      rule_ids: [],
+    };
     expected.groups = original.groups.map(({ rules, ...g }) => ({
       ...g,
       rule_ids: [],
@@ -469,6 +474,18 @@ const path = require("node:path");
       "4",
     );
     await page.screenshot({ path: path.join(artifacts, "create.png") });
+    // Explicit community mode survives form submission and reload, even while disabled.
+    assert.equal(
+      await form().locator("[name=community_mode]").inputValue(),
+      "inherit",
+    );
+    await section("Targeted rules");
+    await form().locator("[name=community_enabled]").check();
+    await form()
+      .locator("[name=community_mode]")
+      .selectOption("observe");
+    await page.screenshot({ path: path.join(artifacts, "community-mode.png") });
+    await form().locator("[name=community_enabled]").uncheck();
     // Policy-owned API starting values and connection controls round-trip explicitly.
     await section("Signature protection");
     await form()
@@ -514,6 +531,7 @@ const path = require("node:path");
     await form().waitFor({ state: "detached" });
     assert.equal(saved.spec.managed_signatures.stream_window_bytes, 16384);
     assert.equal(saved.spec.mode, "observe");
+    assert.equal(saved.spec.community_mitigations.mode, "observe");
     assert.equal(saved.spec.managed_signatures.body_limit_bytes, 1048576);
     assert.deepEqual(saved.spec.connection_limits, {
       enabled: true,

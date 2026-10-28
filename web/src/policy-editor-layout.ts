@@ -194,7 +194,7 @@ export function mountPolicyLayout(form: HTMLFormElement) {
         ? "Off · policy protection paused"
         : current === "observe"
           ? "Observe · evaluate and allow"
-          : "Block · enabled controls enforce";
+          : "Block · honor configured actions";
     const signature = (
       form.elements.namedItem("signature_mode") as HTMLSelectElement
     ).value;

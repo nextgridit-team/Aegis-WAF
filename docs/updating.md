@@ -52,3 +52,9 @@ Back up PostgreSQL and retain the external encryption key before updating. Upgra
 Curated artifacts retain source ID/version/digest, selected detection IDs and frozen source files with generated removal overlays. They become active only after an explicit policy save. Source/image updates do not replace those references; use Review upstream, save another artifact and adopt it explicitly. Sparse selections require compatibility and score tuning. MCP policy changes still require a fresh simulation receipt. Refresh the bundled agent skill/contract when updating clients. [Managed-set guide](managed-signatures.md#sensitivity-and-curated-sets).
 
 Use a compatible backup/image for rollback once curated sets are in use. Older editors do not expose their selection/provenance; do not use an older build to manage them. A deployment pinned to a local review image with `pull_policy: never` will stay on that image: restore its backed-up registry image and pull policy only after a compatible published build is available. Registry publication alone does not update a running stack.
+
+## Policy rule-action upgrade
+
+The policy action-ceiling fix honors native rules saved as Observe inside Block policies. Existing community selections gain an explicit Follow policy setting and retain their enforcement. The migration records a new revision for each affected policy; reload any open policy editors before saving. Historical revisions remain intact.
+
+Recovery snapshot format 1 is rejected because it contains overwritten rule actions. The first startup after this upgrade requires PostgreSQL; it rebuilds and writes a format 2 cache when disk caching is configured. Subsequent restarts can use the new cache normally.

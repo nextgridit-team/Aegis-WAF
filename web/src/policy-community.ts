@@ -15,6 +15,7 @@ export type CommunityRule = {
 };
 export type CommunitySelection = {
   enabled: boolean;
+  mode?: "inherit" | "observe" | "block";
   rules: {
     rule_id: number;
     spec: CommunityRule["spec"];
@@ -31,7 +32,8 @@ export function communityMarkup(
     if (!items.some((r) => r.id === old.rule_id))
       items.push({ id: old.rule_id, spec: old.spec, pack: old.feed?.pack });
   const selected = new Set(saved.rules.map((r) => r.rule_id));
-  return `<section data-community><h3>Community mitigations</h3><label class="check"><input type="checkbox" name="community_enabled" ${saved.enabled ? "checked" : ""}><span>Enable community mitigations</span></label><p class="muted">Choose all available rules or individual mitigations for this policy. These mitigations can block legitimate requests; review compatibility before enforcing. Published copies stay pinned until explicitly refreshed.</p><div data-community-options ${saved.enabled ? "" : "hidden"}><label class="check"><input type="checkbox" data-community-all><span>All available mitigations</span></label><label class="field">Find community mitigations<input type="search" data-community-search placeholder="Name, CVE or technology"></label><div class="policy-rule-picker" role="group" aria-label="Community mitigation rules">${
+  const mode = saved.mode || "inherit";
+  return `<section data-community><h3>Community mitigations</h3><label class="check"><input type="checkbox" name="community_enabled" ${saved.enabled ? "checked" : ""}><span>Enable community mitigations</span></label><p class="muted">Choose all available rules or individual mitigations for this policy. These mitigations can block legitimate requests; review compatibility before enforcing. Published copies stay pinned until explicitly refreshed.</p><div data-community-options ${saved.enabled ? "" : "hidden"}><label class="field">Community enforcement<select name="community_mode"><option value="inherit" ${mode === "inherit" ? "selected" : ""}>Follow policy</option><option value="observe" ${mode === "observe" ? "selected" : ""}>Observe</option><option value="block" ${mode === "block" ? "selected" : ""}>Block</option></select><small>Follow policy uses the policy mode. Observe records matches without blocking. Policy Observe or Off always limits enforcement. This setting also applies to catalogue rules in custom groups.</small></label><label class="check"><input type="checkbox" data-community-all><span>All available mitigations</span></label><label class="field">Find community mitigations<input type="search" data-community-search placeholder="Name, CVE or technology"></label><div class="policy-rule-picker" role="group" aria-label="Community mitigation rules">${
     items
       .map((rule) => {
         const pinned = saved.rules.find((r) => r.rule_id === rule.id)?.feed
@@ -89,6 +91,8 @@ export function mountCommunity(
   update();
   return () => ({
     enabled: enabled.checked,
+    mode: root.querySelector<HTMLSelectElement>('[name="community_mode"]')!
+      .value,
     rule_ids: inputs.filter((i) => i.checked).map((i) => Number(i.value)),
   });
 }

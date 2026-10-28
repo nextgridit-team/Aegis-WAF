@@ -8,11 +8,39 @@ import (
 
 type policyCommunity struct {
 	Enabled bool         `json:"enabled"`
+	Mode    string       `json:"mode"`
 	Rules   []policyRule `json:"rules"`
 }
 type policyCommunityInput struct {
 	Enabled bool    `json:"enabled"`
+	Mode    string  `json:"mode"`
 	RuleIDs []int64 `json:"rule_ids"`
+}
+
+func normalizeCommunityMode(mode string) (string, error) {
+	if mode == "" {
+		mode = "inherit" // Older policy revisions and API clients follow policy mode.
+	}
+	if mode != "inherit" && mode != "observe" && mode != "block" {
+		return "", invalid("community mode must be inherit, observe or block")
+	}
+	return mode, nil
+}
+
+// Catalogue actions describe safe import defaults. Their policy-owned mode is
+// explicit; native rules retain their saved action. Policy mode caps both.
+func effectivePolicyRuleAction(s policySpec, rule policyRule) string {
+	action := rule.Spec.Action
+	if rule.Feed != nil {
+		action = "block" // Follow policy, including legacy feed-derived groups.
+		if s.Community != nil && s.Community.Mode == "observe" {
+			action = "observe"
+		}
+	}
+	if s.Mode == "observe" {
+		return "observe"
+	}
+	return action
 }
 
 // Stored groups retain snapshots even when disabled. Effective groups gate all
@@ -65,7 +93,11 @@ func (a *App) normalizeCommunity(ctx context.Context, tx pgx.Tx, input *policyCo
 	if len(input.RuleIDs) > 100 {
 		return nil, invalid("at most 100 community mitigations per policy")
 	}
-	out := &policyCommunity{Enabled: input.Enabled, Rules: []policyRule{}}
+	mode, e := normalizeCommunityMode(input.Mode)
+	if e != nil {
+		return nil, e
+	}
+	out := &policyCommunity{Enabled: input.Enabled, Mode: mode, Rules: []policyRule{}}
 	seen := map[int64]bool{}
 	for _, id := range input.RuleIDs {
 		if id < 1 || seen[id] {

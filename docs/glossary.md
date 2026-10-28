@@ -73,7 +73,7 @@ An assigned policy controls bot/flood settings and its selected rules. Applicati
 
 Off pauses that protection; Observe records what it would do while allowing traffic; Block enforces it. Start in Observe when tuning a new rule or setting.
 
-The overall policy mode limits enforcement: policy Observe cannot become blocking merely because a signature setting says Block. Other independent controls can still reject a request. Review recorded matches and normal application use before enforcing.
+The overall policy mode limits enforcement: policy Observe cannot become blocking merely because a signature setting says Block. A custom rule saved as Observe also stays Observe inside a Block policy. Other independent controls can still reject a request. Review recorded matches and normal application use before enforcing.
 
 [Configuration guide](policies.md)
 
@@ -303,7 +303,7 @@ Aegis does not choose the most specific CIDR automatically: configured priority 
 
 These are focused rules supplied by the community feed for particular vulnerabilities or attack patterns. Select all current rules or only the ones suitable for your applications.
 
-Review each rule’s coverage, limits and compatibility before enforcing. Some mitigation rules intentionally reject legitimate request types. Saved policies keep pinned copies; syncing the feed downloads updates but does not silently change a published policy. Refresh selected snapshots and save to adopt updates.
+Community enforcement can follow policy mode, observe, or block. Policy Observe and Off cap enforcement; this also applies to catalogue rules in custom groups. Review each rule’s coverage, limits and compatibility before enforcing. Some mitigation rules intentionally reject legitimate request types. Saved policies keep pinned copies; syncing the feed downloads updates but does not silently change a published policy. Refresh selected snapshots and save to adopt updates.
 
 [Configuration guide](rule-feeds.md)
 

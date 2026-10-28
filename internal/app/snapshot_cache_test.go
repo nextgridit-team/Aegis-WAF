@@ -71,6 +71,24 @@ func TestSealedSnapshotCache(t *testing.T) {
 		t.Fatal("valid cache not restored", e)
 	}
 	for name, test := range map[string]func() error{
+		"legacy policy actions": func() error {
+			raw, e := open(a.cfg.Key, a.cacheAAD(), sealed)
+			if e != nil {
+				t.Fatal(e)
+			}
+			var legacy cachedSnapshot
+			if e = json.Unmarshal(raw, &legacy); e != nil {
+				t.Fatal(e)
+			}
+			legacy.Format = 1
+			raw, _ = json.Marshal(legacy)
+			old, e := seal(a.cfg.Key, a.cacheAAD(), raw)
+			if e != nil {
+				t.Fatal(e)
+			}
+			_, e = a.decodeSnapshot(old, now)
+			return e
+		},
 		"expired": func() error { _, e := a.decodeSnapshot(sealed, now.Add(2*time.Hour)); return e },
 		"other database": func() error {
 			b := &App{cfg: cfg}

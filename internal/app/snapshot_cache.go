@@ -21,6 +21,10 @@ import (
 
 const snapshotCacheLimit = 64 << 20
 
+// Format 1 stored policy-overwritten rule actions and cannot recover the saved
+// intent. Require a database rebuild before trusting a cache from that version.
+const snapshotCacheFormat = 2
+
 type cachedCertificate struct {
 	Chain [][]byte
 	Key   []byte
@@ -95,7 +99,7 @@ func (a *App) cacheAAD() string {
 	return a.cfg.KeyID + ":snapshot-cache:v1:" + hex.EncodeToString(identity[:])
 }
 func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
-	cache := cachedSnapshot{LocalGeo: s.localGeo, ManagedSets: s.managedSets, Format: 1, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
+	cache := cachedSnapshot{LocalGeo: s.localGeo, ManagedSets: s.managedSets, Format: snapshotCacheFormat, At: now, Version: s.version, Certificates: map[int64]cachedCertificate{}, Sites: []Site{}, Rules: map[int64][]cachedRule{}, Capture: map[int64]TrafficSettings{}, Protection: map[int64]ProtectionSettings{}, Bindings: map[int64][]cachedBinding{}, Geo: s.geoData}
 	if s.rateState != nil {
 		stored := s.rateState.stored
 		cache.RateState = &stored
@@ -158,7 +162,7 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 	if age <= 0 {
 		age = 24 * time.Hour
 	}
-	if cached.Format != 1 || cached.Version < 1 || cached.At.IsZero() || now.Sub(cached.At) > age || cached.At.After(now.Add(5*time.Minute)) {
+	if cached.Format != snapshotCacheFormat || cached.Version < 1 || cached.At.IsZero() || now.Sub(cached.At) > age || cached.At.After(now.Add(5*time.Minute)) {
 		return nil, errors.New("snapshot cache format or freshness rejected")
 	}
 	s := &snapshot{managedSets: map[string]signatureSet{}, managedWAFs: map[string]*managedSignatureRuntime{}, version: cached.Version, certificates: map[int64]*tls.Certificate{}, routes: map[string]*route{}, rules: map[int64][]compiledRule{}, capture: map[int64]*capturePolicy{}, protection: map[int64]*protectionPolicy{}, policyBindings: map[int64][]compiledPolicyBinding{}}
