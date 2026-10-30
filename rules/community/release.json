@@ -1,11 +1,11 @@
 {
   "schema_version": 3,
   "name": "Aegis community mitigation rules",
-  "revision": 7,
+  "revision": 8,
   "package": {
     "path": "community-rules.zip",
-    "sha256": "6646eebc8803a32ae106d53cf2fb870c997ad1ee5a221b909712a4d97de10b04",
+    "sha256": "a8f5a820dbc2ad8d41ed557375db0c3ecf6e69ad125ef3e9ae47ffe55d87f7ef",
     "rule_count": 95,
-    "size_bytes": 126093
+    "size_bytes": 126797
   }
 }

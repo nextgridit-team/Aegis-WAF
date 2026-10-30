@@ -23,6 +23,7 @@ class RuleRevisionTests(unittest.TestCase):
         self.git('-c', 'user.name=Rule test', '-c', 'user.email=rule-test@example.invalid', 'add', '.')
         self.git('-c', 'user.name=Rule test', '-c', 'user.email=rule-test@example.invalid', 'commit', '-qm', 'Reviewed base')
         self.rule = self.root / 'rules/community/node-brotli-request-guard.json'
+        self.next_revision = json.loads(self.rule.read_text())['revision'] + 1
     def git(self, *args):
         return subprocess.run(['git', *args], cwd=self.root, check=True, capture_output=True)
     def check(self):
@@ -39,14 +40,14 @@ class RuleRevisionTests(unittest.TestCase):
         self.generate()
         self.assertNotEqual(self.check(), 0)
     def test_revision_without_release_bump_fails(self):
-        self.update(revision=2)
+        self.update(revision=self.next_revision)
         self.assertNotEqual(self.check(), 0)
     def test_revision_with_release_passes(self):
-        self.update(revision=2, description='Updated applicability')
+        self.update(revision=self.next_revision, description='Updated applicability')
         self.generate()
         self.assertEqual(self.check(), 0)
     def test_stable_id_change_fails(self):
-        self.update(id='different-id', revision=2)
+        self.update(id='different-id', revision=self.next_revision)
         self.assertNotEqual(self.check(), 0)
 
 if __name__ == '__main__': unittest.main()

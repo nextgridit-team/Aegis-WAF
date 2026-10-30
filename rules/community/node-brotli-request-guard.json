@@ -1,25 +1,29 @@
 {
   "schema_version": 1,
-  "revision": 1,
+  "revision": 2,
   "id": "node-brotli-request-guard",
-  "pack": "Node.js Brotli request guard",
+  "pack": ".NET and Node.js Brotli request guard",
   "technology": [
-    "nodejs"
+    "dotnet",
+    "aspnetcore",
+    "nodejs",
+    "brotli"
   ],
   "cves": [
     "CVE-2026-111497"
   ],
-  "description": "Reject requests declaring Brotli content encoding on applications that do not require compressed uploads.",
-  "affected_versions": "Affected Node.js 22.x, 24.x and 26.x builds described in the 21 October 2026 Node.js security advisory; applicability requires application Brotli decompression.",
-  "coverage": "Blocks declared Content-Encoding br request delivery through Aegis before the request reaches the upstream.",
-  "limitations": "Partial delivery-path mitigation, not a Brotli payload detector. Does not cover unlabelled files, application-specific decoding, outbound downloads, direct-origin access, oversized/uninspectable header facts or other vulnerabilities. Upgrade Node.js.",
-  "false_positive_risk": "Blocks legitimate Brotli-compressed uploads. Apply only where this request encoding is unnecessary. Accept-Encoding br response negotiation is unaffected.",
+  "description": "Match declared Brotli request encoding on .NET/ASP.NET Core and Node.js applications; block it where Brotli-compressed uploads are unnecessary.",
+  "affected_versions": ".NET 8.0.0 through 8.0.32, 9.0.0 through 9.0.21, 10.0.0 through 10.0.13, and affected .NET 11 previews before 11.0.0-rc.3.26522.148; see Microsoft for package-specific preview ranges. .NET Framework is unaffected. Exposure requires decoding untrusted Brotli, such as explicitly enabled ASP.NET Core request decompression. Also applies to affected Node.js 22.x, 24.x and 26.x builds in the Node.js advisory.",
+  "coverage": "Matches a case-insensitive br token in Content-Encoding, including comma-separated encoding lists, on any request method or path. With effective Block enforcement, rejects declared Brotli request delivery before the upstream; Observe records the match without blocking.",
+  "limitations": "Partial delivery-path mitigation, not a malicious Brotli payload detector or runtime-version check. Does not cover unlabelled files, application-specific BrotliStream/BrotliDecoder use without this header, outbound HttpClient/Node.js downloads, direct-origin access or oversized/uninspectable header facts. Patch the runtime; rebuild and redeploy self-contained/NativeAOT applications. ASP.NET Core request decompression is not enabled by default.",
+  "false_positive_risk": "Blocks legitimate Brotli-compressed uploads as well as malicious streams. Apply only where this request encoding is unnecessary, or use Observe to assess compatibility. Accept-Encoding: br response negotiation and other request encodings such as gzip/deflate are unaffected.",
   "references": [
+    "https://github.com/dotnet/runtime/security/advisories/GHSA-p3jp-9v83-76w9",
     "https://nodejs.org/en/blog/vulnerability/october-2026-security-releases"
   ],
   "rule": {
     "schema_version": 1,
-    "name": "Node.js Brotli request guard",
+    "name": ".NET and Node.js Brotli request guard",
     "scope": {
       "site_id": 1
     },
@@ -36,19 +40,19 @@
   },
   "tests": [
     {
-      "name": "declared Brotli",
+      "name": "ASP.NET Core declared Brotli upload",
       "method": "POST",
-      "path": "/",
+      "path": "/api/upload",
       "headers": {
         "Content-Encoding": "br"
       },
-      "body": "",
+      "body": "synthetic compressed-body placeholder",
       "expected_match": true
     },
     {
-      "name": "case variant",
-      "method": "POST",
-      "path": "/",
+      "name": "uppercase encoding on PUT",
+      "method": "PUT",
+      "path": "/api/documents/1",
       "headers": {
         "Content-Encoding": "BR"
       },
@@ -99,6 +103,97 @@
       "path": "/",
       "headers": {
         "Content-Encoding": "gzip,\tbr"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "surrounding optional whitespace on PATCH",
+      "method": "PATCH",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Encoding": " \tBR \t"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "Brotli first in encoding list",
+      "method": "POST",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Encoding": "br, gzip"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "Brotli inside encoding list",
+      "method": "POST",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Encoding": "gzip, Br, deflate"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "response negotiation is not request encoding",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "Accept-Encoding": "gzip, br"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "content type alone is outside this guard",
+      "method": "POST",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Type": "application/brotli"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "prefixed encoding token",
+      "method": "POST",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Encoding": "x-br"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "spelled-out encoding is not br",
+      "method": "POST",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Encoding": "brotli"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "ordinary deflate with Brotli response negotiation",
+      "method": "POST",
+      "path": "/api/upload",
+      "headers": {
+        "Content-Encoding": "deflate",
+        "Accept-Encoding": "br"
+      },
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "declared Brotli on GET",
+      "method": "GET",
+      "path": "/",
+      "headers": {
+        "Content-Encoding": "br"
       },
       "body": "",
       "expected_match": true

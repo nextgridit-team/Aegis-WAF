@@ -2,6 +2,11 @@
 
 This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
 
+## 2026-10-30 — .NET Brotli CVE-2026-111497 feed update
+
+- Extend `node-brotli-request-guard` to revision 2 with explicit .NET/ASP.NET Core applicability, Microsoft advisory references and sixteen matcher regression fixtures. Preserve its ID and existing request-encoding matcher; it already covered the same inbound pattern for either runtime.
+- Publish the regenerated community feed package. Existing installations sync independently of the image and explicitly refresh pinned policy copies to adopt the revision. Blocking also rejects legitimate Brotli uploads; outbound downloads and unlabelled files remain outside this partial mitigation. [Coverage and activation](docs/research/cve-2026-111497.md).
+
 ## 2026-10-26 — Policy sensitivity and curated managed sets
 
 - Add a 1–5 sensitivity macro with synchronized advanced values, explicit Custom state and false-positive guidance. Standard/Elevated preserve outbound threshold 4. New dashboard policies choose an installed original set in Observe.

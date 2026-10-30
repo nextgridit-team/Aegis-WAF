@@ -15,7 +15,9 @@ The shipped **Baseline protection** policy enables every shipped community mitig
 
 **Rules → Rule feeds** manages subscription URLs, sync and read-only catalogue review. It does not apply rules to policies. The Aegis community subscription is provisioned once; deletion persists, and **Use Aegis community feed** can add it again. Removing the source retains published copies, including the baseline's copies.
 
-The catalogue contains 93 KEV-researched rules covering request patterns or endpoint containment for 100 distinct CVEs, alongside the original Node.js Brotli and PHP multipart guards. These are **partial mitigations, not substitutes for vendor fixes**. Review coverage and false-positive notes in the policy picker; inclusion in KEV does not prove that a WAF can prevent every exploitation path.
+The catalogue contains 93 KEV-researched rules covering request patterns or endpoint containment for 100 distinct CVEs, alongside the .NET/Node.js Brotli and PHP multipart guards. These are **partial mitigations, not substitutes for vendor fixes**. Review coverage and false-positive notes in the policy picker; inclusion in KEV does not prove that a WAF can prevent every exploitation path.
+
+For **CVE-2026-111497**, select **.NET and Node.js Brotli request guard** (stable ID `node-brotli-request-guard`, revision 2). It matches declared `Content-Encoding: br` uploads, including case variants and encoding lists, without matching `Accept-Encoding` response negotiation. This broad guard also matches legitimate Brotli uploads; it does not identify exploit bytes or cover outbound downloads and unlabelled compressed files. The existing revision 1 matcher already covers the same request pattern; revision 2 adds explicit .NET applicability and regression cases. Sync the feed, review and refresh the selected policy copy, then save with the intended community/policy enforcement mode. See [research and coverage](research/cve-2026-111497.md).
 
 Public subscription URL:
 
