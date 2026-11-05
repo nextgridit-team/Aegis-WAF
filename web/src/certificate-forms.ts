@@ -385,13 +385,28 @@ function issueForm(accountID?: number) {
   });
   void loadTerms("issue-form");
 }
+function renewalSettings(c: Certificate) {
+  if (c.origin !== "acme") return "";
+  return `<form id="renewal-form">${field("renew_before_days", "Automatic renewal window (days)", c.renew_before_days == null ? "" : String(c.renew_before_days), "number", 'min="1" max="365" step="1" placeholder="Automatic" aria-describedby="renewal-window-help"')}<small id="renewal-window-help">Start renewal this many days before expiry (1–365). Leave blank for the default: 30 days or one-third of the certificate’s lifetime, whichever is shorter. If your chosen window equals or exceeds the whole lifetime, Aegis uses one-third of the lifetime.</small><p class="muted">${c.renewal_due_at ? `Saved renewal window starts: ${esc(dateTime(c.renewal_due_at))}.` : "The renewal start date will appear after issuance."} Saving updates the automatic schedule; jobs already queued or running continue.</p>${actions("Save renewal window")}</form>`;
+}
 function certificateDetails(c: Certificate) {
   const job = newestJob(c.id);
   const busy=job && ["queued","running","retry"].includes(job.status);
   openEditor(
     c.name,
-    `<div class="detail-status">${certStatus(c)}${badge(c.origin === "acme" ? "Automatic renewal" : "Uploaded PEM")}</div><dl class="details"><dt>Covered domains</dt><dd class="domain">${c.domains.map(esc).join("<br>")}</dd><dt>Issuer</dt><dd>${esc(c.issuer || "Waiting for issuance")}</dd><dt>Valid from</dt><dd>${esc(date(c.not_before))}</dd><dt>Expires</dt><dd>${esc(date(c.not_after))}</dd>${c.origin === "acme" ? `<dt>Verification</dt><dd>${c.challenge_type === "dns-01" ? "DNS-01 · Cloudflare" : "HTTP-01"}</dd>` : ""}<dt>Connected sites</dt><dd>${c.assigned_sites.map((s) => esc(s.name)).join(", ") || "Not connected yet"}</dd></dl>${c.origin === "acme" ? `<p class="muted">Renew now requests a replacement using the saved ACME account and ${c.challenge_type === "dns-01"?"Cloudflare DNS verification":"HTTP-01 verification"}. The current certificate stays active until the replacement is issued and validated. Certificate authority issuance limits still apply.</p>` : ""}${c.pending_dns_cleanup && job?.status === "succeeded" ? `<div class="info-panel"><p>Challenge TXT cleanup is pending and will retry automatically. Check Cloudflare token permissions if it persists.</p></div>` : ""}${job ? `<details class="advanced"><summary>ACME details</summary><p>Attempt ${job.attempts} · ${esc(job.status)}</p>${job.error ? `<p class="error-text">${esc(job.error)}</p>` : ""}${job.orders.map((o) => `<small class="domain">${esc(o.status)} · ${esc(o.url)}</small>`).join("")}</details>` : ""}<div class="form-actions split-actions">${button("delete-cert", "Delete certificate", "danger", c.id)}<div>${c.origin === "upload" ? button("replace", "Replace PEM", "secondary", c.id) : ""}${c.origin === "acme" ? `<button type="button" class="secondary" data-action="renew-cert" data-id="${c.id}" ${busy?'disabled title="An issuance or renewal job is already active"':""}>Renew now</button>`:""}${c.validity === "valid" ? button("connect", `${icon("arrow")}Connect site`, "primary", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry now", "primary", job.id) : ""}</div></div>`,
+    `<div class="detail-status">${certStatus(c)}${badge(c.origin === "acme" ? "Automatic renewal" : "Uploaded PEM")}</div><dl class="details"><dt>Covered domains</dt><dd class="domain">${c.domains.map(esc).join("<br>")}</dd><dt>Issuer</dt><dd>${esc(c.issuer || "Waiting for issuance")}</dd><dt>Valid from</dt><dd>${esc(date(c.not_before))}</dd><dt>Expires</dt><dd>${esc(date(c.not_after))}</dd>${c.origin === "acme" ? `<dt>Verification</dt><dd>${c.challenge_type === "dns-01" ? "DNS-01 · Cloudflare" : "HTTP-01"}</dd>` : ""}<dt>Connected sites</dt><dd>${c.assigned_sites.map((s) => esc(s.name)).join(", ") || "Not connected yet"}</dd></dl>${renewalSettings(c)}${c.origin === "acme" ? `<p class="muted">Renew now requests a replacement using the saved ACME account and ${c.challenge_type === "dns-01"?"Cloudflare DNS verification":"HTTP-01 verification"}. The current certificate stays active until the replacement is issued and validated. Certificate authority issuance limits still apply.</p>` : ""}${c.pending_dns_cleanup && job?.status === "succeeded" ? `<div class="info-panel"><p>Challenge TXT cleanup is pending and will retry automatically. Check Cloudflare token permissions if it persists.</p></div>` : ""}${job ? `<details class="advanced"><summary>ACME details</summary><p>Attempt ${job.attempts} · ${esc(job.status)}</p>${job.error ? `<p class="error-text">${esc(job.error)}</p>` : ""}${job.orders.map((o) => `<small class="domain">${esc(o.status)} · ${esc(o.url)}</small>`).join("")}</details>` : ""}<div class="form-actions split-actions">${button("delete-cert", "Delete certificate", "danger", c.id)}<div>${c.origin === "upload" ? button("replace", "Replace PEM", "secondary", c.id) : ""}${c.origin === "acme" ? `<button type="button" class="secondary" data-action="renew-cert" data-id="${c.id}" ${busy?'disabled title="An issuance or renewal job is already active"':""}>Renew now</button>`:""}${c.validity === "valid" ? button("connect", `${icon("arrow")}Connect site`, "primary", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry now", "primary", job.id) : ""}</div></div>`,
   );
+  if (c.origin === "acme") {
+    formHandler("renewal-form", async (data) => {
+      const days = String(data.get("renew_before_days") || "").trim();
+      await api(`/certificates/${c.id}/renewal`, "PUT", {
+        renew_before_days: days ? Number(days) : null,
+      });
+      closeEditor();
+      await refresh();
+      notice("Automatic renewal window saved.");
+    });
+  }
 }
 return { uploadForm, dnsCredentialForm, accountForm, loadTerms, issueForm, certificateDetails };
 }

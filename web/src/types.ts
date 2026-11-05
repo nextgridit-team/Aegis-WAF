@@ -24,6 +24,8 @@ export type Certificate = {
   challenge_type?: string;
   dns_credential_id?: number;
   pending_dns_cleanup?: boolean;
+  renew_before_days?: number | null;
+  renewal_due_at?: string | null;
   id: number;
   name: string;
   origin: string;

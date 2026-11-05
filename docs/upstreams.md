@@ -26,6 +26,8 @@ Obtain the certificate from a trusted administrative source and check its identi
 
 If the upstream URL uses an IP but the certificate covers only a DNS name, set **Upstream TLS server name** to the name covered by that certificate. This controls TLS SNI/verification, independently of **Preserve the original Host header**. The latter controls the HTTP Host header sent to the application.
 
+Displaying a **Backend certificate** does not by itself make the trust checkbox available. The panel shows the TLS name being checked and the certificate's DNS/IP subject alternative names. For a name mismatch, **Edit TLS server name** opens and focuses the relevant field. Enter the intended backend name covered by that certificate, then test again; for a wildcard certificate, enter the actual hostname rather than the wildcard pattern. A valid private certificate can then be selected for trust. The checkbox hint also distinguishes invalid certificates from a connection that already verifies with standard trust and needs no additional certificate.
+
 Unchecking the checkbox keeps the entered certificates available in the form but stops using them after Save. A publicly trusted backend needs no extra trust; the checkbox is unavailable until a certificate has been imported or an eligible private certificate has been displayed.
 
 Save the proxy host to apply trust. Settings live in PostgreSQL and refresh across replicas with normal configuration propagation. Existing upstream connections finish normally. Invalid settings fail the save and preserve the active configuration. Older API clients omitting `upstream_tls` on an update preserve the stored trust; send an empty object to clear it explicitly.

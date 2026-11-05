@@ -225,6 +225,9 @@ func TestRulesSchemaUpgrade(t *testing.T) {
 	if _, e = a.db.Exec(ctx, "INSERT INTO access_logs(at,site_id,method,status,duration_ms,peer) VALUES(now(),123,'GET',200,1,'192.0.2.1')"); e != nil {
 		t.Fatal(e)
 	}
+	if _, e = a.db.Exec(ctx, "INSERT INTO certificates(name,origin,domains) VALUES('Existing ACME','acme','{existing.test}')"); e != nil {
+		t.Fatal(e)
+	}
 	if e = a.initialize(ctx); e != nil {
 		t.Fatal(e)
 	}
@@ -236,7 +239,11 @@ func TestRulesSchemaUpgrade(t *testing.T) {
 		t.Fatal("legacy row changed", results, event, e)
 	}
 	var version int
-	if e = a.db.QueryRow(ctx, "SELECT max(version) FROM schema_version").Scan(&version); e != nil || version != 24 {
+	var renewalDays *int
+	if e = a.db.QueryRow(ctx, "SELECT renew_before_days FROM certificates WHERE name='Existing ACME'").Scan(&renewalDays); e != nil || renewalDays != nil {
+		t.Fatal("existing certificate lost automatic renewal default", renewalDays, e)
+	}
+	if e = a.db.QueryRow(ctx, "SELECT max(version) FROM schema_version").Scan(&version); e != nil || version != 25 {
 		t.Fatal(version, e)
 	}
 }

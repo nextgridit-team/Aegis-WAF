@@ -181,6 +181,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("POST /api/acme/accounts", a.wrap(true, a.registerAccount))
 	m.HandleFunc("POST /api/acme/certificates", a.wrap(true, a.issue))
 	m.HandleFunc("POST /api/certificates/{id}/renew", a.wrap(true, a.renewCertificate))
+	m.HandleFunc("PUT /api/certificates/{id}/renewal", a.wrap(true, a.updateCertificateRenewal))
 	m.HandleFunc("GET /api/acme/jobs", a.wrap(true, a.listJobs))
 	m.HandleFunc("POST /api/acme/jobs/{id}/retry", a.wrap(true, a.retryJob))
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
@@ -365,7 +366,7 @@ func (a *App) listSites(w http.ResponseWriter, r *http.Request, _ identity) erro
 	return a.list(w, r, "SELECT s.*,p.settings AS protection,h.settings AS headers,coalesce((SELECT jsonb_agg(jsonb_build_object('id',pol.id,'name',pol.spec->>'name','mode',pol.spec->>'mode','revision',pol.revision,'source_cidrs',b.source_cidrs,'priority',b.priority) ORDER BY b.priority) FROM policy_assignments b JOIN policies pol ON pol.id=b.policy_id WHERE b.site_id=s.id),'[]'::jsonb) AS policies FROM sites s LEFT JOIN protection_settings p ON p.site_id=s.id LEFT JOIN proxy_headers h ON h.site_id=s.id ORDER BY s.id")
 }
 func (a *App) listCertificates(w http.ResponseWriter, r *http.Request, _ identity) error {
-	return a.list(w, r, `SELECT c.id,c.name,c.origin,c.domains,c.issuer,c.not_before,c.not_after,c.account_id,c.challenge_type,c.dns_credential_id,c.updated_at,EXISTS(SELECT 1 FROM dns_challenges d JOIN jobs j ON j.id=d.job_id WHERE j.certificate_id=c.id) AS pending_dns_cleanup,CASE WHEN c.not_before IS NULL THEN 'pending' WHEN now()<c.not_before THEN 'not yet valid' WHEN now()>=c.not_after THEN 'expired' ELSE 'valid' END AS validity,coalesce((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.name)) FROM sites s WHERE s.certificate_id=c.id),'[]'::jsonb) AS assigned_sites FROM certificates c ORDER BY c.id`)
+	return a.list(w, r, `SELECT c.id,c.name,c.origin,c.domains,c.issuer,c.not_before,c.not_after,c.account_id,c.challenge_type,c.dns_credential_id,c.renew_before_days,CASE WHEN c.origin='acme' THEN c.not_after-(`+certificateRenewalWindowSQL+`) END AS renewal_due_at,c.updated_at,EXISTS(SELECT 1 FROM dns_challenges d JOIN jobs j ON j.id=d.job_id WHERE j.certificate_id=c.id) AS pending_dns_cleanup,CASE WHEN c.not_before IS NULL THEN 'pending' WHEN now()<c.not_before THEN 'not yet valid' WHEN now()>=c.not_after THEN 'expired' ELSE 'valid' END AS validity,coalesce((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.name)) FROM sites s WHERE s.certificate_id=c.id),'[]'::jsonb) AS assigned_sites FROM certificates c ORDER BY c.id`)
 }
 func (a *App) listAccounts(w http.ResponseWriter, r *http.Request, _ identity) error {
 	return a.list(w, r, "SELECT id,directory,email,account_url,tos_accepted_at FROM acme_accounts ORDER BY id")

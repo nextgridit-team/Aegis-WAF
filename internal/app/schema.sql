@@ -199,3 +199,7 @@ DO $$ BEGIN
     INSERT INTO schema_version VALUES(24);
   END IF;
 END $$;
+
+-- Per-certificate renewal overrides preserve automatic scheduling for existing rows.
+ALTER TABLE certificates ADD COLUMN IF NOT EXISTS renew_before_days integer CHECK(renew_before_days BETWEEN 1 AND 365);
+INSERT INTO schema_version VALUES(25) ON CONFLICT DO NOTHING;

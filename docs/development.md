@@ -1,6 +1,6 @@
 # Development and verification
 
-Run commands from the repository root. Requirements: Go 1.26+, Node 22+, and PostgreSQL 18 for integration tests. Focused certificate-form tests run with `npm --prefix tests run test:onboarding` after installing browser dependencies; they intercept API calls and never contact a public CA or DNS provider.
+Run commands from the repository root. Requirements: Go 1.26+, Node 22+, and PostgreSQL 18 for integration tests. Focused certificate-form tests run with `npm --prefix tests run test:onboarding` and `npm --prefix tests run test:renewal` after installing browser dependencies and building the dashboard; they intercept API calls and never contact a public CA or DNS provider. The renewal fixture covers saved/default windows, validation, error preservation, active jobs, uploaded certificates, and responsive layouts. Set `BROWSER_EXECUTABLE` to use an installed Chromium-compatible browser.
 
 ```sh
 cd web && npm ci && npm run build && cd ..

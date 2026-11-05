@@ -34,7 +34,7 @@ const assert = require("node:assert/strict"),
       errors = [],
       probes = [],
       writes = [];
-    let mode = "trust",
+    let mode = "name",
       release;
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/api/**", async (route) => {
@@ -48,6 +48,18 @@ const assert = require("node:assert/strict"),
       if (p === "/api/upstreams/test") {
         probes.push(req.postDataJSON());
         if (mode === "slow") await new Promise((r) => (release = r));
+        const certificate = {
+          pem: "PUBLIC CERTIFICATE FIXTURE",
+          sha256: "a".repeat(64),
+          subject: "CN=backend.example.test <img src=x onerror=alert(1)>",
+          issuer: "CN=Private CA",
+          not_after: "2030-01-01T00:00:00Z",
+          dns_names: ["backend.example.test"],
+          ip_addresses: [],
+          expected_name:
+            req.postDataJSON().upstream_tls.server_name || "192.0.2.3",
+          can_trust: mode === "trust",
+        };
         json =
           mode === "trust"
             ? {
@@ -55,25 +67,39 @@ const assert = require("node:assert/strict"),
                 stage: "tls_trust",
                 message: "Untrusted issuer. Add a trusted certificate.",
                 duration_ms: 8,
-                certificate: {
-                  pem: "PUBLIC CERTIFICATE FIXTURE",
-                  sha256: "a".repeat(64),
-                  subject:
-                    "CN=backend.example.test <img src=x onerror=alert(1)>",
-                  issuer: "CN=Private CA",
-                  not_after: "2030-01-01T00:00:00Z",
-                  can_trust: true,
-                },
+                certificate,
                 tls_verified: false,
               }
-            : {
-                reachable: true,
-                stage: "http",
-                message: "Connected; upstream returned an HTTP error.",
-                status: 401,
-                tls_verified: true,
-                duration_ms: 9,
-              };
+            : mode === "name" || mode === "expired"
+              ? {
+                  reachable: false,
+                  stage: mode === "name" ? "tls_name" : "tls_certificate",
+                  message:
+                    mode === "name"
+                      ? "The certificate does not cover the upstream address. Use a covered hostname or configure its TLS server name."
+                      : "The upstream certificate is expired, not yet valid, or otherwise invalid.",
+                  certificate,
+                  tls_verified: false,
+                  duration_ms: 2,
+                }
+              : mode === "verified"
+                ? {
+                    reachable: true,
+                    stage: "http",
+                    message: "Connected successfully.",
+                    status: 200,
+                    certificate,
+                    tls_verified: true,
+                    duration_ms: 3,
+                  }
+                : {
+                    reachable: true,
+                    stage: "http",
+                    message: "Connected; upstream returned an HTTP error.",
+                    status: 401,
+                    tls_verified: true,
+                    duration_ms: 9,
+                  };
       }
       if (p === "/api/sites" && req.method() === "POST") {
         writes.push(req.postDataJSON());
@@ -87,7 +113,11 @@ const assert = require("node:assert/strict"),
       .first()
       .click();
     const form = page.locator("#site-form"),
-      status = form.locator("[data-upstream-test-result]");
+      status = form.locator("[data-upstream-test-result]"),
+      trust = form.getByLabel("Trust a private upstream certificate", {
+        exact: true,
+      }),
+      hint = form.locator("[data-upstream-trust-hint]");
     await form.waitFor();
     await form.getByLabel("Name", { exact: true }).fill("Private app");
     await form
@@ -99,7 +129,67 @@ const assert = require("node:assert/strict"),
     await form
       .getByRole("button", { name: "Test upstream", exact: true })
       .click();
+    await status.filter({ hasText: "does not cover" }).waitFor();
+    assert.equal(await trust.isDisabled(), true);
+    assert.match(
+      await hint.innerText(),
+      /192\.0\.2\.3.*Upstream TLS server name/,
+    );
+    assert.match(
+      await form.locator("[data-upstream-certificate]").innerText(),
+      /Certificate covers: backend\.example\.test/,
+    );
+    assert.equal(
+      await form.locator("[data-upstream-certificate] img").count(),
+      0,
+    );
+    await form
+      .getByRole("button", { name: "Edit TLS server name", exact: true })
+      .click();
+    assert.equal(
+      await form
+        .locator('[name="upstream_tls_name"]')
+        .evaluate(
+          (input) =>
+            document.activeElement === input && input.closest("details").open,
+        ),
+      true,
+    );
+    assert.equal(writes.length, 0);
+    for (const [nextMode, message] of [
+      ["expired", /expired, not yet valid/],
+      [
+        "verified",
+        /already verifies.*Additional certificate trust is not needed/,
+      ],
+    ]) {
+      mode = nextMode;
+      await form
+        .getByRole("button", { name: "Test upstream", exact: true })
+        .click();
+      await page.waitForFunction(
+        (needle) =>
+          new RegExp(needle).test(
+            document.querySelector("[data-upstream-trust-hint]").textContent,
+          ),
+        message.source,
+      );
+      assert.equal(await trust.isDisabled(), true);
+    }
+    await form
+      .getByLabel("Upstream TLS server name", { exact: true })
+      .fill("backend.example.test");
+    assert.equal(
+      await form.locator("[data-upstream-certificate]").isVisible(),
+      false,
+    );
+    assert.match(await hint.innerText(), /Test upstream to display/);
+    mode = "trust";
+    await form
+      .getByRole("button", { name: "Test upstream", exact: true })
+      .click();
     await status.filter({ hasText: "Untrusted issuer" }).waitFor();
+    assert.equal(await trust.isEnabled(), true);
     assert.equal(writes.length, 0);
     await form
       .getByLabel("Trust a private upstream certificate", { exact: true })
@@ -117,7 +207,6 @@ const assert = require("node:assert/strict"),
       /SHA-256/,
     );
     assert.equal(probes[0].host_header, "private.example.test");
-    await form.getByText("Upstream TLS", { exact: true }).click();
     await form
       .getByLabel("Trusted upstream certificates (PEM)", { exact: true })
       .fill("PUBLIC CERTIFICATE FIXTURE");
@@ -133,9 +222,12 @@ const assert = require("node:assert/strict"),
       .click();
     await status.filter({ hasText: "HTTP 401" }).waitFor();
     assert.match(await status.innerText(), /TLS verified/);
-    assert.equal(probes[1].upstream_tls.server_name, "backend.example.test");
     assert.equal(
-      probes[1].upstream_tls.trusted_certificates_pem,
+      probes.at(-1).upstream_tls.server_name,
+      "backend.example.test",
+    );
+    assert.equal(
+      probes.at(-1).upstream_tls.trusted_certificates_pem,
       "PUBLIC CERTIFICATE FIXTURE",
     );
     mode = "slow";
@@ -179,7 +271,7 @@ const assert = require("node:assert/strict"),
     });
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: unsaved upstream diagnostics, TLS guidance, HTTP/TLS status distinction, stale-result rejection, unchanged settings until save, responsive form and saved trust payload.",
+      "PASS: disabled trust explanations, covered names and server-name repair, verified/expired states, unsaved upstream diagnostics, stale-result rejection, responsive form and saved trust payload.",
     );
   } finally {
     await browser.close();

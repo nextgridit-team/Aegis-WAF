@@ -268,7 +268,7 @@ function certificateList() {
         `${certStatus(c)}${job?.status === "retry" ? `<small class="error-text">${esc(job.error)}</small>` : ""}`,
         `<span>${esc(date(c.not_after))}</span>${c.not_after ? `<small>${Math.max(0, Math.ceil((new Date(c.not_after).getTime() - Date.now()) / 86400000))} days remaining</small>` : ""}`,
         c.origin === "acme"
-          ? `<span class="renewal">${icon("refresh")}Automatic</span><small>ACME managed</small>`
+          ? `<span class="renewal">${icon("refresh")}Automatic</span><small>${c.renew_before_days == null ? "Default window" : `${c.renew_before_days} days before expiry`}</small>`
           : "<span>Manual</span><small>Uploaded PEM</small>",
         `<div class="row-actions">${c.validity === "valid" && !c.assigned_sites.length ? button("connect", "Connect site", "secondary compact", c.id) : ""}${job?.status === "retry" ? button("retry", "Retry", "secondary compact", job.id) : ""}${button("view-cert", "Details", "subtle compact", c.id)}</div>`,
       ];

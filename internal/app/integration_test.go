@@ -297,6 +297,7 @@ func TestIntegration(t *testing.T) {
 		}
 		var oldChain string
 		a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", acmeCert).Scan(&oldChain)
+		c.call("PUT", fmt.Sprintf("/api/certificates/%d/renewal", acmeCert), map[string]any{"renew_before_days": 45}, 200)
 
 		c.call("POST", fmt.Sprintf("/api/certificates/%d/renew", certID), map[string]any{}, 409)
 		c.call("POST", "/api/certificates/999999/renew", map[string]any{}, 404)
@@ -315,6 +316,10 @@ func TestIntegration(t *testing.T) {
 		a.db.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", acmeCert).Scan(&stillActive)
 		if stillActive == oldChain {
 			t.Fatal("forced early renewal did not replace the certificate")
+		}
+		var renewalDays int
+		if err := b.db.QueryRow(ctx, "SELECT renew_before_days FROM certificates WHERE id=$1", acmeCert).Scan(&renewalDays); err != nil || renewalDays != 45 {
+			t.Fatal("renewal did not retain the configured window", renewalDays, err)
 		}
 		oldChain = stillActive
 		ca.fail.Store(true)

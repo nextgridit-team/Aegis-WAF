@@ -74,12 +74,15 @@ func (t rejectedUpstreamTransport) RoundTrip(*http.Request) (*http.Response, err
 }
 
 type upstreamPeerCertificate struct {
-	PEM      string    `json:"pem"`
-	SHA256   string    `json:"sha256"`
-	Subject  string    `json:"subject"`
-	Issuer   string    `json:"issuer"`
-	NotAfter time.Time `json:"not_after"`
-	CanTrust bool      `json:"can_trust"`
+	PEM          string    `json:"pem"`
+	SHA256       string    `json:"sha256"`
+	Subject      string    `json:"subject"`
+	Issuer       string    `json:"issuer"`
+	NotAfter     time.Time `json:"not_after"`
+	DNSNames     []string  `json:"dns_names"`
+	IPAddresses  []string  `json:"ip_addresses"`
+	ExpectedName string    `json:"expected_name"`
+	CanTrust     bool      `json:"can_trust"`
 }
 
 func describeUpstreamCertificate(cert *x509.Certificate, expectedName string, mayTrust bool) *upstreamPeerCertificate {
@@ -92,7 +95,11 @@ func describeUpstreamCertificate(cert *x509.Certificate, expectedName string, ma
 	}
 	now := time.Now()
 	digest := sha256.Sum256(cert.Raw)
-	return &upstreamPeerCertificate{PEM: string(encoded), SHA256: hex.EncodeToString(digest[:]), Subject: cert.Subject.String(), Issuer: cert.Issuer.String(), NotAfter: cert.NotAfter, CanTrust: mayTrust && cert.VerifyHostname(expectedName) == nil && !now.Before(cert.NotBefore) && now.Before(cert.NotAfter)}
+	ips := make([]string, 0, len(cert.IPAddresses))
+	for _, ip := range cert.IPAddresses {
+		ips = append(ips, ip.String())
+	}
+	return &upstreamPeerCertificate{PEM: string(encoded), SHA256: hex.EncodeToString(digest[:]), Subject: cert.Subject.String(), Issuer: cert.Issuer.String(), NotAfter: cert.NotAfter, DNSNames: append([]string{}, cert.DNSNames...), IPAddresses: ips, ExpectedName: expectedName, CanTrust: mayTrust && cert.VerifyHostname(expectedName) == nil && !now.Before(cert.NotBefore) && now.Before(cert.NotAfter)}
 }
 
 type upstreamProbeResult struct {
@@ -124,6 +131,10 @@ func probeUpstream(ctx context.Context, raw string, settings upstreamTLSSettings
 		return result
 	}
 	req.Host = host
+	expected := settings.ServerName
+	if expected == "" {
+		expected = req.URL.Hostname()
+	}
 	req.Header.Set("User-Agent", "Aegis-Upstream-Check/1.0")
 	req.Header.Set("Accept", "*/*")
 	response, err := client.Do(req)
@@ -154,11 +165,6 @@ func probeUpstream(ctx context.Context, raw string, settings upstreamTLSSettings
 			result.Message = "Aegis could not connect to the upstream. Check its address, port, network access and service status."
 		}
 		var verification *tls.CertificateVerificationError
-		expected := settings.ServerName
-		if expected == "" {
-			parsed, _ := url.Parse(raw)
-			expected = parsed.Hostname()
-		}
 		if errors.As(err, &verification) && len(verification.UnverifiedCertificates) > 0 {
 			result.Certificate = describeUpstreamCertificate(verification.UnverifiedCertificates[0], expected, result.Stage == "tls_trust")
 		}
@@ -170,7 +176,7 @@ func probeUpstream(ctx context.Context, raw string, settings upstreamTLSSettings
 	result.Stage = "http"
 	result.TLSVerified = response.TLS != nil && len(response.TLS.VerifiedChains) > 0
 	if response.TLS != nil && len(response.TLS.PeerCertificates) > 0 {
-		result.Certificate = describeUpstreamCertificate(response.TLS.PeerCertificates[0], "", false)
+		result.Certificate = describeUpstreamCertificate(response.TLS.PeerCertificates[0], expected, false)
 	}
 	result.Message = "Connected successfully."
 	if response.StatusCode >= 300 && response.StatusCode < 400 {

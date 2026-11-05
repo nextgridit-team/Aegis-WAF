@@ -292,7 +292,7 @@ func (a *App) ACMEWorker(ctx context.Context) {
 func (a *App) schedule(ctx context.Context) {
 	c, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	_, _ = a.db.Exec(c, `INSERT INTO jobs(certificate_id) SELECT id FROM certificates WHERE origin='acme' AND (not_after IS NULL OR not_after<now()+LEAST(interval '30 days',(not_after-not_before)/3)) ON CONFLICT DO NOTHING`)
+	_, _ = a.db.Exec(c, `INSERT INTO jobs(certificate_id) SELECT c.id FROM certificates c WHERE c.origin='acme' AND (c.not_after IS NULL OR c.not_after<=now()+(`+certificateRenewalWindowSQL+`)) ON CONFLICT DO NOTHING`)
 	_, _ = a.db.Exec(c, "DELETE FROM sessions WHERE expires_at<now(); DELETE FROM login_limits WHERE expires_at<now(); DELETE FROM acme_challenges WHERE expires_at<now()")
 	_ = a.cleanupDNSRecords(c, 0, true)
 }

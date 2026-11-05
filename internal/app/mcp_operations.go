@@ -133,6 +133,7 @@ func agentOperations() []agentOperation {
 		"PUT /api/agent-access",
 		"PUT /api/ai/provider",
 		"PUT /api/certificates/{id}",
+		"PUT /api/certificates/{id}/renewal",
 		"PUT /api/dns/credentials/{id}",
 		"PUT /api/policies/{id}",
 		"PUT /api/protection-settings/{id}",

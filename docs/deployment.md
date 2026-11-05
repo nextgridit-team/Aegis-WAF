@@ -92,7 +92,7 @@ Aegis uses established Go ACME/DNS libraries inside the application; no Certbot 
 - **Private upstream CAs:** Configure per-host trust in **Applications → Upstream TLS**, then click **Test upstream**. [Trust and diagnostic guide](upstreams.md). Private ACME CAs or deployment-wide operational trust can still use a read-only combined CA bundle and `SSL_CERT_FILE`. Upstream HTTPS verification remains enabled.
 - **Upstreams:** Supply an HTTP(S) URL reachable from the app container. Container `localhost` is the app itself. Use a reachable host/service address or attach the app to the upstream's Docker network. Exact route hostnames are configured in Applications; wildcard certificate coverage does not create wildcard routes.
 
-Renewals begin before expiry using the shorter of 30 days or one-third of certificate lifetime. Failed jobs retain the existing certificate and retry with backoff from one minute to 24 hours. Issuance errors and Retry now are visible in the dashboard. A certificate that eventually expires is no longer eligible for TLS selection.
+Renewals begin before expiry using the shorter of 30 days or one-third of certificate lifetime by default. Set a per-certificate **Automatic renewal window (days)** in Certificate inventory → Details, or leave it blank to retain that default. Windows equal to or longer than the entire certificate lifetime fall back to one-third of its lifetime. See [renewal settings](certificates.md#automatic-and-on-demand-renewal). Failed jobs retain the existing certificate and retry with backoff from one minute to 24 hours. Issuance errors and Retry now are visible in the dashboard. A certificate that eventually expires is no longer eligible for TLS selection.
 
 ## Multiple replicas
 

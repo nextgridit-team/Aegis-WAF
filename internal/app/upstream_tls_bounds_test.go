@@ -50,6 +50,42 @@ func TestUpstreamTLSNameAndExpiry(t *testing.T) {
 		server.Close()
 	}
 }
+
+func TestUpstreamNameMismatchTrustRecovery(t *testing.T) {
+	now := time.Now()
+	chain, key := testCertificate(t, []string{"backend.test"}, 124, now.Add(-time.Hour), now.Add(time.Hour))
+	pair, err := tls.X509KeyPair([]byte(chain), []byte(key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "ok") }))
+	server.TLS = &tls.Config{Certificates: []tls.Certificate{pair}}
+	server.StartTLS()
+	defer server.Close()
+
+	// Connecting by IP must explain the mismatch and expose the actual SANs,
+	// without treating the certificate's subject as a verified identity.
+	bad := probeUpstream(context.Background(), server.URL, upstreamTLSSettings{}, "public.test")
+	if bad.Reachable || bad.Stage != "tls_name" || bad.Certificate == nil || bad.Certificate.CanTrust {
+		t.Fatalf("name mismatch did not block trust: %+v", bad)
+	}
+	peer := bad.Certificate
+	if peer.ExpectedName != "127.0.0.1" || len(peer.DNSNames) != 1 || peer.DNSNames[0] != "backend.test" || len(peer.IPAddresses) != 0 {
+		t.Fatalf("missing name repair guidance: %+v", peer)
+	}
+
+	settings := upstreamTLSSettings{ServerName: "backend.test"}
+	untrusted := probeUpstream(context.Background(), server.URL, settings, "public.test")
+	if untrusted.Reachable || untrusted.Stage != "tls_trust" || untrusted.Certificate == nil || !untrusted.Certificate.CanTrust || untrusted.Certificate.ExpectedName != "backend.test" {
+		t.Fatalf("corrected name did not allow explicit trust: %+v", untrusted)
+	}
+	settings.TrustedCertsPEM = untrusted.Certificate.PEM
+	good := probeUpstream(context.Background(), server.URL, settings, "public.test")
+	if !good.Reachable || !good.TLSVerified || good.Certificate == nil || good.Certificate.CanTrust || good.Certificate.ExpectedName != "backend.test" || len(good.Certificate.DNSNames) != 1 {
+		t.Fatalf("name correction and explicit trust failed: %+v", good)
+	}
+}
+
 func TestUpstreamProbeCancellationAndCapacity(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
 	defer server.Close()

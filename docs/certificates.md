@@ -28,7 +28,11 @@ This is application-level encryption of secret values. Aegis does not configure 
 
 ## Automatic and on-demand renewal
 
-ACME certificates renew before expiry using the shorter of 30 days or one-third of their lifetime. Replicas share job state and use database coordination to prevent competing issuance for the same certificate. Saved ACME accounts and challenge credentials are reused.
+ACME certificates renew before expiry using the shorter of 30 days or one-third of their lifetime by default. Replicas share job state and use database coordination to prevent competing issuance for the same certificate. Saved ACME accounts and challenge credentials are reused.
+
+To choose a window for one certificate, open **Certificates → Certificate inventory → Details**, enter **Automatic renewal window (days)**, and select **Save renewal window**. Enter a whole number from 1–365: for example, `14` starts renewal when 14 days remain before expiry. Clear the field and save to restore the automatic default. The details show when the saved window starts; this is the eligibility time, not a guarantee that the CA will finish issuance then. If the configured window equals or exceeds the issued certificate's entire lifetime, Aegis uses one-third of that lifetime to avoid immediate repeated renewals, including when a CA changes certificate lifetimes.
+
+Settings are stored per certificate, shared across replicas, audited, and retained after successful renewal. The worker checks eligibility every five seconds. Moving the window earlier can make the certificate eligible at the next check. Changing it does not cancel or reschedule jobs already queued, running, or waiting to retry; those retain their normal retry backoff. Editing the form applies nothing until saved.
 
 To request a replacement early, open **Certificates → Details → Renew now**. This action is available only for ACME-managed certificates. It queues a job even before the normal renewal window and generates new TLS private-key material during issuance. An existing queued/running/retry job prevents duplicate jobs; use **Retry now** for a failed job. CA issuance limits still apply.
 
