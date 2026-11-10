@@ -56,6 +56,7 @@ This file and the embedded glossary are generated from [the help catalogue](../w
 - [Connection and stream limits](#connection-limits)
 - [Streaming inspection window](#stream-window)
 - [Database log retention](#log-retention)
+- [Application sign-in and groups](#application-access)
 
 <a id="policy"></a>
 
@@ -576,3 +577,13 @@ How long Aegis keeps traffic and administrative history in PostgreSQL. The defau
 Applies across applications and replicas. Stored traffic and audits are written to stdout before automatic cleanup can remove them. Request samples also follow this ceiling or their earlier capture expiry. Shorter history limits dashboard investigations and replay. Bounded queues can lose traffic records during saturation or crashes, and a stdout write is not an acknowledgement from an external collector. Changing this value does not configure Docker rotation, alerts or policy revision history.
 
 [Configuration guide](logging.md)
+
+<a id="application-access"></a>
+
+## Application sign-in and groups
+
+Require an external identity before visitors reach an application. OIDC redirects to a sign-in provider; LDAP checks directory credentials over TLS.
+
+Choose allowed OIDC group or role values, or LDAP group DNs. Login remains required in every WAF mode and through network bypasses. Group membership is checked at sign-in; revoke sessions to require an earlier check. Provider tests verify connectivity, not a complete sign-in. Existing applications stay public until enabled.
+
+[Configuration guide](application-access.md)

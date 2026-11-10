@@ -123,6 +123,7 @@ Start with the **[documentation index](docs/README.md)**, or go directly to:
 | Investigate requests and collect telemetry | [Request details](docs/request-investigation.md) · [JSON security logs](docs/logging.md) · [Prometheus metrics](docs/observability.md) · [Evidence privacy](docs/evidence-privacy.md)                             |
 | Scale shared rate budgets                  | [Redis/Dragonfly setup and failure behavior](docs/shared-rate-state.md)                                                                                                                                           |
 | Configure country restrictions             | [Geo blocking in a policy](docs/geolocation.md#apply-geo-blocking-to-an-application)                                                                                                                              |
+| Require application sign-in and group access | [OIDC and LDAP providers](docs/application-access.md) |
 | Connect an external agent                  | [MCP access, permissions and skill](docs/agent-access.md)                                                                                                                                                         |
 
 ## Current limits

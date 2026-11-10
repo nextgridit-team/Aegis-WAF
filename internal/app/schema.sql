@@ -203,3 +203,29 @@ END $$;
 -- Per-certificate renewal overrides preserve automatic scheduling for existing rows.
 ALTER TABLE certificates ADD COLUMN IF NOT EXISTS renew_before_days integer CHECK(renew_before_days BETWEEN 1 AND 365);
 INSERT INTO schema_version VALUES(25) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS identity_providers(
+ id bigserial PRIMARY KEY, settings jsonb NOT NULL, secret_cipher bytea, key_id text NOT NULL DEFAULT '',
+ revision bigint NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS application_access(
+ site_id bigint PRIMARY KEY REFERENCES sites ON DELETE CASCADE,
+ provider_id bigint REFERENCES identity_providers ON DELETE RESTRICT,
+ settings jsonb NOT NULL, revision bigint NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS application_sessions(
+ id text PRIMARY KEY, token_hash text UNIQUE NOT NULL,
+ site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,
+ provider_id bigint NOT NULL REFERENCES identity_providers ON DELETE CASCADE,
+ access_revision bigint NOT NULL, provider_revision bigint NOT NULL,
+ identity jsonb NOT NULL, origin text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz NOT NULL);
+CREATE INDEX IF NOT EXISTS application_sessions_expiry ON application_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS application_sessions_site ON application_sessions(site_id);
+CREATE TABLE IF NOT EXISTS application_auth_flows(
+ state_hash text PRIMARY KEY, browser_hash text NOT NULL,
+ site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,
+ provider_id bigint NOT NULL REFERENCES identity_providers ON DELETE CASCADE,
+ access_revision bigint NOT NULL, provider_revision bigint NOT NULL,
+ origin text NOT NULL, return_path text NOT NULL,
+ nonce text NOT NULL, verifier text NOT NULL, expires_at timestamptz NOT NULL);
+CREATE INDEX IF NOT EXISTS application_auth_flows_expiry ON application_auth_flows(expires_at);
+INSERT INTO schema_version VALUES(26) ON CONFLICT DO NOTHING;

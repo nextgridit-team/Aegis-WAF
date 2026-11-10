@@ -3,6 +3,7 @@ import {
   bindUpstreamCheck,
   readUpstreamTLS,
 } from "./upstream-check";
+import { makeApplicationAccess } from "./application-access";
 import { makeApplications } from "./applications";
 import { installContextHelp } from "./context-help";
 import { botChallengeMarkup, readBotChallenge } from "./bot-challenge";
@@ -204,6 +205,7 @@ function currentPage() {
       "dashboard",
       "certificates",
       "applications",
+      "application-access",
       "authorities",
       "activity",
       "rules",
@@ -217,6 +219,7 @@ function shell() {
   const nav = [
     ["dashboard", "activity", "Dashboard"],
     ["applications", "globe", "Applications"],
+    ["application-access", "key", "Application access"],
     ["certificates", "certificate", "Certificates"],
     ["address-objects", "globe", "Address objects"],
     ["rules", "shield", "Rules"],
@@ -227,7 +230,7 @@ function shell() {
     ["alerts", "activity", "Alerts"],
     ["system", "activity", "System"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools"><a class="header-help" href="/help.html" target="_blank" rel="noopener noreferrer">Help &amp; glossary</a>${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", "application-access": "Application access", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools"><a class="header-help" href="/help.html" target="_blank" rel="noopener noreferrer">Help &amp; glossary</a>${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -290,7 +293,7 @@ async function render() {
   const view = document.getElementById("view");
   if (!view) return;
   view.classList.toggle("applications-view", page === "applications");
-  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", "application-access": "Application access", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "dashboard")
     await dashboardUI.mount(
       view,
@@ -309,6 +312,7 @@ async function render() {
   }
   if (page !== "live-map") liveMapUI.stop();
   if (page === "live-map") await liveMapUI.mount(view);
+  if (page === "application-access") await applicationAccessPage.render(view);
   if (page === "ai") await aiPage.render(view);
   if (page === "system") await systemPage.render(view);
   if (page === "alerts") await alertsPage.render(view);
@@ -815,6 +819,14 @@ const requestDetails = makeRequestDetails({
   handleError,
 });
 const alertsPage = makeAlertsPage({
+  api,
+  formHandler,
+  notice,
+  handleError,
+  openEditor,
+  closeEditor,
+});
+const applicationAccessPage = makeApplicationAccess({
   api,
   formHandler,
   notice,

@@ -29,6 +29,7 @@ import (
 var schema string
 
 type Site struct {
+	AccessRequired    bool                `json:"access_required"`
 	UpstreamTLS       upstreamTLSSettings `json:"upstream_tls"`
 	TrafficProfile    string              `json:"traffic_profile"`
 	StreamWindowBytes int                 `json:"stream_window_bytes"`
@@ -58,19 +59,20 @@ type sitePolicySummary struct {
 	Priority    int      `json:"priority"`
 }
 type snapshot struct {
-	rateState      *sharedRateState
-	localGeo       *localGeoPolicy
-	managedSets    map[string]signatureSet
-	managedWAFs    map[string]*managedSignatureRuntime
-	geoData        []byte
-	policyBindings map[int64][]compiledPolicyBinding
-	certificates   map[int64]*tls.Certificate
-	version        int64
-	routes         map[string]*route
-	rules          map[int64][]compiledRule
-	capture        map[int64]*capturePolicy
-	protection     map[int64]*protectionPolicy
-	geo            *maxminddb.Reader
+	applicationAccess map[int64]applicationAccessSnapshot
+	rateState         *sharedRateState
+	localGeo          *localGeoPolicy
+	managedSets       map[string]signatureSet
+	managedWAFs       map[string]*managedSignatureRuntime
+	geoData           []byte
+	policyBindings    map[int64][]compiledPolicyBinding
+	certificates      map[int64]*tls.Certificate
+	version           int64
+	routes            map[string]*route
+	rules             map[int64][]compiledRule
+	capture           map[int64]*capturePolicy
+	protection        map[int64]*protectionPolicy
+	geo               *maxminddb.Reader
 }
 type accessEvent struct {
 	requestID, host, siteName                            string
@@ -104,6 +106,8 @@ type accessEvent struct {
 	exemptions                                           []string
 }
 type App struct {
+	identityHTTP                  http.RoundTripper
+	identitySlots                 chan struct{}
 	connections                   connectionLimiter
 	upstreamTests                 chan struct{}
 	prom                          *gatewayTelemetry
@@ -153,7 +157,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 	if e != nil {
 		return nil, errors.New("database pool initialization failed")
 	}
-	a := &App{upstreamTests: make(chan struct{}, 4), notificationTests: make(chan struct{}, 2), simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
+	a := &App{identitySlots: make(chan struct{}, 8), upstreamTests: make(chan struct{}, 4), notificationTests: make(chan struct{}, 2), simulationWork: make(chan struct{}, 2), botWork: make(chan struct{}, 8), managedSlots: make(chan struct{}, 64), captureSlots: make(chan struct{}, 64), replicaID: token(), cfg: cfg, db: db, access: make(chan accessEvent, 8192)}
 	a.prom = newGatewayTelemetry(a)
 	if cfg.SnapshotCacheFile != "" {
 		if e := a.restoreSnapshotCache(); e != nil {
@@ -389,6 +393,9 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	if e = a.loadLocalGeo(ctx, tx, next); e != nil {
 		return nil, e
 	}
+	if e = loadApplicationAccess(ctx, tx, next); e != nil {
+		return nil, e
+	}
 	return next, nil
 }
 func newProxy(target *url.URL, preserve bool) *httputil.ReverseProxy {
@@ -399,6 +406,7 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 		pr.SetURL(target)
 		rewriteProxyHeaders(pr, settings)
 		stripBotCookies(pr.Out)
+		stripApplicationCredentials(pr.Out)
 		if state, _ := pr.In.Context().Value(managedResponseKey{}).(*managedResponseState); state != nil {
 			pr.Out.Header.Set("Accept-Encoding", "identity")
 		}
@@ -487,6 +495,15 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	if s.rateState != nil && s.rateState.stored.Settings.Backend == "redis" {
 		r = r.WithContext(context.WithValue(r.Context(), rateStateKey{}, s.rateState))
 	}
+	secureApplication := r.TLS != nil
+	if protection := s.protection[rt.site.ID]; protection != nil {
+		secureApplication = secureApplication || protection.forwardedProto(r) == "https"
+		r = r.WithContext(context.WithValue(r.Context(), applicationClientIPKey{}, protection.clientIP(r).String()))
+	}
+	if a.applicationAccessGate(w, r, rt.site, secureApplication) {
+		return
+	}
+	stripApplicationCredentials(r)
 	start := time.Now()
 	secureResponse := r.TLS != nil
 	botOwnedResponse := strings.HasPrefix(r.URL.Path, botChallengePrefix)

@@ -23,14 +23,15 @@ type simulationResponse struct {
 	Body    string            `json:"body"`
 }
 type simulationPayload struct {
-	Host     string              `json:"host"`
-	Method   string              `json:"method"`
-	Path     string              `json:"path"`
-	ClientIP string              `json:"client_ip"`
-	Headers  map[string]string   `json:"headers,omitempty"`
-	Body     string              `json:"body,omitempty"`
-	Response *simulationResponse `json:"response,omitempty"`
-	Expected string              `json:"expected,omitempty"`
+	Identity *applicationIdentity `json:"identity,omitempty"`
+	Host     string               `json:"host"`
+	Method   string               `json:"method"`
+	Path     string               `json:"path"`
+	ClientIP string               `json:"client_ip"`
+	Headers  map[string]string    `json:"headers,omitempty"`
+	Body     string               `json:"body,omitempty"`
+	Response *simulationResponse  `json:"response,omitempty"`
+	Expected string               `json:"expected,omitempty"`
 }
 type simulationInput struct {
 	Method          string              `json:"method"`
@@ -66,6 +67,9 @@ func requiresRuleSimulation(pattern string) bool {
 	method, path, _ := strings.Cut(pattern, " ")
 	if method == "GET" {
 		return false
+	}
+	if pattern == "PUT /api/application-access/{id}" {
+		return true
 	}
 	if strings.HasPrefix(path, "/api/policies") || strings.HasPrefix(path, "/api/sites") || strings.HasPrefix(path, "/api/protection-settings") || pattern == "PUT /api/rate-state" {
 		return true
@@ -175,7 +179,7 @@ func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipa
 		}
 	}
 	if !allowed || !requiresRuleSimulation(pattern) {
-		return result, invalid("select a permitted live rule, policy, host, protection or existing-address mutation")
+		return result, invalid("select a permitted live rule, policy, host, application access, protection or existing-address mutation")
 	}
 	tx, e := a.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if e != nil {
@@ -357,6 +361,10 @@ func simulationMetadata(snapshot *snapshot, site int64, peer, country string, ge
 	if route == nil {
 		return "unroutable", nil
 	}
+	if route.site.AccessRequired {
+		// Identity claims are intentionally absent from retained traffic.
+		return "unknown", nil
+	}
 	ip, e := netip.ParseAddr(peer)
 	if e != nil {
 		return "unknown", nil
@@ -425,6 +433,14 @@ func simulatePayload(ctx context.Context, app *App, snapshot *snapshot, payload 
 	route := snapshot.routes[requestHost(payload.Host)]
 	if route == nil {
 		return "unroutable", nil, nil
+	}
+	if payload.Identity != nil && !boundedApplicationIdentity(*payload.Identity) {
+		return "", nil, invalid("invalid synthetic identity")
+	}
+	if access := snapshot.applicationAccess[route.site.ID]; access.Settings.Enabled {
+		if !access.ProviderEnabled || payload.Identity == nil || !identityAllowed(access.Settings, *payload.Identity, access.ProviderType) {
+			return "block", nil, nil
+		}
 	}
 	ip, e := netip.ParseAddr(payload.ClientIP)
 	if e != nil {

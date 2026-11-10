@@ -22,6 +22,7 @@ Start in **[Applications](applications.md)** to review routing, certificates, ef
 
 | Goal                                                   | Guide                                                                                                                                                                          |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Require visitor sign-in and restrict application groups | [OIDC and LDAP application access](application-access.md) |
 | Coordinate flood/bot budgets across replicas           | [Optional shared counters](shared-rate-state.md)                                                                                                                               |
 | Assign policies and source-specific protection         | [Policies](policies.md)                                                                                                                                                        |
 | Load CRS, curate detection sets and tune sensitivity   | [Managed signatures](managed-signatures.md)                                                                                                                                    |

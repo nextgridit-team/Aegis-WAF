@@ -31,3 +31,5 @@ MCP operation errors are also returned as tool results with `isError=true`; read
 Read keys can also authenticate management HTTPS `/metrics` scrapes even when MCP itself is disabled. Source restrictions, expiry and revocation still apply. Metrics contain no request payloads or client-IP labels.
 
 Alert inbox/history reads use Read. Acknowledgement, trigger/destination management and explicit test sends use Configuration; they are independent of protection simulation/version changes. Destination URLs/tokens/signing secrets are never returned by normal reads.
+
+Application identity: Read exposes provider/access/session metadata without usable secrets. Configuration creates providers, tests connections and browses LDAP groups. Enforce edits or deletes providers, assigns application access and revokes sessions. Application access PUT requires simulation with representative synthetic identity groups. OIDC/LDAP application sessions cannot mint administrative credentials.

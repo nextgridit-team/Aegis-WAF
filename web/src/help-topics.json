@@ -701,5 +701,23 @@
       "Retention hours",
       "Logs & retention"
     ]
+  },
+  {
+    "id": "application-access",
+    "title": "Application sign-in and groups",
+    "summary": "Require an external identity before visitors reach an application. OIDC redirects to a sign-in provider; LDAP checks directory credentials over TLS.",
+    "detail": "Choose allowed OIDC group or role values, or LDAP group DNs. Login remains required in every WAF mode and through network bypasses. Group membership is checked at sign-in; revoke sessions to require an earlier check. Provider tests verify connectivity, not a complete sign-in. Existing applications stay public until enabled.",
+    "guide": "application-access.md",
+    "labels": [
+      "Application access",
+      "Require sign-in for this application",
+      "Identity provider",
+      "Group / role claim",
+      "Allowed groups / roles (one per line)",
+      "Session lifetime (minutes)",
+      "Service bind DN",
+      "User search base DN",
+      "Group search base DN"
+    ]
   }
 ]

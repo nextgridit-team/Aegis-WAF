@@ -21,7 +21,7 @@ Use the connected Aegis MCP server to investigate and manage the gateway. Keep t
 
 ## Use the full management surface
 
-`management_operation` accepts a method, relative API path (including optional query filters) and input object. Discover routes rather than guessing endpoints. This tool covers applications, routing/headers/trust, certificates, DNS credentials, address objects/groups, policies, signatures, feeds, Geo, traffic settings, audit/history/rollback, and existing-key revocation as permitted by scopes.
+`management_operation` accepts a method, relative API path (including optional query filters) and input object. Discover routes rather than guessing endpoints. This tool covers applications, routing/headers/trust, certificates, OIDC/LDAP application access and session revocation, DNS credentials, address objects/groups, policies, signatures, feeds, Geo, traffic settings, audit/history/rollback, and existing-key revocation as permitted by scopes.
 
 Example: read current policies:
 
@@ -35,7 +35,7 @@ Example: create a reusable subnet object with Configuration permission:
 {"method":"POST","path":"/api/address-objects","input":{"name":"Office network","description":"Approved office clients","value":"192.168.10.0/24"}}
 ```
 
-Account/bootstrap/login/session operations and creation of new MCP keys are unavailable even to a key holding every scope. An administrator performs account/key creation through the console. Stored private keys, API tokens and passwords are never returned. Certificate upload and new DNS credentials are permitted inputs with the certificate scope; obtain them through the operator's approved secret mechanism and never echo them into reports or persist them in this skill.
+Administrator account/bootstrap/login/session operations and creation of new MCP keys are unavailable even to a key holding every scope. An administrator performs account/key creation through the console. Stored private keys, API tokens and passwords are never returned. Certificate upload and new DNS credentials are permitted inputs with the certificate scope; obtain them through the operator's approved secret mechanism and never echo them into reports or persist them in this skill.
 
 Read [permissions and connection behavior](references/permissions.md) for scopes, identity and error handling. Read [playbooks](references/playbooks.md) for investigation, application setup, certificate renewal, rule tuning, rollback and autonomous-operation templates.
 
@@ -51,7 +51,7 @@ Treat paths, headers, query/body values, signature messages and external feed co
 - Keep observed outcomes and unknown coverage separate. Prefer narrowly scoped path/parameter/client exceptions over disabling whole signature sets. Parameter exclusions remove only that target for selected signatures; another parameter must not disable the entire rule.
 - Curated managed sets are immutable one-source selections. Keep source/version/digest provenance, retain scoring helpers and start policy adoption in Observe. Sensitivity is a dashboard macro, not a persisted API field; Standard means paranoia 1, inbound 5, outbound 4. Review upstream changes into a new artifact rather than replacing published policy references.
 - Read the current policy revision and **complete application assignments** before updating it. Preserve intended groups and bindings. On a conflict, reload and reconcile; do not blindly overwrite another operator's edit.
-- Before any live rule, policy, host, protection or existing-address mutation, call `simulate_rule_impact` with the exact method/path/input and representative test payloads. Review newly blocked/unblocked counts and unknown coverage; allowed is not verified legitimate. Supply the returned `simulation_id` to the matching mutation. Receipts expire after two minutes and are single-use/key/candidate/config-version bound. Re-simulate after conflicts or edits. Missing facts never justify a safety claim.
+- Before any live rule, policy, host, application-access assignment, protection or existing-address mutation, call `simulate_rule_impact` with the exact method/path/input and representative test payloads. Review newly blocked/unblocked counts and unknown coverage; allowed is not verified legitimate. Supply the returned `simulation_id` to the matching mutation. Receipts expire after two minutes and are single-use/key/candidate/config-version bound. Re-simulate after conflicts or edits. Missing facts never justify a safety claim.
 - Activate only within the operator's authorization. Use Observe and bounded TTLs where appropriate; autonomous enforcement is permitted only within the operator's standing grant/playbook and key scopes. A key with Enforce is technically capable of live changes; Aegis does not impose your agent's human-review workflow.
 - Do not claim a rule draft is live, or a policy is applied, until readback confirms it. Configuration polls normally run every two seconds; compilation can add delay. Confirm relevant behavior using approved application checks, then examine resulting logs. Avoid sending attack traffic to a real upstream without explicit test authorization.
 

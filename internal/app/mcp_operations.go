@@ -38,6 +38,9 @@ func agentScopeFor(pattern string) string {
 	if method == "GET" {
 		return "read"
 	}
+	if strings.HasPrefix(path, "/api/application-access") || strings.HasPrefix(path, "/api/application-sessions") || (strings.HasPrefix(path, "/api/identity-providers/") && (method == "PUT" || method == "DELETE")) {
+		return "enforce"
+	}
 	if strings.HasPrefix(path, "/api/certificates") || strings.HasPrefix(path, "/api/acme/") || strings.HasPrefix(path, "/api/dns/") {
 		return "certificates"
 	}
@@ -51,6 +54,8 @@ func agentScopeFor(pattern string) string {
 }
 func agentOperations() []agentOperation {
 	patterns := []string{
+		"GET /api/identity-providers", "GET /api/identity-providers/{id}", "GET /api/identity-providers/presets", "POST /api/identity-providers", "PUT /api/identity-providers/{id}", "DELETE /api/identity-providers/{id}", "POST /api/identity-providers/{id}/test", "POST /api/identity-providers/{id}/groups",
+		"GET /api/application-access", "GET /api/application-access/{id}", "PUT /api/application-access/{id}", "POST /api/application-access/{id}/revoke", "GET /api/application-sessions", "DELETE /api/application-sessions/{id}",
 		"GET /api/alerts", "GET /api/alerts/{id}", "POST /api/alerts/{id}/acknowledge", "GET /api/alert-deliveries",
 		"GET /api/notification-channels", "POST /api/notification-channels", "PUT /api/notification-channels/{id}", "DELETE /api/notification-channels/{id}", "POST /api/notification-channels/{id}/test",
 		"GET /api/alert-rules", "POST /api/alert-rules", "PUT /api/alert-rules/{id}", "DELETE /api/alert-rules/{id}",

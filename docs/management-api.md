@@ -126,3 +126,50 @@ The upstream probe can return public `certificate:{pem,sha256,subject,issuer,not
 `GET /log-settings` returns the shared `retention_hours` (default6, range1–8760) and optimistic `revision`; `last_export_at`, `last_cleanup_at`, `export_error`, `cleanup_error`; pending access/audit export booleans; cumulative `access_deleted`, `audit_deleted`, `evidence_deleted`; combined `log_storage_bytes` including indexes/reusable space; and current-replica `dropped_stdout_logs` / `dropped_database_logs` counters.
 
 `PUT /log-settings` requires `{retention_hours:6,revision:1}` and Configuration scope (or an authenticated administrator with CSRF). Stale revisions return409; invalid ranges return400. A successful transaction updates the configuration version and records `logging.retention.updated` without secrets. There is no synchronous purge. Cleanup applies to access logs, administrative audits and request samples across replicas. Samples may expire sooner under their application capture settings. Existing access/audit records must be exported to stdout before deletion; successful stdout writes do not acknowledge SIEM receipt. Alerts, configuration revision history, Docker rotation and external collector retention are separate. See [logging and delivery behavior](logging.md).
+
+## Application access: OIDC and LDAP
+
+These providers authenticate visitors to proxied applications. They do not change administrator or MCP authentication. Every setup step is available through `management_operation` using the paths below; no dashboard-only state is required. Provider reads are `{id,revision,settings,has_secret}`; inventory also includes `applications`. Send **flat settings fields**, not the read wrapper, on writes. Secrets are write-only and encrypted. Empty/omitted `secret` preserves the saved secret; `clear_secret:true` removes an OIDC secret. Changing issuer/client ID, directory URL/bind DN or CA requires resupplying an existing secret. LDAP requires a nonempty service password.
+
+| Operation | MCP scope | Input / result |
+| --- | --- | --- |
+| `GET /identity-providers`, `GET /identity-providers/{id}` | Read | Redacted settings and revision |
+| `GET /identity-providers/presets` | Read | Templates for custom OIDC, Authentik, Entra ID, Google, OpenLDAP and Active Directory |
+| `POST /identity-providers` | Configuration | Provider fields below; returns `{id}` |
+| `PUT /identity-providers/{id}` | Enforce | Complete provider fields and current `revision`; invalidates sessions |
+| `DELETE /identity-providers/{id}` | Enforce | Remove an unassigned provider; assigned providers return 409 |
+| `POST /identity-providers/{id}/test` | Configuration | `{}`; returns `{ok,stage,message}` for discovery/TLS or directory service bind; does not establish that interactive login or group claims work |
+| `POST /identity-providers/{id}/groups` | Configuration | `{search:"finance"}`; LDAP returns `{supported:true,groups:[{id:<DN>,name}],truncated}` (at most 100); OIDC returns `supported:false` with instructions for token claims |
+| `GET /application-access`, `GET /application-access/{id}` | Read | `{site_id,revision,settings}`; inventory includes application name and hostnames |
+| `PUT /application-access/{id}` | Enforce + simulation | Complete access settings below and current revision; absent settings start at revision 0 |
+| `GET /application-sessions?site_id=123` | Read | Newest 200 active sessions: `id,site_id,provider_id,identity,created_at,expires_at`; no usable session token |
+| `DELETE /application-sessions/{id}` | Enforce | Revoke an opaque session ID |
+| `POST /application-access/{id}/revoke` | Enforce | `{}`; revoke all sessions for an application |
+
+OIDC creation example (use the actual tenant issuer, client ID and approved secret):
+
+```json
+{"name":"Company Entra","type":"oidc","enabled":true,"secret":"<client secret>","oidc":{"issuer":"https://login.microsoftonline.com/<tenant-id>/v2.0","client_id":"<client-id>","scopes":["openid","profile","email"],"groups_claim":"roles"}}
+```
+
+LDAP creation example:
+
+```json
+{"name":"Company directory","type":"ldap","enabled":true,"secret":"<service bind password>","ca_pem":"<optional PEM CA>","ldap":{"url":"ldaps://directory.example.com:636","bind_dn":"cn=aegis,ou=service,dc=example,dc=com","user_base_dn":"ou=people,dc=example,dc=com","user_filter":"(uid={username})","username_attribute":"uid","email_attribute":"mail","groups_attribute":"memberOf","group_base_dn":"ou=groups,dc=example,dc=com","group_filter":"(member={dn})","group_name_attribute":"cn"}}
+```
+
+Use the Active Directory preset for `sAMAccountName` and its disabled-account filter. `ldap://` requires StartTLS; cleartext binds and certificate-verification bypass are unavailable. User input is filter-escaped. User search must resolve exactly one DN; an empty user password is rejected before binding. A configured group base searches additional membership using `{dn}` and/or `{username}`; without it, membership comes from the user group attribute. Nested groups are not expanded automatically. Only explicitly configured group searches can add them.
+
+Access assignment example for application 123 and provider 7:
+
+```json
+{"revision":0,"enabled":true,"provider_id":7,"public_origin":"https://finance.example.com","allowed_groups":["Finance.Reader"],"allow_any_authenticated":false,"session_minutes":30}
+```
+
+`public_origin` must be HTTPS and use an application hostname. Register `https://finance.example.com/__aegis/auth/callback` as the OIDC redirect URI. Entra app roles use exact values from `roles`; token `groups` normally uses group object IDs. LDAP uses full group DNs, compared with LDAP DN case folding. At most 100 allowed values; matching any one grants access. Missing OIDC claims, including group-overage tokens without group values, deny restricted access. Google ID tokens do not include Workspace group membership. `allow_any_authenticated:true` requires empty `allowed_groups` and explicitly permits every identity accepted by the provider; for Google this can mean any Google account. Configure tenant/account restrictions at the provider.
+
+Sessions last 5–1440 minutes (default 30), capped by OIDC ID-token expiry. Membership is checked at sign-in; revoke sessions to force earlier reevaluation. Provider/access edits invalidate sessions on the next request through revision checks; already authorized requests and open WebSocket/streaming connections may finish. Protected requests require PostgreSQL even when a sealed snapshot is available; outage denies access. WAF Off/Observe and network bypass do not bypass login. Provider failure never grants access. Login routes bypass traffic-body capture; session cookies and spoofed `X-Aegis-Identity-*` headers are removed before forwarding. An upstream application's own login remains independent. Application logout is `/__aegis/auth/logout` and requires a CSRF-protected form submission.
+
+OIDC uses code flow, PKCE, state, nonce and issuer/audience/signature checks. Provider URLs must use HTTPS. Discovery endpoints must share the issuer origin, except Google's documented token/key origins; redirects are not followed. Custom CA roots and explicitly configured private hosts are supported. Limits: 20 providers, 8 concurrent provider operations per replica, 1 MiB OIDC responses, 2 MiB directory read budget, 1024 pending OIDC flows and 10000 active sessions. Authentication attempts have shared database rate limits.
+
+Before `PUT /application-access/{id}` through MCP, run `simulate_rule_impact` for the exact input. Synthetic requests accept optional `identity:{subject,username?,email?,groups:[...]}`. Omit identity to test anonymous access; use an unrelated group for denial and a permitted group for acceptance. Claims are synthetic test data, never a way to authenticate a live request. Historical traffic has no retained identity claims and produces unknown for protected applications. Simulation tests group authorization and the configured WAF rules; it does not contact the identity provider or verify credentials. Provider edits/tests and session revocation do not require a simulation receipt. See the [application access guide](application-access.md).

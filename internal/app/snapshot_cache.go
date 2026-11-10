@@ -23,7 +23,7 @@ const snapshotCacheLimit = 64 << 20
 
 // Format 1 stored policy-overwritten rule actions and cannot recover the saved
 // intent. Require a database rebuild before trusting a cache from that version.
-const snapshotCacheFormat = 2
+const snapshotCacheFormat = 3
 
 type cachedCertificate struct {
 	Chain [][]byte
