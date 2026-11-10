@@ -369,7 +369,7 @@ export function makeApplicationAccess(c: Context) {
       const callback = publicOrigin + "/__aegis/auth/callback";
       form.querySelector("#access-provider-help")!.innerHTML =
         p?.settings.type === "oidc"
-          ? `<label class="field">Register this redirect URI with your provider<input readonly aria-label="OIDC redirect URI" value="${esc(callback)}"></label><p class="muted">Use a web application with authorization code flow and PKCE. The group claim is <code>${esc(p.settings.oidc?.groups_claim || "groups")}</code>.</p>`
+          ? `<label class="field">Register this redirect URI with your provider<input readonly aria-label="OIDC redirect URI" value="${esc(callback)}"></label><p class="muted">Use a web application with authorization code flow and PKCE. Aegis accepts callbacks only at this exact HTTPS URL for the provider assigned here. The group claim is <code>${esc(p.settings.oidc?.groups_claim || "groups")}</code>.</p>`
           : p
             ? '<p class="muted">Users sign in through an Aegis login page. Allowed groups must be full distinguished names. LDAP itself does not provide MFA.</p>'
             : '<p class="muted">Add and test a provider before requiring sign-in.</p>';

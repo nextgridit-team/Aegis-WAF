@@ -229,3 +229,7 @@ CREATE TABLE IF NOT EXISTS application_auth_flows(
  nonce text NOT NULL, verifier text NOT NULL, expires_at timestamptz NOT NULL);
 CREATE INDEX IF NOT EXISTS application_auth_flows_expiry ON application_auth_flows(expires_at);
 INSERT INTO schema_version VALUES(26) ON CONFLICT DO NOTHING;
+
+-- Pin advertised issuer-response requirements to the initiating login flow.
+ALTER TABLE application_auth_flows ADD COLUMN IF NOT EXISTS issuer_parameter_required boolean NOT NULL DEFAULT false;
+INSERT INTO schema_version VALUES(27) ON CONFLICT DO NOTHING;

@@ -4,12 +4,45 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 )
+
+// The callback is a browser redirect, so source IP, Origin and Referer cannot
+// authenticate the issuer. Bind it to the configured provider and stored flow.
+func oidcCallbackQuery(r *http.Request, p storedIdentityProvider) (url.Values, error) {
+	if !p.Settings.Enabled || p.Settings.Type != "oidc" || p.Settings.OIDC == nil {
+		return nil, apiError{400, "callback provider is not enabled for this application"}
+	}
+	if r.Method != http.MethodGet || r.URL.EscapedPath() != applicationAuthPrefix+"callback" || r.ContentLength != 0 || len(r.TransferEncoding) != 0 || len(r.URL.RawQuery) > 16384 {
+		return nil, apiError{400, "invalid sign-in callback request"}
+	}
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil || len(query) > 32 {
+		return nil, apiError{400, "invalid sign-in callback parameters"}
+	}
+	for name, values := range query {
+		if name == "" || len(name) > 128 || len(values) != 1 || len(values[0]) > 8192 || strings.ContainsAny(name+values[0], "\x00\r\n") {
+			return nil, apiError{400, "ambiguous or invalid sign-in callback parameters"}
+		}
+	}
+	if state := query.Get("state"); state == "" || len(state) > 128 {
+		return nil, apiError{400, "invalid sign-in callback state"}
+	}
+	if query.Has("code") == query.Has("error") || query.Has("code") && query.Get("code") == "" || query.Has("error") && query.Get("error") == "" {
+		return nil, apiError{400, "callback must contain one authorization code or provider error"}
+	}
+	// RFC 9207: even optional issuer parameters must exactly match the issuer
+	// selected before redirecting the browser. Never discover a callback URL.
+	if query.Has("iss") && query.Get("iss") != p.Settings.OIDC.Issuer {
+		return nil, apiError{400, "callback issuer does not match the application's provider"}
+	}
+	return query, nil
+}
 
 func (a *App) startOIDC(w http.ResponseWriter, r *http.Request, access applicationAccess, p storedIdentityProvider) error {
 	if e := a.applicationLoginLimit(r, p.ID, ""); e != nil {
@@ -20,8 +53,14 @@ func (a *App) startOIDC(w http.ResponseWriter, r *http.Request, access applicati
 		return e
 	}
 	defer release()
-	_, config, _, e := a.oidcProvider(r.Context(), p, access.Settings.PublicOrigin)
+	provider, config, _, e := a.oidcProvider(r.Context(), p, access.Settings.PublicOrigin)
 	if e != nil {
+		return e
+	}
+	var metadata struct {
+		IssuerRequired bool `json:"authorization_response_iss_parameter_supported"`
+	}
+	if e = provider.Claims(&metadata); e != nil {
 		return e
 	}
 	state, browser, nonce, verifier := token(), token(), token(), oauth2.GenerateVerifier()
@@ -43,7 +82,7 @@ func (a *App) startOIDC(w http.ResponseWriter, r *http.Request, access applicati
 	if count >= 1024 {
 		return apiError{503, "too many sign-in attempts; retry shortly"}
 	}
-	if _, e = tx.Exec(r.Context(), `INSERT INTO application_auth_flows(state_hash,browser_hash,site_id,provider_id,access_revision,provider_revision,origin,return_path,nonce,verifier,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()+interval '10 minutes')`, hash(state), hash(browser), access.SiteID, p.ID, access.Revision, p.Revision, access.Settings.PublicOrigin, safeApplicationReturn(r.URL.Query().Get("return")), nonce, verifier); e != nil {
+	if _, e = tx.Exec(r.Context(), `INSERT INTO application_auth_flows(state_hash,browser_hash,site_id,provider_id,access_revision,provider_revision,origin,return_path,nonce,verifier,issuer_parameter_required,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now()+interval '10 minutes')`, hash(state), hash(browser), access.SiteID, p.ID, access.Revision, p.Revision, access.Settings.PublicOrigin, safeApplicationReturn(r.URL.Query().Get("return")), nonce, verifier, metadata.IssuerRequired); e != nil {
 		return e
 	}
 	if e = tx.Commit(r.Context()); e != nil {
@@ -55,29 +94,37 @@ func (a *App) startOIDC(w http.ResponseWriter, r *http.Request, access applicati
 }
 
 func (a *App) finishOIDC(w http.ResponseWriter, r *http.Request, access applicationAccess, p storedIdentityProvider) error {
+	query, e := oidcCallbackQuery(r, p)
+	if e != nil {
+		return e
+	}
+	cookie, e := r.Cookie(applicationFlowCookie)
+	if e != nil || cookie.Value == "" || len(cookie.Value) > 128 {
+		return apiError{400, "invalid sign-in callback; start again"}
+	}
 	if e := a.applicationLoginLimit(r, p.ID, ""); e != nil {
 		return e
 	}
+	state, code := query.Get("state"), query.Get("code")
+	var nonce, verifier, returnTo string
+	var issuerRequired bool
+	e = a.db.QueryRow(r.Context(), `DELETE FROM application_auth_flows WHERE state_hash=$1 AND browser_hash=$2 AND site_id=$3 AND provider_id=$4 AND access_revision=$5 AND provider_revision=$6 AND origin=$7 AND expires_at>now() RETURNING nonce,verifier,return_path,issuer_parameter_required`, hash(state), hash(cookie.Value), access.SiteID, p.ID, access.Revision, p.Revision, access.Settings.PublicOrigin).Scan(&nonce, &verifier, &returnTo, &issuerRequired)
+	if e != nil {
+		return apiError{400, "sign-in request expired or already used; start again"}
+	}
+	applicationCookie(w, applicationFlowCookie, "", -1)
+	if issuerRequired && !query.Has("iss") {
+		return apiError{400, "identity provider omitted its required callback issuer"}
+	}
+	if query.Get("error") != "" || code == "" {
+		return apiError{401, "identity provider did not complete sign-in"}
+	}
+	// Only a valid, consumed flow may use provider network capacity.
 	release, e := a.identityWork(r)
 	if e != nil {
 		return e
 	}
 	defer release()
-	query := r.URL.Query()
-	cookie, e := r.Cookie(applicationFlowCookie)
-	state, code := query.Get("state"), query.Get("code")
-	if e != nil || len(cookie.Value) > 128 || state == "" || len(state) > 128 || len(code) > 8192 || len(r.URL.RawQuery) > 16384 {
-		return apiError{400, "invalid sign-in callback; start again"}
-	}
-	var nonce, verifier, returnTo string
-	e = a.db.QueryRow(r.Context(), `DELETE FROM application_auth_flows WHERE state_hash=$1 AND browser_hash=$2 AND site_id=$3 AND provider_id=$4 AND access_revision=$5 AND provider_revision=$6 AND origin=$7 AND expires_at>now() RETURNING nonce,verifier,return_path`, hash(state), hash(cookie.Value), access.SiteID, p.ID, access.Revision, p.Revision, access.Settings.PublicOrigin).Scan(&nonce, &verifier, &returnTo)
-	if e != nil {
-		return apiError{400, "sign-in request expired or already used; start again"}
-	}
-	applicationCookie(w, applicationFlowCookie, "", -1)
-	if query.Get("error") != "" || code == "" {
-		return apiError{401, "identity provider did not complete sign-in"}
-	}
 	provider, config, ctx, e := a.oidcProvider(r.Context(), p, access.Settings.PublicOrigin)
 	if e != nil {
 		return e

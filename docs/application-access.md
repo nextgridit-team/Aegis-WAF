@@ -33,6 +33,14 @@ OIDC callback URLs are the configured application origin plus `/__aegis/auth/cal
 
 Only expose upstream applications through Aegis. TLS verification is mandatory for providers; an internal CA can be supplied. LDAP accepts `ldaps://` or mandatory StartTLS on `ldap://`. Private directory and identity-provider hosts are supported through explicitly configured destinations; discovery endpoints cannot silently send client secrets to a different origin.
 
+## Callback restrictions
+
+The callback allowlist is derived from the saved application assignment: its exact HTTPS `public_origin`, fixed `/__aegis/auth/callback` path, and assigned enabled OIDC provider. LDAP and applications without enabled access have no OIDC callback. Provider selection never comes from callback parameters. A callback on HTTP, another hostname/port, or an encoded variation of the path is rejected instead of redirected. Unknown authentication paths return 404 and never reach the upstream.
+
+Callbacks come through the visitor's browser, not an identity-provider server connection. Provider IP, Origin or Referer allowlists cannot authenticate that browser redirect. Aegis instead verifies the browser cookie and expiring, one-time state bound to the application, provider and both configuration revisions, followed by PKCE, nonce and signed ID-token validation. Malformed, duplicated, oversized or conflicting callback parameters are rejected before provider network work; only GET callbacks without request bodies are supported. Normal provider extension parameters are bounded and ignored.
+
+If a callback includes `iss`, it must exactly match the assigned issuer. If discovery advertised `authorization_response_iss_parameter_supported`, that requirement is saved with the initiating login flow and a callback missing `iss` is rejected before token exchange. Providers without that feature retain the same provider/state/token binding. See [OAuth authorization-server issuer identification (RFC 9207)](https://www.rfc-editor.org/rfc/rfc9207.html). Do not add a broad WAF bypass for these paths: their dedicated handlers validate authentication and exclude credentials from traffic capture.
+
 ## Setup from the dashboard
 
 1. Open **Application access** and choose **Add identity provider**. Select a template, enter the issuer/client registration or directory bind settings, and save. A connection test runs automatically; its result distinguishes CA trust, hostname, network and service-bind failures.
@@ -65,4 +73,4 @@ Submit the identical method/path/input with the returned `simulation_id` through
 
 ## Upgrade behavior
 
-Update every serving replica before enabling application access; older binaries do not enforce it. Existing applications remain public. The schema upgrade adds provider, access, session and temporary-flow tables. This release increments the sealed snapshot format because older snapshots cannot represent a login requirement: the first startup on the new version needs PostgreSQL to build a fresh snapshot. Later database outages continue serving public applications from valid snapshots while protected applications deny access. Avoid rolling back to a binary that predates application authentication while any application requires it.
+Update every serving replica before enabling application access; older binaries do not enforce it. Existing applications remain public. The schema upgrade adds provider, access, session and temporary-flow tables; schema 27 also pins issuer-response requirements to each flow. This release increments the sealed snapshot format because older snapshots cannot represent a login requirement: the first startup on the new version needs PostgreSQL to build a fresh snapshot. Later database outages continue serving public applications from valid snapshots while protected applications deny access. Avoid rolling back to a binary that predates application authentication while any application requires it.

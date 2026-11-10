@@ -40,7 +40,7 @@ func TestApplicationOIDCAndReplicaEnforcement(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
-			json.NewEncoder(w).Encode(map[string]any{"issuer": issuer, "authorization_endpoint": issuer + "/authorize", "token_endpoint": issuer + "/token", "jwks_uri": issuer + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
+			json.NewEncoder(w).Encode(map[string]any{"issuer": issuer, "authorization_endpoint": issuer + "/authorize", "token_endpoint": issuer + "/token", "jwks_uri": issuer + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}, "authorization_response_iss_parameter_supported": true})
 		case "/keys":
 			json.NewEncoder(w).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{Key: &key.PublicKey, KeyID: "test", Algorithm: "RS256", Use: "sig"}}})
 		case "/token":
@@ -120,7 +120,11 @@ func TestApplicationOIDCAndReplicaEnforcement(t *testing.T) {
 		if browser == nil || !browser.Secure || !browser.HttpOnly || browser.SameSite != http.SameSiteLaxMode || browser.Domain != "" {
 			t.Fatal("unsafe flow cookie")
 		}
-		path := applicationAuthPrefix + "callback?state=" + url.QueryEscape(q.Get("state")) + "&code=valid-code"
+		var issuerRequired bool
+		if err := a.db.QueryRow(context.Background(), "SELECT issuer_parameter_required FROM application_auth_flows WHERE state_hash=$1", hash(q.Get("state"))).Scan(&issuerRequired); err != nil || !issuerRequired {
+			t.Fatal("provider issuer requirement was not pinned to the flow", err)
+		}
+		path := applicationAuthPrefix + "callback?state=" + url.QueryEscape(q.Get("state")) + "&code=valid-code&iss=" + url.QueryEscape(issuer)
 		return probe(b, "GET", path, "", browser), path, browser
 	}
 	signedIn, callback, browser := login(nil)

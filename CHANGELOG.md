@@ -7,7 +7,8 @@ This records shipped behavior rather than proposed features. Container builds us
 - Add an Application access workspace with provider presets, encrypted credentials, connection diagnostics, per-application groups/roles and session revocation. Support OIDC authorization code flow with PKCE, LDAPS and mandatory LDAP StartTLS.
 - Expose the complete configuration and operational workflow through the API and MCP. Application assignment changes use exact-candidate simulation with synthetic identities; provider edits and session revocation have explicit Enforce permissions.
 - Keep authentication independent of WAF modes and network bypass. Bind sessions to application/provider revisions, validate them across replicas, exclude login credentials from traffic capture and deny protected traffic during database failure.
-- Schema 26 and sealed snapshot format 3 require a successful database refresh after upgrade. Existing applications remain public until access is enabled. [Setup, API contract and upgrade behavior](docs/application-access.md).
+- Restrict callbacks to the assigned enabled provider and exact HTTPS URL; reject ambiguous parameters and validate returned issuer identity, including advertised issuer requirements pinned to the login flow.
+- Schema 27 and sealed snapshot format 3 require a successful database refresh after upgrade. Existing applications remain public until access is enabled. [Setup, API contract and upgrade behavior](docs/application-access.md).
 
 ## 2026-10-30 — .NET Brotli CVE-2026-111497 feed update
 

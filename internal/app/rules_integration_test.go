@@ -243,7 +243,7 @@ func TestRulesSchemaUpgrade(t *testing.T) {
 	if e = a.db.QueryRow(ctx, "SELECT renew_before_days FROM certificates WHERE name='Existing ACME'").Scan(&renewalDays); e != nil || renewalDays != nil {
 		t.Fatal("existing certificate lost automatic renewal default", renewalDays, e)
 	}
-	if e = a.db.QueryRow(ctx, "SELECT max(version) FROM schema_version").Scan(&version); e != nil || version != 26 {
+	if e = a.db.QueryRow(ctx, "SELECT max(version) FROM schema_version").Scan(&version); e != nil || version != 27 {
 		t.Fatal(version, e)
 	}
 }

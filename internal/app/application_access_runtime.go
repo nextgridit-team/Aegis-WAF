@@ -243,6 +243,13 @@ func (a *App) applicationAccessGate(w http.ResponseWriter, r *http.Request, site
 		handled = false
 		return false
 	}
+	if r.URL.Path == applicationAuthPrefix+"callback" {
+		expected, err := url.Parse(access.Settings.PublicOrigin)
+		if err != nil || !secure || r.Host != expected.Host || r.URL.EscapedPath() != applicationAuthPrefix+"callback" {
+			http.Error(rec, "callback URL must exactly match the configured HTTPS application origin", http.StatusBadRequest)
+			return true
+		}
+	}
 	if !secure {
 		if r.Method == "GET" || r.Method == "HEAD" {
 			http.Redirect(rec, r, access.Settings.PublicOrigin+safeApplicationReturn(r.URL.RequestURI()), http.StatusPermanentRedirect)
