@@ -155,6 +155,10 @@ const path = require("node:path");
             source: "fixture.conf",
           })),
         };
+      if (p === "/api/rule-catalog") json = [
+        {id: 101, official: true, revision: 1, spec: {name: "Official guard"}},
+        {id: 102, official: false, revision: 1, spec: {name: "Custom guard"}},
+      ];
       if (p === "/api/policies") json = policies;
       if (
         /\/api\/policies(?:\/1)?$/.test(p) &&
@@ -175,6 +179,7 @@ const path = require("node:path");
                 community_mitigations: {
                   enabled: saved.spec.community_mitigations.enabled,
                   mode: saved.spec.community_mitigations.mode,
+                  update_mode: saved.spec.community_mitigations.update_mode,
                   rules: [],
                 },
               },
@@ -220,6 +225,7 @@ const path = require("node:path");
     expected.community_mitigations = {
       enabled: false,
       mode: "observe",
+      update_mode: "pinned",
       rule_ids: [],
     };
     expected.groups = original.groups.map(({ rules, ...g }) => ({
@@ -484,6 +490,17 @@ const path = require("node:path");
     await form()
       .locator("[name=community_mode]")
       .selectOption("observe");
+    await form().getByLabel("Follow official feed automatically", { exact: true }).check();
+    const officialRule = form().locator('[data-community-rule][value="101"]');
+    const customRule = form().locator('[data-community-rule][value="102"]');
+    assert.equal(await officialRule.isChecked(), true);
+    assert.equal(await officialRule.isDisabled(), true);
+    assert.equal(await customRule.isChecked(), false);
+    assert.equal(await customRule.isDisabled(), false);
+    await form().getByLabel("Follow official feed automatically", { exact: true }).uncheck();
+    assert.equal(await officialRule.isDisabled(), false);
+    await officialRule.uncheck();
+    await form().getByLabel("Follow official feed automatically", { exact: true }).check();
     await page.screenshot({ path: path.join(artifacts, "community-mode.png") });
     await form().locator("[name=community_enabled]").uncheck();
     // Policy-owned API starting values and connection controls round-trip explicitly.
@@ -532,6 +549,8 @@ const path = require("node:path");
     assert.equal(saved.spec.managed_signatures.stream_window_bytes, 16384);
     assert.equal(saved.spec.mode, "observe");
     assert.equal(saved.spec.community_mitigations.mode, "observe");
+    assert.equal(saved.spec.community_mitigations.update_mode, "follow");
+    assert.deepEqual(saved.spec.community_mitigations.rule_ids, [101]);
     assert.equal(saved.spec.managed_signatures.body_limit_bytes, 1048576);
     assert.deepEqual(saved.spec.connection_limits, {
       enabled: true,

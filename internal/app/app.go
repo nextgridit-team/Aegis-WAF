@@ -198,6 +198,9 @@ func (a *App) initialize(ctx context.Context) error {
 	if e = seedBaselinePolicy(ctx, tx); e != nil {
 		return e
 	}
+	if e = upgradeCommunityFollowing(ctx, tx); e != nil {
+		return e
+	}
 	if e = tx.Commit(ctx); e != nil {
 		return e
 	}

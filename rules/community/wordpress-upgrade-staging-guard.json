@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "wordpress-upgrade-staging-guard",
+  "pack": "WordPress request guards",
+  "technology": [
+    "wordpress",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-119977"
+  ],
+  "description": "Partial containment for a documented HTTP exposure.",
+  "affected_versions": "WordPress Core 4.7.0 through 7.1.3 during a full core upgrade; fixed in 7.1.4 and vendor backports.",
+  "coverage": "Denies external requests into the default wp-content/upgrade staging directory, including installations under a URL prefix and singly percent-encoded paths. This prevents HTTP access to staged installers at this location.",
+  "limitations": "Does not detect the upgrade race or cover relocated WP_CONTENT_DIR URLs, filesystem access, or other installer locations. Direct-origin access and alternate upstream path decoding remain outside this guard. Synthetic matcher tests are not a vulnerable-product exploit reproduction. Apply vendor fixes.",
+  "false_positive_risk": "Blocks all public access to the staging directory, including intentional downloads or diagnostics stored there. Normal wp-admin update requests are unaffected.",
+  "references": [
+    "https://wordpress.org/news/2026/10/wordpress-7-1-4/",
+    "https://github.com/WordPress/wordpress-develop/blob/7.1.3/src/wp-admin/includes/class-wp-upgrader.php",
+    "https://www.cve.org/CVERecord?id=CVE-2026-119977"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "WordPress upgrade staging containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:^|/)wp-content/+upgrade(?:/+|$)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "staged installer",
+      "method": "GET",
+      "path": "/wp-content/upgrade/wordpress-7.1.3/wordpress/wp-admin/setup-config.php",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "prefixed encoded staging",
+      "method": "POST",
+      "path": "/blog/wp-content/%75pgrade/wordpress/wp-admin/setup-config.php",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "directory listing",
+      "method": "GET",
+      "path": "/wp-content/upgrade",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "repeated slashes",
+      "method": "GET",
+      "path": "/wp-content//upgrade//stage/index.php",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary core update",
+      "method": "GET",
+      "path": "/wp-admin/update-core.php",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "ordinary media",
+      "method": "GET",
+      "path": "/wp-content/uploads/logo.png",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "similar directory",
+      "method": "GET",
+      "path": "/wp-content/upgrades/readme.txt",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    }
+  ]
+}

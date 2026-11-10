@@ -1,5 +1,8 @@
 # 100-CVE mitigation research inventory
 
+Update (November 10): this inventory records the original release. [Current feed behavior](../../rule-feeds.md) supports automatic official-feed following; custom selections remain pinned.
+
+
 Merged by the repository owner in [PR #1](https://github.com/nextgridit-team/Aegis-WAF/pull/1). This records source research and synthetic validation; merge does not establish complete exploit prevention.
 
 100 most recently KEV-added CVEs among the inspected research set with authored HTTP guards. This is an actionable, source-constrained subset, not a universal top-100 severity ranking or a claim that these are the 100 newest web CVEs.

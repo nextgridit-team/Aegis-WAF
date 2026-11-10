@@ -1,6 +1,6 @@
 # Packaged rule distribution
 
-Authors and reviewers work on one JSON file per rule. Clients download a compact release descriptor and a compressed package of those files, then store individual entries in PostgreSQL. Discovery, delivery and policy activation are separate operations.
+Authors and reviewers work on one JSON file per rule. Clients download a compact release descriptor and a compressed package of those files, then store individual entries in PostgreSQL. Policies explicitly select pinned snapshots or automatic following of the official source.
 
 ## What we took from established feeds
 
@@ -14,9 +14,9 @@ Aegis follows that separation. It does not import or execute NASL plugins or Nuc
 
 `rules/community/release.json` contains schema version, feed name, increasing revision, package path, SHA-256, rule count and compressed size. It contains no per-rule listing. The current descriptor is 273 bytes for 95 rules; the package is approximately 123 KiB. Adding rules grows the archive and PostgreSQL catalogue, rather than a master list in the descriptor.
 
-A sync checks the descriptor using its ETag. If changed, it downloads the one ZIP, verifies its size/hash, validates bounded ZIP directory records, and reads the individual rule files without extracting them. All metadata, matchers and embedded regression fixtures must pass before a single transaction updates the catalogue. A failed update leaves the last-good catalogue and policy snapshots intact. PostgreSQL coordinates workers across replicas; normal checks run every 12 hours or manually.
+A sync checks the descriptor using its ETag. If changed, it downloads the one ZIP, verifies its size/hash, validates bounded ZIP directory records, and reads the individual rule files without extracting them. All metadata, matchers and embedded regression fixtures must pass before a single transaction updates the catalogue and enabled policies following the official feed. Policy validation and execution-capacity checks must also succeed. A failed update leaves the last-good catalogue and policy snapshots intact. PostgreSQL coordinates workers across replicas; normal checks run every 12 hours or manually.
 
-The authoring script discovers rule JSON recursively and generates the archive and descriptor. Reviewers see changes to the source rule plus generated artifacts. Rule-only merges validate and publish these files without a container build; installed replicas download the new feed independently. Run the [contribution checks](rule-contributions.md); never edit only the archive.
+The authoring script discovers rule JSON recursively and generates the archive and descriptor. Reviewers see changes to the source rule plus generated artifacts. Rule-only merges validate and publish these files without a container build; installed replicas download the new feed independently. Replicas with the following-mode application update also publish new policy revisions automatically, preserving disabled and Observe/Off settings. Older binaries only download the catalogue and require an application upgrade first. Run the [contribution checks](rule-contributions.md); never edit only the archive.
 
 ## Boundaries
 
@@ -24,7 +24,7 @@ The package is limited to 2000 rules, 8 MiB compressed and expanded, and 64 KiB 
 
 SHA-256 authenticates the archive against the downloaded descriptor, not an independent publisher identity. HTTPS and publisher trust still matter. Signed releases and differential packages are future work. Aegis downloads a complete changed package; it does not claim Tenable- or Nuclei-scale capacity. Catalogue capacity and execution budgets are separate: 100 effective policy rules and 1000 assigned rules globally remain enforced. Beyond those budgets, expand applicability/selection and capacity deliberately rather than enabling an unlimited corpus on every request.
 
-Policy saves freeze the selected definitions and their provenance. Sync does not replace those copies; operators review and explicitly refresh policy snapshots. The shipped baseline includes all bundled rules on a fresh installation, while existing baseline selections remain unchanged.
+Policy saves retain versioned definitions and provenance. Pinned selections require explicit refresh. Enabled following selections adopt the official catalogue automatically in the sync transaction; custom sources remain pinned. The shipped baseline follows the official feed. Existing full official selections migrate once, while custom selections and scopes remain pinned. Rollback and official-source deletion pin followers; all enforcement modes and disabled settings are preserved.
 
 ## Existing installations
 

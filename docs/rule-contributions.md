@@ -20,7 +20,7 @@ Aegis uses declarative WAF matchers, not executable Nuclei templates.
 5. Run the checks below, commit the individual rule, regenerated package and release descriptor,
    then open a PR using the [community-rule template](../.github/PULL_REQUEST_TEMPLATE/community-rule.md).
    Include the command output and explain compatibility tradeoffs. CI runs
-   isolated validation without production credentials or external target scans.
+   isolated validation without production credentials or external target scans. The official release must also fit the baseline execution budget; increasing catalogue capacity alone does not increase policy capacity.
 6. Address review comments. A changed rule needs a higher revision; changes after
    approval require fresh review when the documented branch protection is active.
 

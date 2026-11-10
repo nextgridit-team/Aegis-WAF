@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "gpustack-client-ip-header-guard",
+  "pack": "GPUStack request guards",
+  "technology": [
+    "gpustack",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-102895"
+  ],
+  "description": "Partial containment for a documented HTTP exposure.",
+  "affected_versions": "GPUStack before 2.2.0 with implicit loopback authentication enabled; fixed in 2.2.0.",
+  "coverage": "Denies any client-supplied X-GPUStack-Real-IP header, including empty and non-loopback values, so alternate loopback encodings cannot bypass an address-specific signature.",
+  "limitations": "Does not cover the independent same-host proxy TCP-loopback authentication bypass or a header inserted after WAF inspection. Set force_auth_localhost=true and upgrade; this header guard alone does not secure vulnerable GPUStack. Direct-origin access and alternate upstream path decoding remain outside this guard. Synthetic matcher tests are not a vulnerable-product exploit reproduction. Apply vendor fixes.",
+  "false_positive_risk": "Rejects legitimate clients or trusted proxies supplying this header before Aegis. Remove it at the public ingress; do not expose the vulnerable API through a loopback-trusted proxy.",
+  "references": [
+    "https://github.com/gpustack/gpustack/security/advisories/GHSA-gj9m-f8ph-pmhr",
+    "https://www.cve.org/CVERecord?id=CVE-2026-102895"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "GPUStack client IP header guard",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "header",
+        "key": "X-GPUStack-Real-IP",
+        "op": "regex",
+        "value": "(?s)^.*$"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "spoofed loopback",
+      "method": "GET",
+      "path": "/v2/users",
+      "headers": {
+        "X-GPUStack-Real-IP": "127.0.0.1"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "IPv6 loopback",
+      "method": "GET",
+      "path": "/v2/models",
+      "headers": {
+        "x-gpustack-real-ip": "::1"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "mapped loopback",
+      "method": "GET",
+      "path": "/v2/models",
+      "headers": {
+        "X-GPUStack-Real-IP": "::ffff:127.0.0.1"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "empty privileged header",
+      "method": "GET",
+      "path": "/v2/users",
+      "headers": {
+        "X-GPUStack-Real-IP": ""
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "nonloopback privileged header",
+      "method": "GET",
+      "path": "/v2/users",
+      "headers": {
+        "X-GPUStack-Real-IP": "192.0.2.1"
+      },
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary API request",
+      "method": "GET",
+      "path": "/v2/users",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "unrelated header",
+      "method": "GET",
+      "path": "/health",
+      "headers": {
+        "X-Real-IP": "127.0.0.1"
+      },
+      "body": "",
+      "expected_match": false
+    }
+  ]
+}

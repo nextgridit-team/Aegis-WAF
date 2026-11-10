@@ -5,5 +5,5 @@ import "embed"
 
 // Files contains the shipped manifest and individual rules, not executable code.
 //
-//go:embed release.json community-rules.zip
+//go:embed release.json community-rules.zip manifest.json
 var Files embed.FS

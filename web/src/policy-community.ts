@@ -1,5 +1,6 @@
 export type CommunityRule = {
   id: number;
+  official?: boolean;
   revision?: number;
   pack?: string;
   cves?: string[];
@@ -15,6 +16,7 @@ export type CommunityRule = {
 };
 export type CommunitySelection = {
   enabled: boolean;
+  update_mode?: "pinned" | "follow";
   mode?: "inherit" | "observe" | "block";
   rules: {
     rule_id: number;
@@ -33,7 +35,7 @@ export function communityMarkup(
       items.push({ id: old.rule_id, spec: old.spec, pack: old.feed?.pack });
   const selected = new Set(saved.rules.map((r) => r.rule_id));
   const mode = saved.mode || "inherit";
-  return `<section data-community><h3>Community mitigations</h3><label class="check"><input type="checkbox" name="community_enabled" ${saved.enabled ? "checked" : ""}><span>Enable community mitigations</span></label><p class="muted">Choose all available rules or individual mitigations for this policy. These mitigations can block legitimate requests; review compatibility before enforcing. Published copies stay pinned until explicitly refreshed.</p><div data-community-options ${saved.enabled ? "" : "hidden"}><label class="field">Community enforcement<select name="community_mode"><option value="inherit" ${mode === "inherit" ? "selected" : ""}>Follow policy</option><option value="observe" ${mode === "observe" ? "selected" : ""}>Observe</option><option value="block" ${mode === "block" ? "selected" : ""}>Block</option></select><small>Follow policy uses the policy mode. Observe records matches without blocking. Policy Observe or Off always limits enforcement. This setting also applies to catalogue rules in custom groups.</small></label><label class="check"><input type="checkbox" data-community-all><span>All available mitigations</span></label><label class="field">Find community mitigations<input type="search" data-community-search placeholder="Name, CVE or technology"></label><div class="policy-rule-picker" role="group" aria-label="Community mitigation rules">${
+  return `<section data-community><h3>Community mitigations</h3><label class="check"><input type="checkbox" name="community_enabled" ${saved.enabled ? "checked" : ""}><span>Enable community mitigations</span></label><p class="muted">Choose all available rules or individual mitigations for this policy. These mitigations can block legitimate requests; review compatibility before enforcing. Follow the official feed to apply future releases automatically, or keep a pinned selection for manual review.</p><div data-community-options ${saved.enabled ? "" : "hidden"}><label class="field">Community enforcement<select name="community_mode"><option value="inherit" ${mode === "inherit" ? "selected" : ""}>Follow policy</option><option value="observe" ${mode === "observe" ? "selected" : ""}>Observe</option><option value="block" ${mode === "block" ? "selected" : ""}>Block</option></select><small>Follow policy uses the policy mode. Observe records matches without blocking. Policy Observe or Off always limits enforcement. This setting also applies to catalogue rules in custom groups.</small></label><label class="check"><input type="checkbox" name="community_follow" ${saved.update_mode === "follow" ? "checked" : ""}><span>Follow official feed automatically</span></label><small>New, revised and withdrawn official rules apply after each successful sync. Custom sources stay pinned. Disabled and Observe settings are preserved.</small><label class="check"><input type="checkbox" data-community-all><span>All available mitigations</span></label><label class="field">Find community mitigations<input type="search" data-community-search placeholder="Name, CVE or technology"></label><div class="policy-rule-picker" role="group" aria-label="Community mitigation rules">${
     items
       .map((rule) => {
         const pinned = saved.rules.find((r) => r.rule_id === rule.id)?.feed
@@ -43,7 +45,7 @@ export function communityMarkup(
       })
       .join("") ||
     '<p>No catalogue rules available. Configure or sync a source in <a href="#rule-feeds">Rule feeds</a>.</p>'
-  }</div><small data-community-count></small><label class="check"><input type="checkbox" name="community_refresh"><span>Refresh selected mitigation snapshots</span></label><small>All available selects the current catalogue. Feed sync alone never changes a published policy.</small></div></section>`;
+  }</div><small data-community-count></small><label class="check"><input type="checkbox" name="community_refresh"><span>Refresh selected mitigation snapshots</span></label><small>All available selects the current catalogue. Automatic following applies only to the official Aegis source; turn it off to keep individual frozen selections.</small></div></section>`;
 }
 export function mountCommunity(
   form: HTMLFormElement,
@@ -54,11 +56,17 @@ export function mountCommunity(
     '[name="community_enabled"]',
   )!;
   const all = root.querySelector<HTMLInputElement>("[data-community-all]")!;
+  const follow = root.querySelector<HTMLInputElement>('[name="community_follow"]')!;
+  const officialIDs = new Set(available.filter((r) => r.official).map((r) => r.id));
   const inputs = Array.from(
     root.querySelectorAll<HTMLInputElement>("[data-community-rule]"),
   );
   const availableIDs = new Set(available.map((r) => r.id));
   const update = () => {
+    inputs.forEach((i) => {
+      i.disabled = follow.checked && officialIDs.has(Number(i.value));
+      if (i.disabled) i.checked = true;
+    });
     root.querySelector<HTMLElement>("[data-community-options]")!.hidden =
       !enabled.checked;
     const availableInputs = inputs.filter((i) =>
@@ -73,8 +81,10 @@ export function mountCommunity(
       `${inputs.filter((i) => i.checked).length} selected`;
   };
   enabled.onchange = update;
+  follow.onchange = update;
   inputs.forEach((i) => (i.onchange = update));
   all.onchange = () => {
+    if (!all.checked) follow.checked = false;
     inputs
       .filter((i) => availableIDs.has(Number(i.value)))
       .forEach((i) => (i.checked = all.checked));
@@ -91,6 +101,7 @@ export function mountCommunity(
   update();
   return () => ({
     enabled: enabled.checked,
+    update_mode: follow.checked ? "follow" : "pinned",
     mode: root.querySelector<HTMLSelectElement>('[name="community_mode"]')!
       .value,
     rule_ids: inputs.filter((i) => i.checked).map((i) => Number(i.value)),

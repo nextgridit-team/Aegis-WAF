@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "contact-form-7-upload-directory-guard",
+  "pack": "WordPress request guards",
+  "technology": [
+    "wordpress",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-114432"
+  ],
+  "description": "Partial containment for a documented HTTP exposure.",
+  "affected_versions": "Contact Form 7 6.2 through 6.2.3 with file-upload fields; fixed in 6.2.4. Exploit impact depends on server listing and script-handler configuration.",
+  "coverage": "Denies HTTP access and directory listing under the default wp-content/uploads/wpcf7_uploads temporary upload directory, including prefixed installations and encoded path components.",
+  "limitations": "Does not prevent the initial arbitrary upload, inspect malformed UTF-8 filenames, or cover custom upload URLs, non-HTTP access, or another route serving the uploaded file. Direct-origin access and alternate upstream path decoding remain outside this guard. Synthetic matcher tests are not a vulnerable-product exploit reproduction. Apply vendor fixes.",
+  "false_positive_risk": "Breaks applications that intentionally publish Contact Form 7 temporary files. Regular form submission and unrelated WordPress media remain allowed by this guard.",
+  "references": [
+    "https://contactform7.com/2026/10/29/contact-form-7-624/",
+    "https://github.com/rocklobster-in/contact-form-7/blob/v6.2.3/includes/file.php",
+    "https://wpscan.com/vulnerability/6b0a5d1f-84fb-425f-8d37-ddde5703937c/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "Contact Form 7 temporary upload containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)(?:^|/)wp-content/+uploads/+wpcf7_uploads(?:/+|$)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "temporary script retrieval",
+      "method": "GET",
+      "path": "/wp-content/uploads/wpcf7_uploads/123/file.phar",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "directory listing",
+      "method": "GET",
+      "path": "/wp-content/uploads/wpcf7_uploads/",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "encoded prefixed path",
+      "method": "GET",
+      "path": "/blog/wp-content/uploads/%77pcf7_uploads/123/file.html",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "HEAD on temporary file",
+      "method": "HEAD",
+      "path": "/wp-content/uploads/wpcf7_uploads/1/file.svg",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary uploaded media",
+      "method": "GET",
+      "path": "/wp-content/uploads/2026/11/image.jpg",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "ordinary form submission",
+      "method": "POST",
+      "path": "/wp-json/contact-form-7/v1/contact-forms/1/feedback",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "similar directory",
+      "method": "GET",
+      "path": "/wp-content/uploads/wpcf7_uploads-public/file.txt",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    }
+  ]
+}

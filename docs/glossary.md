@@ -303,7 +303,7 @@ Aegis does not choose the most specific CIDR automatically: configured priority 
 
 These are focused rules supplied by the community feed for particular vulnerabilities or attack patterns. Select all current rules or only the ones suitable for your applications.
 
-Community enforcement can follow policy mode, observe, or block. Policy Observe and Off cap enforcement; this also applies to catalogue rules in custom groups. Review each rule’s coverage, limits and compatibility before enforcing. Some mitigation rules intentionally reject legitimate request types. Saved policies keep pinned copies; syncing the feed downloads updates but does not silently change a published policy. Refresh selected snapshots and save to adopt updates.
+Community enforcement can follow policy mode, observe, or block. Policy Observe and Off cap enforcement, including catalogue rules in custom groups. Review coverage and compatibility: some guards reject legitimate operations. Follow official feed automatically applies additions, revisions and withdrawals after successful sync. Leave it off to keep pinned selections and refresh them manually. Disabled selections stay disabled; rollback pins the restored revision.
 
 [Configuration guide](rule-feeds.md)
 
@@ -313,7 +313,7 @@ Community enforcement can follow policy mode, observe, or block. Policy Observe 
 
 A rule group collects selected custom rules inside a policy. You can narrow the group to a path or HTTP methods so it protects only the relevant part of an application.
 
-Group path and method conditions combine with each rule’s own conditions. Published groups contain frozen copies, so library edits do not change live protection until explicitly refreshed and saved. Common method chips retain custom methods entered in the exact list.
+Group path and method conditions combine with each rule’s conditions. Native rules and pinned catalogue selections retain their saved copies until explicitly refreshed. Official rules in a following policy can update automatically while keeping group scopes. Common method chips retain custom methods entered in the exact list.
 
 [Configuration guide](policies.md)
 
@@ -323,7 +323,7 @@ Group path and method conditions combine with each rule’s own conditions. Publ
 
 A feed is a subscription that downloads available rule definitions. A pinned snapshot is the saved version a policy keeps using until you explicitly refresh it.
 
-Automatic and manual sync update the local catalogue. They do not activate new rules, select future additions or silently replace published policy snapshots. Policies choose which mitigations apply and when to adopt downloaded revisions.
+Scheduled and manual sync update the local catalogue. Enabled policies following the official Aegis source also receive new policy revisions automatically. Pinned selections and custom sources require explicit refresh. Failed validation or capacity checks retain the entire previous release and protection. Removing the official source pins its followers.
 
 [Configuration guide](rule-feeds.md)
 

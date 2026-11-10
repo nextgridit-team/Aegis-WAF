@@ -67,7 +67,7 @@ export function makeFeedsUI(c: Context) {
         button("add-feed", "Add source"),
       ) +
       ruleTabs(true) +
-      `<div class="info-panel"><h3>Review before activation</h3><p>Sync downloads candidates. Workspace feeds populate a shared catalogue; enable and select mitigations inside Policies. Legacy application feeds import disabled drafts. Feed changes never replace enabled rules or turn on blocking.</p></div>` +
+      `<div class="info-panel"><h3>Automatic and pinned protection</h3><p>Sync updates the shared catalogue. Policies following the official feed automatically adopt its new and revised rules; pinned selections need review in Policies. Legacy application feeds import disabled drafts. Disabled and Observe policy settings are preserved.</p></div>` +
       (sources.length
         ? c.table(
             ["Source", "Scope", "Sync status", "Rules", ""],
@@ -157,7 +157,7 @@ export function makeFeedsUI(c: Context) {
         c.notice(
           sources.find((source) => source.id === id)?.site_id
             ? "Source synced. Review pending candidates before importing."
-            : "Source synced. Review catalogue rules and pinned policy updates.",
+            : "Source synced. Following policies are updated automatically; review updates for pinned policies.",
         );
         return true;
       case "review-feed":

@@ -1,21 +1,21 @@
 # Rule catalogues and source subscriptions
 
-Workspace catalogues share independently versioned rules across policies. Each rule remains an independently versioned JSON file. A small release descriptor points to a checksummed ZIP containing those files; there is no growing hand-maintained rule index. Administrators choose individual rules or packs; downloading updates never changes published protection automatically.
+Workspace catalogues share independently versioned rules across policies. Each rule remains an independently versioned JSON file. A small release descriptor points to a checksummed ZIP containing those files; there is no growing hand-maintained rule index. Policies can follow the official Aegis feed automatically or retain individual pinned selections for manual review.
 
 ## Enable mitigations in a policy
 
 1. Open **Policies → Edit → Community mitigations**.
 2. Turn on **Enable community mitigations**, then check **All available mitigations** or select individual rules. Search by CVE or name and expand coverage/compatibility notes before enforcing.
 3. Save the policy. Turning the switch off preserves its selection but disables all catalogue mitigations for that policy; turning it back on restores the selection. Set **Community enforcement** to Follow policy, Observe or Block. Follow policy retains the existing behavior; policy Observe and Off always cap enforcement.
-4. To adopt downloaded revisions, check **Refresh selected mitigation snapshots** and save. An ordinary save preserves frozen definitions. Selecting all captures the currently available rules; later feed additions do not silently enable themselves.
+4. Enable **Follow official feed automatically** to adopt new and revised official rules and remove withdrawn ones on successful sync. Leave it off for a pinned selection, using **Refresh selected mitigation snapshots** when ready to adopt revisions. **All available mitigations** alone selects only the current catalogue. Custom sources stay pinned.
 
-The shipped **Baseline protection** policy enables every shipped community mitigation, alongside CRS. The reviewed initial rules are bundled into the application, so this does not depend on a successful first network sync. On upgrade, the baseline receives this field once if absent; its other settings and assignments are preserved. Subsequent administrator selections or disabling are never overwritten on restart. Custom policies start with community mitigations off.
+The shipped **Baseline protection** policy enables every shipped community mitigation, alongside CRS. The reviewed initial rules are bundled into the application, so this does not depend on a successful first network sync. On upgrade, the baseline receives this field once if absent; its other settings and assignments are preserved. The baseline follows the official feed automatically. On upgrade, complete official selections are migrated to following; individual selections and scoped groups remain pinned. The frozen pre-follow 95-rule set is recognized even if a newer catalogue was already downloaded. Explicit pinned settings, disabling, Observe/Off modes and assignments survive restarts. Custom policies start with community mitigations off.
 
-**Review compatibility before assigning the baseline:** the current 95 rules include broad endpoint-containment guards that disable legitimate operations, plus multipart and Brotli upload guards. Select only compatible mitigations for each application. The [100-CVE research inventory](research/kev-20261026/README.md) distinguishes request patterns from containment options and records coverage limits. Existing policies retain their previously selected snapshots when new rules are downloaded.
+**Review compatibility before assigning the baseline:** the current 100 rules include broad endpoint-containment guards that disable legitimate operations, plus multipart and Brotli upload guards. Select only compatible mitigations for each application. The [100-CVE research inventory](research/kev-20261026/README.md) distinguishes request patterns from containment options and records coverage limits. Pinned policies retain their selected snapshots. Following policies receive new releases automatically, including containment guards that can restrict legitimate features.
 
-**Rules → Rule feeds** manages subscription URLs, sync and read-only catalogue review. It does not apply rules to policies. The Aegis community subscription is provisioned once; deletion persists, and **Use Aegis community feed** can add it again. Removing the source retains published copies, including the baseline's copies.
+**Rules → Rule feeds** manages subscription URLs, sync and read-only catalogue review. A successful official sync also updates following policies. The Aegis community subscription is provisioned once; deletion persists, and **Use Aegis community feed** can add it again. Removing the source pins and retains published copies, including the baseline's copies.
 
-The catalogue contains 93 KEV-researched rules covering request patterns or endpoint containment for 100 distinct CVEs, alongside the .NET/Node.js Brotli and PHP multipart guards. These are **partial mitigations, not substitutes for vendor fixes**. Review coverage and false-positive notes in the policy picker; inclusion in KEV does not prove that a WAF can prevent every exploitation path.
+The catalogue contains 93 KEV-researched rules covering request patterns or endpoint containment for 100 distinct CVEs, alongside the .NET/Node.js Brotli and PHP multipart guards and five [November 10 guards](research/community-20261110.md). These are **partial mitigations, not substitutes for vendor fixes**. Review coverage and false-positive notes in the policy picker; inclusion in KEV does not prove that a WAF can prevent every exploitation path.
 
 For **CVE-2026-111497**, select **.NET and Node.js Brotli request guard** (stable ID `node-brotli-request-guard`, revision 2). It matches declared `Content-Encoding: br` uploads, including case variants and encoding lists, without matching `Accept-Encoding` response negotiation. This broad guard also matches legitimate Brotli uploads; it does not identify exploit bytes or cover outbound downloads and unlabelled compressed files. The existing revision 1 matcher already covers the same request pattern; revision 2 adds explicit .NET applicability and regression cases. Sync the feed, review and refresh the selected policy copy, then save with the intended community/policy enforcement mode. See [research and coverage](research/cve-2026-111497.md).
 
@@ -29,11 +29,13 @@ https://api.github.com/repos/nextgridit-team/Aegis-WAF/contents/rules/community/
 
 ## Sync and policy updates
 
-The first scheduled check runs within 30 seconds, then every 12 hours. **Sync now** checks immediately. PostgreSQL coordinates checks across replicas; no extra worker container is required. The page shows errors, last success and next check. Failed downloads, checksum failures, invalid rules, failed regression vectors and revision conflicts preserve the complete last successful catalogue. Checks use ETags when available.
+The first scheduled check runs within 30 seconds, then every 12 hours. The following-mode upgrade queues an immediate scheduled check; all replicas need the updated application before relying on automatic adoption. **Sync now** checks immediately. PostgreSQL coordinates checks across replicas; no extra worker container is required. The page shows errors, last success and next check. Failed downloads, checksum failures, invalid rules, failed regression vectors and revision conflicts preserve the complete last successful catalogue. Checks use ETags when available.
 
-Policies store frozen rule definitions and feed provenance: source, entry ID, revision, checksum, pack and CVEs. An ordinary policy edit preserves these copies. Review shows **Update available** beside policies using an older definition. In the policy editor, use **Refresh selected mitigation snapshots** to refresh the current community selection. **Refresh selected rule snapshots from the library** refreshes all selected library snapshots on save. Existing history/rollback retains its frozen definitions. Removed feed entries disappear from the available picker; existing policy copies keep working. Removing a source also retains published policy copies and legacy imported rules, but prevents refreshing them from that source.
+Policies retain versioned rule definitions and source provenance. With `update_mode: "follow"`, the official source's validated additions, revisions and withdrawals are applied to enabled following policies in the same transaction as the catalogue. Enforcement still follows the existing community and policy modes; disabled selections are not updated or enabled. Re-enabling a following selection resolves the latest catalogue. Custom-source selections remain frozen. Successful changes create policy history and `policy.feed_updated` audit events. Unchanged releases/ETags do not duplicate revisions.
 
-A changed catalogue increments the configuration version to invalidate stale MCP simulation receipts; it does not replace live policy copies. Policy changes propagate through the usual two-second snapshot refresh. MCP agents must simulate the exact policy mutation before publishing it.
+Pinned policies keep their definitions until explicitly refreshed. An ordinary save preserves pinned copies. Review shows **Update available** for outdated copies. Use **Refresh selected mitigation snapshots**, **Refresh selected rule snapshots from the library**, or targeted API refresh IDs. Rollback restores the chosen definitions and sets following to **pinned**, preventing a later sync from undoing the rollback. Removing the official source also pins its followers and retains their definitions.
+
+Every change is serialized with policy writes. Invalid packages, regression failures, conflicting revisions or policy-capacity failures abort the entire catalogue/policy transaction and leave last-good protection active; the feed shows an error. Changed definitions invalidate MCP simulation receipts. Published changes propagate through the usual two-second snapshot refresh. MCP policy writes, including enabling following, require simulation of the exact mutation.
 
 ## Publish your own per-rule feed
 
@@ -47,8 +49,8 @@ Choose **Add source**, a name and public HTTPS URL, and **Workspace catalogue ·
   "package": {
     "path": "community-rules.zip",
     "sha256": "<64 lowercase hexadecimal SHA-256 characters>",
-    "rule_count": 95,
-    "size_bytes": 126093
+    "rule_count": 100,
+    "size_bytes": 133447
   }
 }
 ```
@@ -82,6 +84,6 @@ Public HTTPS on port 443 only. Credentials, query parameters, fragments and redi
 - `GET /api/rule-feeds/{id}/items`: definitions, metadata, availability and pinned-policy/update information
 - `POST /api/rule-feeds/{id}/sync`, `DELETE /api/rule-feeds/{id}`
 - `POST /api/rule-feeds/{id}/import`: legacy sources only
-- Policy writes accept `spec.community_mitigations: {"enabled": true, "rule_ids": [catalogue_rule_id]}`. `refresh_rule_ids` targets snapshot updates; send the current policy revision and complete specification/assignments.
+- Policy writes accept `spec.community_mitigations: {"enabled": true, "update_mode": "follow", "rule_ids": [catalogue_rule_id]}`. `refresh_rule_ids` targets snapshot updates; send the current policy revision and complete specification/assignments.
 
 Administrator authentication and write CSRF checks apply. Source creation, successful sync, import and removal are audited without recording rule contents or credentials. MCP exposes the catalogue through the existing scoped management interface; it cannot bypass the required policy simulation gate. See [management API](management-api.md) and [agent access](agent-access.md).

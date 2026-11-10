@@ -243,6 +243,11 @@ func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string)
 			}
 		}
 	}
+	if site == 0 {
+		if e = a.followCommunityPolicies(ctx, tx, id); e != nil {
+			return e
+		}
+	}
 	if _, e = tx.Exec(ctx, "UPDATE rule_feeds SET last_attempt=now(),last_success=now(),next_sync=now()+interval '12 hours',error='',etag=$2 WHERE id=$1", id, nextETag); e != nil {
 		return e
 	}
@@ -331,6 +336,13 @@ func (a *App) createFeed(w http.ResponseWriter, r *http.Request, i identity) err
 		}
 		if e := tx.QueryRow(r.Context(), "INSERT INTO rule_feeds(name,url,site_id) VALUES($1,$2,nullif($3::bigint,0)) RETURNING id", body.Name, body.URL, body.SiteID).Scan(&id); e != nil {
 			return e
+		}
+		if body.SiteID == 0 && body.URL == communityFeedURL {
+			// An explicitly restored official source can be followed again. Its
+			// previous policies stay pinned until the administrator opts in.
+			if _, e := tx.Exec(r.Context(), "INSERT INTO built_in_rule_feeds(key,feed_id) VALUES('aegis-community',$1) ON CONFLICT(key) DO UPDATE SET feed_id=excluded.feed_id WHERE built_in_rule_feeds.feed_id IS NULL", id); e != nil {
+				return e
+			}
 		}
 		return audit(r.Context(), tx, i.Username, "feed.created", strconv.FormatInt(id, 10))
 	})
@@ -450,6 +462,9 @@ func feedAPI(a *App, m *http.ServeMux) {
 			return e
 		}
 		e = a.change(r.Context(), func(tx pgx.Tx) error {
+			if e := pinCommunityFollowers(r.Context(), tx, id); e != nil {
+				return e
+			}
 			tag, e := tx.Exec(r.Context(), "DELETE FROM rule_feeds WHERE id=$1", id)
 			if e != nil {
 				return e

@@ -67,6 +67,9 @@ func TestCommunityCatalogue(t *testing.T) {
 	if len(m.Rules) < 2 || len(files) != len(m.Rules) {
 		t.Fatal("expected independent PHP and Node files")
 	}
+	if len(m.Rules) > maxRulesPerSite {
+		t.Fatal("official release exceeds the following baseline's rule budget; review execution capacity before publishing")
+	}
 }
 func TestCatalogueFormatValidation(t *testing.T) {
 	m, files := communityFixture(t)

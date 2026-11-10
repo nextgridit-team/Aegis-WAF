@@ -7,14 +7,16 @@ import (
 )
 
 type policyCommunity struct {
-	Enabled bool         `json:"enabled"`
-	Mode    string       `json:"mode"`
-	Rules   []policyRule `json:"rules"`
+	Enabled    bool         `json:"enabled"`
+	Mode       string       `json:"mode"`
+	UpdateMode string       `json:"update_mode"`
+	Rules      []policyRule `json:"rules"`
 }
 type policyCommunityInput struct {
-	Enabled bool    `json:"enabled"`
-	Mode    string  `json:"mode"`
-	RuleIDs []int64 `json:"rule_ids"`
+	Enabled    bool    `json:"enabled"`
+	Mode       string  `json:"mode"`
+	UpdateMode string  `json:"update_mode,omitempty"`
+	RuleIDs    []int64 `json:"rule_ids"`
 }
 
 func normalizeCommunityMode(mode string) (string, error) {
@@ -97,7 +99,11 @@ func (a *App) normalizeCommunity(ctx context.Context, tx pgx.Tx, input *policyCo
 	if e != nil {
 		return nil, e
 	}
-	out := &policyCommunity{Enabled: input.Enabled, Mode: mode, Rules: []policyRule{}}
+	updateMode, e := normalizeCommunityUpdateMode(input.UpdateMode)
+	if e != nil {
+		return nil, e
+	}
+	out := &policyCommunity{Enabled: input.Enabled, Mode: mode, UpdateMode: updateMode, Rules: []policyRule{}}
 	seen := map[int64]bool{}
 	for _, id := range input.RuleIDs {
 		if id < 1 || seen[id] {
@@ -116,6 +122,15 @@ func (a *App) normalizeCommunity(ctx context.Context, tx pgx.Tx, input *policyCo
 			return nil, invalid("community selections must reference catalogue rules")
 		}
 		out.Rules = append(out.Rules, rule)
+	}
+	if out.UpdateMode == "follow" {
+		feedID, rules, e := officialCommunityRules(ctx, tx)
+		if e != nil {
+			return nil, e
+		}
+		if feedID != 0 {
+			out.Rules = followedCommunityRules(out.Rules, feedID, rules)
+		}
 	}
 	if input.Enabled && len(out.Rules) == 0 {
 		return nil, invalid("select at least one community mitigation")
@@ -141,7 +156,7 @@ func communitySelection(ctx context.Context, tx pgx.Tx) (*policyCommunity, error
 	if e != nil {
 		return nil, e
 	}
-	return (&App{}).normalizeCommunity(ctx, tx, &policyCommunityInput{Enabled: len(ids) > 0, RuleIDs: ids}, nil)
+	return (&App{}).normalizeCommunity(ctx, tx, &policyCommunityInput{Enabled: len(ids) > 0, RuleIDs: ids, UpdateMode: "follow"}, nil)
 }
 
 // Bundle the shipped feed so the baseline is protected before the first network

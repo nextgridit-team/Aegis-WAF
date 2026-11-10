@@ -105,7 +105,7 @@ func commitCatalogue(ctx context.Context, tx pgx.Tx, id int64, manifest ruleMani
 }
 func catalogueAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/rule-catalog", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		return a.list(w, r, `SELECT c.id,c.feed_id,c.entry_id,c.revision,c.digest,c.spec,c.metadata,c.metadata->>'pack' AS pack,c.metadata->'cves' AS cves,f.name AS feed_name,c.available FROM rule_catalog c JOIN rule_feeds f ON f.id=c.feed_id WHERE c.available ORDER BY c.id`)
+		return a.list(w, r, `SELECT c.id,c.feed_id,c.entry_id,c.revision,c.digest,c.spec,c.metadata,c.metadata->>'pack' AS pack,c.metadata->'cves' AS cves,f.name AS feed_name,c.available,(f.url='`+communityFeedURL+`' AND EXISTS(SELECT 1 FROM built_in_rule_feeds b WHERE b.key='aegis-community' AND b.feed_id=f.id)) AS official FROM rule_catalog c JOIN rule_feeds f ON f.id=c.feed_id WHERE c.available ORDER BY c.id`)
 	}))
 }
 func (a *App) listCatalogueItems(w http.ResponseWriter, r *http.Request, id int64) error {

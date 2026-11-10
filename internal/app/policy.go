@@ -156,6 +156,9 @@ func policyRuleCount(s policySpec) int {
 }
 func validatePolicySpec(s policySpec) error {
 	if s.Community != nil {
+		if _, e := normalizeCommunityUpdateMode(s.Community.UpdateMode); e != nil {
+			return e
+		}
 		if _, e := normalizeCommunityMode(s.Community.Mode); e != nil {
 			return e
 		}
@@ -283,6 +286,15 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 	s.Community, e = a.normalizeCommunity(ctx, tx, in.Community, frozen)
 	if e != nil {
 		return s, e
+	}
+	if s.Community != nil && s.Community.UpdateMode == "follow" {
+		feedID, current, err := officialCommunityRules(ctx, tx)
+		if err != nil {
+			return s, err
+		}
+		if feedID != 0 {
+			applyCommunityFeed(&s, feedID, current)
+		}
 	}
 	return s, validatePolicySpec(s)
 }
@@ -436,6 +448,9 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 			}
 			if input.Spec.Community != nil && input.Spec.Community.Mode == "" && prior.Community != nil {
 				input.Spec.Community.Mode = prior.Community.Mode
+			}
+			if input.Spec.Community != nil && input.Spec.Community.UpdateMode == "" && prior.Community != nil {
+				input.Spec.Community.UpdateMode = prior.Community.UpdateMode
 			}
 			if !input.RefreshRules {
 				for _, g := range storedPolicyGroups(prior) {
@@ -681,6 +696,14 @@ func policyAPI(a *App, m *http.ServeMux) {
 			var spec policySpec
 			if e := json.Unmarshal(raw, &spec); e != nil {
 				return e
+			}
+			// Rollback is a deliberate frozen revision; a later sync must not undo it.
+			if spec.Community != nil {
+				spec.Community.UpdateMode = "pinned"
+				raw, e = json.Marshal(spec)
+				if e != nil {
+					return e
+				}
 			}
 			if e := validatePolicySpec(spec); e != nil {
 				return e

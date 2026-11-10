@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "gitlab-project-ci-lint-guard",
+  "pack": "GitLab request guards",
+  "technology": [
+    "gitlab",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-97229"
+  ],
+  "description": "Partial containment for a documented HTTP exposure.",
+  "affected_versions": "GitLab CE/EE 19.2 before 19.2.8, 19.3 before 19.3.5, and 19.4 before 19.4.2; requires attacker-controlled CI configuration and repository content.",
+  "coverage": "Denies the project-scoped CI lint route used by the demonstrated unauthenticated trigger, including numeric IDs, decoded namespace/project IDs and URL prefixes. Does not depend on content_ref being present.",
+  "limitations": "Disables this route rather than recognizing the malicious regex stored in Git. Other CI evaluation routes, pipeline execution, repository ingestion and background jobs remain outside coverage. Direct-origin access and alternate upstream path decoding remain outside this guard. Synthetic matcher tests are not a vulnerable-product exploit reproduction. Apply vendor fixes.",
+  "false_positive_risk": "Disables legitimate project CI lint API requests, including authenticated ones. Remove this containment after patching if the endpoint is needed.",
+  "references": [
+    "https://docs.gitlab.com/releases/patches/patch-release-gitlab-19-4-2-released/",
+    "https://www.rapid7.com/blog/post/ra-gitlab-ci-cd-regex-integer-overflow-technical-analysis-cve-2026-97229/"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "GitLab project CI lint containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?:^|/)api/+v4/+projects/+.+/+ci/+lint(?:/+|$)"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "GET public branch lint",
+      "method": "GET",
+      "path": "/api/v4/projects/123/ci/lint?content_ref=review-branch",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "encoded project namespace",
+      "method": "GET",
+      "path": "/api/v4/projects/group%2Fpublic-project/ci/lint?sha=main",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "prefixed install",
+      "method": "GET",
+      "path": "/gitlab/api/v4/projects/group/subgroup/project/ci/lint",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "POST project lint",
+      "method": "POST",
+      "path": "/api/v4/projects/123/ci/lint",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "no ref uses default branch",
+      "method": "GET",
+      "path": "/api/v4/projects/123/ci/lint",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary project read",
+      "method": "GET",
+      "path": "/api/v4/projects/123",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "repository file read",
+      "method": "GET",
+      "path": "/api/v4/projects/123/repository/files/readme",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "different API name",
+      "method": "GET",
+      "path": "/api/v4/projects/123/ci/lint-history",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    }
+  ]
+}

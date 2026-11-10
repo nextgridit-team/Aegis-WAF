@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "id": "gitlab-org-mode-render-guard",
+  "pack": "GitLab request guards",
+  "technology": [
+    "gitlab",
+    "http"
+  ],
+  "cves": [
+    "CVE-2026-110264"
+  ],
+  "description": "Partial containment for a documented HTTP exposure.",
+  "affected_versions": "GitLab CE/EE 7.0 before 18.11.13; 19.0 before 19.0.10; 19.1 before 19.1.9; 19.2 before 19.2.9; 19.3 before 19.3.6; 19.4 before 19.4.3; 19.5 before 19.5.1. Custom Ruby installations also require patched Ruby.",
+  "coverage": "Denies .org blob-view paths and ALL blob preview paths. Preview containment includes non-.org URLs because the caller can select the Org renderer with file_path in the request.",
+  "limitations": "Does not inspect repository content or detect the compiler overflow. Automatic README rendering, other markup renderers/routes, and background processing are outside this guard. Upgrade GitLab and, for custom builds, Ruby per the vendor advisory. Direct-origin access and alternate upstream path decoding remain outside this guard. Synthetic matcher tests are not a vulnerable-product exploit reproduction. Apply vendor fixes.",
+  "false_positive_risk": "Disables legitimate Org-mode file viewing and every blob editor preview, including Markdown previews. Ordinary Markdown blob reads and raw-file downloads remain allowed by this guard.",
+  "references": [
+    "https://docs.gitlab.com/releases/patches/patch-release-gitlab-19-5-1-released/",
+    "https://gitlab.com/gitlab-security-oss/tldr/-/raw/main/Detections/platforms/GitLab/Vulnerability%20Detections/org_mode_render_error_burst.md"
+  ],
+  "rule": {
+    "schema_version": 1,
+    "name": "GitLab Org-mode render containment",
+    "scope": {
+      "site_id": 1
+    },
+    "all": [
+      {
+        "field": "path",
+        "op": "regex",
+        "value": "(?i)/-/blob/.+(?:\\.org(?:/+|$)|/+preview(?:/+|$))"
+      }
+    ],
+    "action": "observe",
+    "ttl_seconds": 3600
+  },
+  "tests": [
+    {
+      "name": "Org blob view",
+      "method": "GET",
+      "path": "/group/project/-/blob/main/docs/readme.org",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "encoded extension",
+      "method": "GET",
+      "path": "/group/project/-/blob/main/readme%2Eorg?plain=0",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "non Org preview",
+      "method": "POST",
+      "path": "/group/project/-/blob/main/README.md/preview",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"file_path\":\"payload.org\",\"content\":\"benign fixture\"}",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary preview is contained",
+      "method": "POST",
+      "path": "/group/project/-/blob/main/README.md/preview",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "Org preview",
+      "method": "POST",
+      "path": "/group/project/-/blob/main/readme.org/preview",
+      "headers": {},
+      "body": "",
+      "expected_match": true
+    },
+    {
+      "name": "ordinary Markdown view",
+      "method": "GET",
+      "path": "/group/project/-/blob/main/README.md",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "raw Org download",
+      "method": "GET",
+      "path": "/group/project/-/raw/main/readme.org",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    },
+    {
+      "name": "similar extension",
+      "method": "GET",
+      "path": "/group/project/-/blob/main/readme.organization",
+      "headers": {},
+      "body": "",
+      "expected_match": false
+    }
+  ]
+}

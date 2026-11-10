@@ -2,7 +2,7 @@
 
 This directory is the public Aegis workspace feed. `release.json` is a small release descriptor pointing to `community-rules.zip`. Each source JSON file defines one independently versioned rule. The archive contains separate rule files, not one combined rule. Rule packs are labels used for selecting related rules together, not executable plugins.
 
-Rules are partial mitigations selected in policies; the shipped baseline selects all bundled rules. They include compatibility risks and links to upstream advisories. Runtime patching remains necessary. See [operator workflow and coverage limits](../../docs/rule-feeds.md).
+Rules are partial mitigations selected in policies; the shipped baseline selects all bundled rules and automatically follows official updates after upgrading to the following-mode application version. They include compatibility risks and links to upstream advisories. Runtime patching remains necessary. See [operator workflow and coverage limits](../../docs/rule-feeds.md).
 
 Anyone may submit a fork/PR or request a rule. Follow the [reviewed contribution workflow](../../docs/rule-contributions.md); tests do not replace maintainer approval.
 
