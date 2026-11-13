@@ -6,6 +6,8 @@ Start with the [README quick start](../README.md#deploy-with-docker-compose). Th
 
 The standard deployment runs the public `ghcr.io/nextgridit-team/aegis-waf:latest` image and PostgreSQL 18 using Docker Compose v2+. Bootstrap secret generation requires Python 3; cloning the repository requires Git. The publishing workflow currently builds Linux/amd64 images. Go and Node are needed only for development or source builds.
 
+Memory and CPU depend on policy count, inspection depth, feed size and traffic. A reference installation fronting a handful of applications used about 659 MiB for the application container and 119 MiB for PostgreSQL (`docker stats`, 2026-11-13, Linux/amd64). Treat that as one data point, not a minimum or a capacity guarantee; watch `docker stats` on your own host and size the PostgreSQL volume for your retention window.
+
 ```sh
 git clone https://github.com/nextgridit-team/Aegis-WAF.git
 cd Aegis-WAF

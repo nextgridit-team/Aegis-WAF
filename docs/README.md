@@ -20,18 +20,18 @@ Start in **[Applications](applications.md)** to review routing, certificates, ef
 
 ## Protect applications
 
-| Goal                                                   | Guide                                                                                                                                                                          |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Require visitor sign-in and restrict application groups | [OIDC and LDAP application access](application-access.md) |
-| Coordinate flood/bot budgets across replicas           | [Optional shared counters](shared-rate-state.md)                                                                                                                               |
-| Assign policies and source-specific protection         | [Policies](policies.md)                                                                                                                                                        |
-| Load CRS, curate detection sets and tune sensitivity   | [Managed signatures](managed-signatures.md)                                                                                                                                    |
-| Author rules and synchronize external rule sources     | [Custom rules](rules.md) · [Shared catalogues and rule feeds](rule-feeds.md) · [Packaged distribution](rule-feed-distribution.md) · [Contribute a rule](rule-contributions.md) |
-| Tune inspection bounds and false positives             | [Body inspection controls](body-inspection.md) · [Security tuning](security-tuning.md)                                                                                         |
-| Configure trusted proxies, headers and CIDR exemptions | [Headers and client identity](headers-and-cidrs.md)                                                                                                                            |
-| Configure selective local CAPTCHA and scoped clearance | [Bot protection](bot-protection.md)                                                                                                                                            |
-| Reuse addresses and groups                             | [Address objects](address-objects.md)                                                                                                                                          |
-| Download Geo data and apply geographical decisions     | [Geolocation](geolocation.md)                                                                                                                                                  |
+| Goal                                                    | Guide                                                                                                                                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Require visitor sign-in and restrict application groups | [OIDC and LDAP application access](application-access.md)                                                                                                                      |
+| Coordinate flood/bot budgets across replicas            | [Optional shared counters](shared-rate-state.md)                                                                                                                               |
+| Assign policies and source-specific protection          | [Policies](policies.md)                                                                                                                                                        |
+| Load CRS, curate detection sets and tune sensitivity    | [Managed signatures](managed-signatures.md)                                                                                                                                    |
+| Author rules and synchronize external rule sources      | [Custom rules](rules.md) · [Shared catalogues and rule feeds](rule-feeds.md) · [Packaged distribution](rule-feed-distribution.md) · [Contribute a rule](rule-contributions.md) |
+| Tune inspection bounds and false positives              | [Body inspection controls](body-inspection.md) · [Security tuning](security-tuning.md)                                                                                         |
+| Configure trusted proxies, headers and CIDR exemptions  | [Headers and client identity](headers-and-cidrs.md)                                                                                                                            |
+| Configure selective local CAPTCHA and scoped clearance  | [Bot protection](bot-protection.md)                                                                                                                                            |
+| Reuse addresses and groups                              | [Address objects](address-objects.md)                                                                                                                                          |
+| Download Geo data and apply geographical decisions      | [Geolocation](geolocation.md)                                                                                                                                                  |
 
 ## Observe and investigate
 
@@ -51,6 +51,7 @@ Start in **[Applications](applications.md)** to review routing, certificates, ef
 | Goal                                                           | Guide                                                                          |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Understand protection boundaries and operator responsibilities | [Security model](security.md) · [Encryption at rest](encryption-at-rest.md)    |
+| Report a vulnerability privately                               | [Security policy](../SECURITY.md)                                              |
 | Connect your own agent                                         | [Management MCP, scoped keys and portable skill](agent-access.md)              |
 | Use the management API                                         | [API reference](management-api.md)                                             |
 | Build, test and inspect verification results                   | [Development](development.md) · [Verification](verification.md)                |
