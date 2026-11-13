@@ -119,7 +119,7 @@ Adjacent references: [comparison with HAProxy, NGINX Proxy Manager and SafeLine]
 
 ## Project status and releases
 
-Aegis is an early, actively developed implementation. It does not publish semantic-version releases yet: each published build carries `ghcr.io/nextgridit-team/aegis-waf:latest` and a unique `sha-<commit>-<run>-<attempt>` tag. Pin that tag or its digest for a production deployment and check the matching entry in the dated [change history](CHANGELOG.md).
+Aegis is an early, actively developed implementation. It does not publish semantic-version releases yet: each published build carries `ghcr.io/nextgridit-team/aegis-waf:latest` and a unique `sha-<commit>-<run-id>-<attempt>` tag. Pin that tag or its digest for a production deployment and check the matching entry in the dated [change history](CHANGELOG.md).
 
 Some upgrades change the PostgreSQL schema or the sealed cache format and require the published sequence in [updates](docs/updating.md); others need only a pull and recreate. There is no automatic updater, Docker-socket mount or sidecar worker.
 

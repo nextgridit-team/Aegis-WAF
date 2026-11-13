@@ -10,7 +10,7 @@ https://github.com/nextgridit-team/Aegis-WAF/security/advisories/new
 
 Include, where you can:
 
-- the image tag or digest (`ghcr.io/nextgridit-team/aegis-waf:latest`, a `sha-<commit>-<run>-<attempt>` tag, or a digest), and whether the deployment is the stock `compose.yaml`;
+- the image tag or digest (`ghcr.io/nextgridit-team/aegis-waf:latest`, a `sha-<commit>-<run-id>-<attempt>` tag, or a digest), and whether the deployment is the stock `compose.yaml`;
 - the affected component and the relevant configuration (policy mode, trusted proxies, optional features enabled);
 - reproduction steps or a proof of concept, using synthetic data;
 - the observed impact and any preconditions.
@@ -29,6 +29,6 @@ Out of scope: findings that require a compromised host or Docker daemon; vulnera
 
 ## Supported versions
 
-There is no semantic-version release series yet. Security fixes ship in the current `latest` image and in new `sha-<commit>-<run>-<attempt>` builds; older images are not patched. Reproduce against the newest published image or `main` when you can.
+There is no semantic-version release series yet. Security fixes ship in the current `latest` image and in new `sha-<commit>-<run-id>-<attempt>` builds; older images are not patched. Reproduce against the newest published image or `main` when you can.
 
 See the [security model](docs/security.md) for protection boundaries and [current limitations](docs/limitations.md) for known constraints.
