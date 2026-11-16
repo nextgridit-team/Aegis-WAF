@@ -24,14 +24,14 @@ type managedConfigurationPolicy struct {
 	Mode string `json:"mode"`
 }
 type managedConfiguration struct {
-	ID       string                        `json:"id"`
-	Options  managedSignatureOptions       `json:"options"`
-	Policies []managedConfigurationPolicy  `json:"policies"`
+	ID       string                       `json:"id"`
+	Options  managedSignatureOptions      `json:"options"`
+	Policies []managedConfigurationPolicy `json:"policies"`
 }
 type managedCapacity struct {
-	Limit         int                     `json:"limit"`
-	Distinct      int                     `json:"distinct"`
-	Remaining     int                     `json:"remaining"`
+	Limit          int                    `json:"limit"`
+	Distinct       int                    `json:"distinct"`
+	Remaining      int                    `json:"remaining"`
 	Configurations []managedConfiguration `json:"configurations"`
 }
 type policyCapacityCheckInput struct {
