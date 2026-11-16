@@ -26,6 +26,7 @@ type Alert = {
   kind: string;
   site_id: number;
   title: string;
+  details?: string;
   count: number;
   window_start: string;
   window_end: string;
@@ -64,6 +65,7 @@ const kinds: Record<string, string> = {
   certificate_expiry: "Certificate expiration",
   acme_failure: "ACME renewal / issuance failures",
   inspection_saturation: "Signature inspection saturation",
+  feed_stale: "Rule feed staleness or sync failure",
 };
 export function makeAlertsPage(c: Context) {
   let serial = 0,
@@ -114,7 +116,7 @@ export function makeAlertsPage(c: Context) {
           `${esc(r.name)}<small>${r.enabled ? "Enabled" : "Disabled"}</small>`,
           esc(kinds[r.kind]),
           esc(siteName(r.site_id)),
-          `${r.threshold}${r.kind === "certificate_expiry" ? " days" : ` in ${r.window_minutes} min`}<small>${r.cooldown_minutes} min cooldown</small>`,
+          `${r.threshold}${r.kind === "certificate_expiry" ? " days" : r.kind === "feed_stale" ? " hours" : ` in ${r.window_minutes} min`}<small>${r.cooldown_minutes} min cooldown</small>`,
           r.channel_ids
             .map((id) =>
               esc(
@@ -230,7 +232,7 @@ export function makeAlertsPage(c: Context) {
           )!;
           c.openEditor(
             "Alert details",
-            `<p>${esc(a.title)}</p><dl><dt>Alert / trigger ID</dt><dd>#${a.id} / #${a.rule_id}</dd><dt>Reason</dt><dd>${esc(kinds[a.kind])}</dd><dt>Application</dt><dd>${esc(siteName(a.site_id))}</dd><dt>Count</dt><dd>${a.count}</dd><dt>Window</dt><dd>${esc(dateTime(a.window_start))} – ${esc(dateTime(a.window_end))}</dd></dl><p>Use Activity and request details for individual decisions, signatures and available evidence. This alert contains summary metadata, not request bodies.</p><a class="secondary" href="#activity">Open Activity</a>`,
+            `<p>${esc(a.title)}</p><dl><dt>Alert / trigger ID</dt><dd>#${a.id} / #${a.rule_id}</dd><dt>Reason</dt><dd>${esc(kinds[a.kind])}</dd>${a.details ? `<dt>Feeds</dt><dd>${esc(a.details)}</dd>` : ""}<dt>Application</dt><dd>${esc(siteName(a.site_id))}</dd><dt>Count</dt><dd>${a.count}</dd><dt>Window</dt><dd>${esc(dateTime(a.window_start))} – ${esc(dateTime(a.window_end))}</dd></dl><p>Use Activity and request details for individual decisions, signatures and available evidence. This alert contains summary metadata, not request bodies.</p><a class="secondary" href="#activity">Open Activity</a>`,
           );
         }),
     );
@@ -291,7 +293,7 @@ export function makeAlertsPage(c: Context) {
           )
           .join(
             "",
-          )}</select><label class="field" for="alert-site">Application</label><select id="alert-site" name="site_id"><option value="0">All applications</option>${sites.map((s) => `<option value="${s.id}" ${s.id === rule?.site_id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>${field("threshold", "Threshold (count; days for certificate expiration)", String(rule?.threshold || 10), "number", 'required min="1" max="1000000"')}${field("window_minutes", "Traffic window (minutes)", String(rule?.window_minutes || 5), "number", 'required min="1" max="60"')}${field("cooldown_minutes", "Notification cooldown (minutes)", String(rule?.cooldown_minutes || 15), "number", 'required min="1" max="10080"')}<small>Certificate expiration uses threshold days (1–90) and fires when any scoped certificate expires within that period. ACME counts currently retrying jobs. Inspection saturation counts requests that skipped signature inspection because the inspection pool was full — observe policies allow uninspected traffic (fail-open) while block policies reject it with 503; either way signatures were not checked, so investigate capacity or a stuck upstream. Traffic windows apply to volume triggers; cooldown applies to every trigger. New/updated rules evaluate recorded events from their saved start time.</small><fieldset><legend>Destinations</legend>${channels.map((ch) => check(`channel_${ch.id}`, ch.name, rule?.channel_ids.includes(ch.id) || false)).join("") || "<p>Create destinations to send notifications, or retain alerts in the inbox only.</p>"}</fieldset>${check("enabled", "Enable alert rule", rule?.enabled ?? true)}${actions("Save alert rule")}</form>`,
+          )}</select><label class="field" for="alert-site">Application</label><select id="alert-site" name="site_id"><option value="0">All applications</option>${sites.map((s) => `<option value="${s.id}" ${s.id === rule?.site_id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>${field("threshold", "Threshold (count; days for certificate expiration, hours for feed staleness)", String(rule?.threshold || 10), "number", 'required min="1" max="1000000"')}${field("window_minutes", "Traffic window (minutes)", String(rule?.window_minutes || 5), "number", 'required min="1" max="60"')}${field("cooldown_minutes", "Notification cooldown (minutes)", String(rule?.cooldown_minutes || 15), "number", 'required min="1" max="10080"')}<small>Certificate expiration uses threshold days (1–90) and fires when any scoped certificate expires within that period. Feed staleness uses threshold hours (1–2160) and fires when a rule feed carries a sync error or has not succeeded within that period; the alert names each affected feed and why. ACME counts currently retrying jobs. Inspection saturation counts requests that skipped signature inspection because the inspection pool was full — observe policies allow uninspected traffic (fail-open) while block policies reject it with 503; either way signatures were not checked, so investigate capacity or a stuck upstream. Traffic windows apply to volume triggers; cooldown applies to every trigger. New/updated rules evaluate recorded events from their saved start time.</small><fieldset><legend>Destinations</legend>${channels.map((ch) => check(`channel_${ch.id}`, ch.name, rule?.channel_ids.includes(ch.id) || false)).join("") || "<p>Create destinations to send notifications, or retain alerts in the inbox only.</p>"}</fieldset>${check("enabled", "Enable alert rule", rule?.enabled ?? true)}${actions("Save alert rule")}</form>`,
       );
       c.formHandler("alert-rule-form", async (f) => {
         await c.api(

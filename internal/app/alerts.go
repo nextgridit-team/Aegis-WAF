@@ -46,6 +46,7 @@ type alertEvent struct {
 	Kind           string     `json:"kind"`
 	SiteID         int64      `json:"site_id"`
 	Title          string     `json:"title"`
+	Details        string     `json:"details,omitempty"`
 	Count          int64      `json:"count"`
 	WindowStart    time.Time  `json:"window_start"`
 	WindowEnd      time.Time  `json:"window_end"`
@@ -248,12 +249,20 @@ func normalizeAlertRule(in *alertRule) error {
 		return invalid("provide name, threshold 1–1000000, window 1–60 minutes and cooldown 1–10080 minutes")
 	}
 	switch in.Kind {
-	case "blocked_volume", "upstream_errors", "certificate_expiry", "acme_failure", "inspection_saturation":
+	case "blocked_volume", "upstream_errors", "certificate_expiry", "acme_failure", "inspection_saturation", "feed_stale":
 	default:
-		return invalid("unsupported alert trigger; use blocked_volume, upstream_errors, certificate_expiry, acme_failure or inspection_saturation")
+		return invalid("unsupported alert trigger; use blocked_volume, upstream_errors, certificate_expiry, acme_failure, inspection_saturation or feed_stale")
 	}
 	if in.Kind == "certificate_expiry" && in.Threshold > 90 {
 		return invalid("certificate expiry threshold is days (1–90)")
+	}
+	if in.Kind == "feed_stale" {
+		if in.Threshold > 2160 {
+			return invalid("feed staleness threshold is hours (1–2160)")
+		}
+		if in.SiteID != 0 {
+			return invalid("feed staleness applies to every rule feed; do not scope it to an application")
+		}
 	}
 	seen := map[int64]bool{}
 	for _, id := range in.ChannelIDs {

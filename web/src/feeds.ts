@@ -86,6 +86,9 @@ export function makeFeedsUI(c: Context) {
             "Rule sources",
           )
         : '<section class="empty-state"><h2>No rule sources yet</h2><p>Add a public HTTPS manifest to share independently versioned rules across policies.</p></section>') +
+      (sources.some((s) => s.error)
+        ? `<div class="notice error" role="alert"><span><strong>Rule feed problems.</strong> Feeds marked as needing attention keep retrying every 12 hours and protection stays on the last synced rules. <a href="#alerts">Create a feed-stale alert rule</a> to be notified instead of checking here.</span></div>`
+        : "") +
       `<section class="section"><h2>Aegis community mitigation feed</h2><p class="muted">Independent CVE-labelled rules with checksums, revisions, regression cases and explicit partial-mitigation limits. Select only rules compatible with each application.</p>${button("community-feed", "Use Aegis community feed")}<p><a href="${community}" target="_blank" rel="noreferrer">View release metadata</a></p></section>`
     );
   }
