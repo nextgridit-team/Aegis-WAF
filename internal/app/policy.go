@@ -661,6 +661,8 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 	return nil
 }
 func policyAPI(a *App, m *http.ServeMux) {
+	m.HandleFunc("GET /api/policy-capacity", a.wrap(true, a.policyCapacityReport))
+	m.HandleFunc("POST /api/policy-capacity/check", a.wrap(true, a.policyCapacityCheck))
 	m.HandleFunc("GET /api/policies", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		return a.list(w, r, `SELECT p.id,p.revision,p.spec,EXISTS(SELECT 1 FROM built_in_policies builtin WHERE builtin.policy_id=p.id) AS built_in,coalesce((SELECT jsonb_agg(jsonb_build_object('site_id',b.site_id,'source_cidrs',b.source_cidrs,'priority',b.priority) ORDER BY b.priority,b.site_id) FROM policy_assignments b WHERE b.policy_id=p.id),'[]'::jsonb) AS applications FROM policies p ORDER BY p.id`)
 	}))

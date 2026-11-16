@@ -62,3 +62,16 @@ A final small-response HTTP/1.1 keep-alive run used 64,000 requests per phase an
 | gateway_crs_baseline | 10,807.5 | 1.471 | 3.793 |
 
 These are single-phase fixture measurements on a shared local host, not sustained production capacity or a security-equivalent comparison. The CRS baseline's mean was approximately 0.45 ms above the direct path; its total mean was 1.47 ms. Do not subtract independent p99 values to claim overhead. The 10-rule run being faster than the 0-rule run illustrates measurement variation. HAProxy/NGINX references are their routing dataplanes, not NGINX Proxy Manager's complete management product or SafeLine. Shared Redis lookup, active CAPTCHA, larger bodies and streaming-window inspection need separate workload-specific measurements. No access logs/evidence were dropped and no background worker panics were recorded during this run.
+
+## Managed-signature engine compile scaling (2026-11-16)
+
+Every distinct managed-signature configuration compiles one Coraza CRS engine per replica at snapshot load. The eight-configuration budget is enforced at save time; this benchmark measures the compile cost that gates raising it. Run with `go test ./internal/app -run '^$' -bench 'BenchmarkCompileManagedSignatures' -benchmem` (Linux/amd64, AMD Ryzen 9 7950X3D, Go 1.26, bundled CRS source, 10 iterations per case).
+
+| Distinct engines | Compile time | Allocated | Allocations |
+| ---: | ---: | ---: | ---: |
+| 1 | 53 ms | 54.4 MiB | 393,677 |
+| 8 | 349 ms | 434.9 MiB | 3,149,297 |
+| 16 | 724 ms | 870.0 MiB | 6,298,661 |
+| 32 | 1,452 ms | 1,740.2 MiB | 12,597,313 |
+
+Cost is linear at roughly 45 ms and 54 MiB of transient allocation per engine: compiling the full budget of 8 takes about 350 ms per replica refresh, while a hypothetical 32 would take about 1.5 s and 1.7 GiB of allocation churn. Steady-state memory is separate — a live deployment measured about 25 MiB per resident engine (388 MiB total at 8 engines). Compile time, not memory, is the constraint to re-measure before raising the cap.

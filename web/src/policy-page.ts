@@ -43,6 +43,26 @@ export type PolicySummary = {
   source_cidrs: string[];
   priority: number;
 };
+type CapacityReport = {
+  limit: number;
+  distinct: number;
+  remaining: number;
+  configurations: {
+    id: string;
+    options: ManagedSignatures;
+    policies: { id: number; name: string; mode: string }[];
+  }[];
+};
+type CapacityCheck = {
+  limit: number;
+  distinct: number;
+  distinct_after: number;
+  would_create_new: boolean;
+  blocked: boolean;
+  nearest_policy_id: number;
+  nearest_policy: string;
+  differing_fields: string[];
+};
 type Rule = {
   id: number;
   spec: { name: string; [key: string]: unknown };
@@ -178,13 +198,14 @@ export function makePoliciesPage(c: C) {
       throw new Error(
         "This policy is no longer available. Refresh the application to review its assignments.",
       );
-    const [localRules, sets, objects, addressGroups, catalogue] =
+    const [localRules, sets, objects, addressGroups, catalogue, capacity] =
       await Promise.all([
         api<Rule[]>("/rules"),
         api<SignatureSet[]>("/signature-sets"),
         api<AddressObject[]>("/address-objects"),
         api<AddressGroup[]>("/address-groups"),
         api<CommunityRule[]>("/rule-catalog"),
+        api<CapacityReport>("/policy-capacity"),
       ]);
     if (
       !dialog?.isConnected ||
@@ -253,7 +274,7 @@ export function makePoliciesPage(c: C) {
       `<label class="check"><input type="checkbox" name="${key}" ${value ? "checked" : ""}><span>${label}</span></label>`;
     c.openEditor(
       p ? "Edit policy" : "Create policy",
-      `<form id="policy-form"><label class="field">Policy name<input name="name" required maxlength="120" value="${esc(spec.name)}" placeholder="External traffic"></label><label class="field">Description<textarea name="description" aria-label="Policy description" maxlength="2000" rows="2">${esc(spec.description)}</textarea></label><label class="field" for="policy-mode">Policy mode</label><select id="policy-mode" name="mode">${["off", "observe", "block"].map((mode) => `<option value="${mode}" ${spec.mode === mode ? "selected" : ""}>${mode === "off" ? "Off" : mode === "observe" ? "Observe · evaluate and allow" : "Block · enforce protection"}</option>`).join("")}</select>${networkAccessMarkup(spec.network_access, esc, { objects, groups: addressGroups })}${communityMarkup(catalogue, community, esc)}<h3>Managed signatures</h3><p class="muted">Choose a loaded set for request signatures and optional response inspection. Browse the list to inspect descriptions and choose individual exclusions.</p><label class="field" for="policy-signature-mode">Signature mode</label><select id="policy-signature-mode" name="signature_mode" ${sets.length ? "" : "disabled"}>${["off", "observe", "block"].map((mode) => `<option value="${mode}" ${managed.mode === mode ? "selected" : ""}>${mode === "off" ? "Off" : mode === "observe" ? "Observe · log matches and allow" : "Block · enforce signatures"}</option>`).join("")}</select><label class="field" for="policy-signature-set">Signature set</label><select id="policy-signature-set" name="signature_set"><option value="">Select a loaded set</option>${sets.map((set) => `<option value="${esc(set.id)}" ${managed.set_id === set.id ? "selected" : ""}>${esc(set.name)} ${esc(set.version)}${set.curation ? " · curated" : ""}</option>`).join("")}</select>${!sets.length ? '<button type="button" class="secondary compact" data-policy-load-signatures>Load bundled OWASP CRS</button>' : ""}<small>Policy Off disables signatures; policy Observe caps enforcement at Observe. Start with Observe and review false positives before blocking.</small><p data-curated-threshold-warning hidden class="info-panel"></p>${sensitivityMarkup()}${policyAPIMarkup(managed, !p)}<details class="advanced"><summary>Advanced signature tuning</summary><label class="field" for="signature-paranoia">CRS paranoia level</label><select id="signature-paranoia" name="signature_paranoia">${[1, 2, 3, 4].map((level) => `<option value="${level}" ${managed.paranoia_level === level ? "selected" : ""}>${level}${level === 1 ? " · baseline" : " · stricter"}</option>`).join("")}</select>${number("signature_threshold", "CRS inbound anomaly threshold", managed.inbound_threshold, 100)}${number("signature_body_kib", "Inspected body limit (KiB)", managed.body_limit_bytes / 1024, 1024)}<label class="field">Oversized request action<select name="signature_body_action" aria-label="Oversized request action"><option value="reject" ${managed.body_limit_action === "reject" ? "selected" : ""}>Reject · 413 in Block mode</option><option value="process_partial" ${managed.body_limit_action === "process_partial" ? "selected" : ""}>Inspect prefix and forward full body</option></select></label><small>Prefix inspection leaves the remaining upload uninspected. Matching signatures or invalid structured bodies can still be rejected. Observe always forwards oversized bodies with incomplete-inspection metadata.</small><h4>Response inspection</h4><label class="field">Response inspection mode<select name="signature_response_mode" aria-label="Response inspection mode">${["off", "observe", "block"].map((mode) => `<option value="${mode}" ${managed.response_mode === mode ? "selected" : ""}>${mode === "off" ? "Off · stream responses" : mode === "observe" ? "Observe · record matches and allow" : "Block · enforce response checks"}</option>`).join("")}</select></label>${number("signature_outbound_threshold", "CRS outbound anomaly threshold", managed.outbound_threshold, 100)}${number("signature_response_body_kib", "Response inspection limit (KiB)", managed.response_body_limit_bytes / 1024, 1024)}<label class="field">Oversized response action<select name="signature_response_action" aria-label="Oversized response action"><option value="reject" ${managed.response_body_limit_action === "reject" ? "selected" : ""}>Reject · 502 in response Block mode</option><option value="process_partial" ${managed.response_body_limit_action === "process_partial" ? "selected" : ""}>Inspect prefix and forward full response</option></select></label><small>Web profiles buffer eligible text up to this limit before forwarding, with a 5-second read deadline. SSE/streaming profiles inspect bounded windows after delivery and can stop future output; sent bytes cannot be recalled. WebSocket frames, binary gRPC and unsupported types are not body-inspected. Response Block is capped by policy and signature Observe. Response inspection is off by default.</small><label class="field">Excluded CRS rule IDs<input name="signature_exclusions" value="${esc(managed.excluded_rule_ids.join(", "))}" placeholder="942100, 941100"></label><small>Use IDs from observed matches for targeted policy exclusions. This does not disable your custom signature groups.</small><label class="field">Scoped signature exclusions (JSON)<textarea name="signature_scoped_exclusions" aria-label="Scoped signature exclusions (JSON)" rows="5">${esc(JSON.stringify(managed.scoped_exclusions || [], null, 2))}</textarea></label><small>Example: [{"rule_ids":[942100],"path_prefix":"/search","parameters":["q"]}]. Optional client_cidrs narrow by verified client IP. Path and client scopes combine; parameters exclude only that argument for those rules. Maximum 32 entries.</small></details><button type="button" class="secondary compact" data-policy-browse-signatures>Browse signatures and exclusions</button><div data-policy-signature-browser hidden></div><h3>Shared protection</h3>${check("flood_enabled", "Enable HTTP flood protection", spec.flood_enabled)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", spec.requests_per_second, 100000)}${number("burst", "Client burst allowance", spec.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", spec.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", spec.site_burst, 2000000)}</div><small>Budgets are per application and selected policy; Local mode is per replica, while Redis/Dragonfly mode is shared. Internal-policy traffic does not consume External-policy budgets.</small>${check("bot_enabled", "Enable anti-bot signals", spec.bot_enabled)}${botChallengeMarkup(spec.bot_challenge)}${check("block_empty_user_agent", "Flag missing User-Agent", spec.block_empty_user_agent)}${connectionLimitsMarkup(spec.connection_limits)}<h3>Rule groups</h3><div id="policy-groups"></div><button type="button" class="secondary compact" data-add-policy-group>Add rule group</button>${p ? check("refresh_rules", "Refresh selected rule snapshots from the library", false) : ""}<small>Groups contain frozen copies of selected signatures. Library edits and feed syncs do not change a published policy until you explicitly refresh and save.</small><section id="policy-assignment-section"><h3>Application assignments</h3><p class="muted">Select All other clients for the default policy. An application needs a default before adding CIDR policies. Choosing a new default replaces its previous default assignment. Assigned policies replace local bot/flood and local-rule activation; client identity, headers and CIDR exceptions stay local.</p><div id="policy-assignments"></div><button type="button" class="secondary compact" data-add-policy-assignment>Add application</button></section><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Save policy">Save policy</button></div></form>`,
+      `<form id="policy-form"><label class="field">Policy name<input name="name" required maxlength="120" value="${esc(spec.name)}" placeholder="External traffic"></label><label class="field">Description<textarea name="description" aria-label="Policy description" maxlength="2000" rows="2">${esc(spec.description)}</textarea></label><label class="field" for="policy-mode">Policy mode</label><select id="policy-mode" name="mode">${["off", "observe", "block"].map((mode) => `<option value="${mode}" ${spec.mode === mode ? "selected" : ""}>${mode === "off" ? "Off" : mode === "observe" ? "Observe · evaluate and allow" : "Block · enforce protection"}</option>`).join("")}</select>${networkAccessMarkup(spec.network_access, esc, { objects, groups: addressGroups })}${communityMarkup(catalogue, community, esc)}<h3>Managed signatures</h3><p class="muted">Choose a loaded set for request signatures and optional response inspection. Browse the list to inspect descriptions and choose individual exclusions.</p><small data-policy-capacity>Managed-signature configurations in use: ${capacity.distinct} of ${capacity.limit}. Policies with identical signature settings share one engine; each distinct combination compiles a separate engine on every replica.</small><label class="field" for="policy-signature-mode">Signature mode</label><select id="policy-signature-mode" name="signature_mode" ${sets.length ? "" : "disabled"}>${["off", "observe", "block"].map((mode) => `<option value="${mode}" ${managed.mode === mode ? "selected" : ""}>${mode === "off" ? "Off" : mode === "observe" ? "Observe · log matches and allow" : "Block · enforce signatures"}</option>`).join("")}</select><label class="field" for="policy-signature-set">Signature set</label><select id="policy-signature-set" name="signature_set"><option value="">Select a loaded set</option>${sets.map((set) => `<option value="${esc(set.id)}" ${managed.set_id === set.id ? "selected" : ""}>${esc(set.name)} ${esc(set.version)}${set.curation ? " · curated" : ""}</option>`).join("")}</select>${!sets.length ? '<button type="button" class="secondary compact" data-policy-load-signatures>Load bundled OWASP CRS</button>' : ""}<small>Policy Off disables signatures; policy Observe caps enforcement at Observe. Start with Observe and review false positives before blocking.</small><p data-curated-threshold-warning hidden class="info-panel"></p>${sensitivityMarkup()}${policyAPIMarkup(managed, !p)}<details class="advanced"><summary>Advanced signature tuning</summary><label class="field" for="signature-paranoia">CRS paranoia level</label><select id="signature-paranoia" name="signature_paranoia">${[1, 2, 3, 4].map((level) => `<option value="${level}" ${managed.paranoia_level === level ? "selected" : ""}>${level}${level === 1 ? " · baseline" : " · stricter"}</option>`).join("")}</select>${number("signature_threshold", "CRS inbound anomaly threshold", managed.inbound_threshold, 100)}${number("signature_body_kib", "Inspected body limit (KiB)", managed.body_limit_bytes / 1024, 1024)}<label class="field">Oversized request action<select name="signature_body_action" aria-label="Oversized request action"><option value="reject" ${managed.body_limit_action === "reject" ? "selected" : ""}>Reject · 413 in Block mode</option><option value="process_partial" ${managed.body_limit_action === "process_partial" ? "selected" : ""}>Inspect prefix and forward full body</option></select></label><small>Prefix inspection leaves the remaining upload uninspected. Matching signatures or invalid structured bodies can still be rejected. Observe always forwards oversized bodies with incomplete-inspection metadata.</small><h4>Response inspection</h4><label class="field">Response inspection mode<select name="signature_response_mode" aria-label="Response inspection mode">${["off", "observe", "block"].map((mode) => `<option value="${mode}" ${managed.response_mode === mode ? "selected" : ""}>${mode === "off" ? "Off · stream responses" : mode === "observe" ? "Observe · record matches and allow" : "Block · enforce response checks"}</option>`).join("")}</select></label>${number("signature_outbound_threshold", "CRS outbound anomaly threshold", managed.outbound_threshold, 100)}${number("signature_response_body_kib", "Response inspection limit (KiB)", managed.response_body_limit_bytes / 1024, 1024)}<label class="field">Oversized response action<select name="signature_response_action" aria-label="Oversized response action"><option value="reject" ${managed.response_body_limit_action === "reject" ? "selected" : ""}>Reject · 502 in response Block mode</option><option value="process_partial" ${managed.response_body_limit_action === "process_partial" ? "selected" : ""}>Inspect prefix and forward full response</option></select></label><small>Web profiles buffer eligible text up to this limit before forwarding, with a 5-second read deadline. SSE/streaming profiles inspect bounded windows after delivery and can stop future output; sent bytes cannot be recalled. WebSocket frames, binary gRPC and unsupported types are not body-inspected. Response Block is capped by policy and signature Observe. Response inspection is off by default.</small><label class="field">Excluded CRS rule IDs<input name="signature_exclusions" value="${esc(managed.excluded_rule_ids.join(", "))}" placeholder="942100, 941100"></label><small>Use IDs from observed matches for targeted policy exclusions. This does not disable your custom signature groups.</small><label class="field">Scoped signature exclusions (JSON)<textarea name="signature_scoped_exclusions" aria-label="Scoped signature exclusions (JSON)" rows="5">${esc(JSON.stringify(managed.scoped_exclusions || [], null, 2))}</textarea></label><small>Example: [{"rule_ids":[942100],"path_prefix":"/search","parameters":["q"]}]. Optional client_cidrs narrow by verified client IP. Path and client scopes combine; parameters exclude only that argument for those rules. Maximum 32 entries.</small></details><button type="button" class="secondary compact" data-policy-browse-signatures>Browse signatures and exclusions</button><div data-policy-signature-browser hidden></div><h3>Shared protection</h3>${check("flood_enabled", "Enable HTTP flood protection", spec.flood_enabled)}<div class="form-grid">${number("requests_per_second", "Requests / second per client", spec.requests_per_second, 100000)}${number("burst", "Client burst allowance", spec.burst, 1000000)}${number("site_requests_per_second", "Requests / second per application", spec.site_requests_per_second, 1000000)}${number("site_burst", "Application burst allowance", spec.site_burst, 2000000)}</div><small>Budgets are per application and selected policy; Local mode is per replica, while Redis/Dragonfly mode is shared. Internal-policy traffic does not consume External-policy budgets.</small>${check("bot_enabled", "Enable anti-bot signals", spec.bot_enabled)}${botChallengeMarkup(spec.bot_challenge)}${check("block_empty_user_agent", "Flag missing User-Agent", spec.block_empty_user_agent)}${connectionLimitsMarkup(spec.connection_limits)}<h3>Rule groups</h3><div id="policy-groups"></div><button type="button" class="secondary compact" data-add-policy-group>Add rule group</button>${p ? check("refresh_rules", "Refresh selected rule snapshots from the library", false) : ""}<small>Groups contain frozen copies of selected signatures. Library edits and feed syncs do not change a published policy until you explicitly refresh and save.</small><section id="policy-assignment-section"><h3>Application assignments</h3><p class="muted">Select All other clients for the default policy. An application needs a default before adding CIDR policies. Choosing a new default replaces its previous default assignment. Assigned policies replace local bot/flood and local-rule activation; client identity, headers and CIDR exceptions stay local.</p><div id="policy-assignments"></div><button type="button" class="secondary compact" data-add-policy-assignment>Add application</button></section><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Save policy">Save policy</button></div></form>`,
     );
     const form = document.getElementById("policy-form") as HTMLFormElement;
     const layout = mountPolicyLayout(form);
@@ -493,6 +514,58 @@ export function makePoliciesPage(c: C) {
         };
       });
       const { connection_limits: connectionLimits, ...managedAPI } = readAPI();
+      const policyMode = String(f.get("mode"));
+      const managedSignatures = {
+        ...managedAPI,
+        set_id: String(f.get("signature_set") || ""),
+        mode: String(f.get("signature_mode") || "off"),
+        paranoia_level: Number(f.get("signature_paranoia")),
+        inbound_threshold: Number(f.get("signature_threshold")),
+        body_limit_bytes: Number(f.get("signature_body_kib")) * 1024,
+        body_limit_action: String(f.get("signature_body_action")),
+        response_mode: String(f.get("signature_response_mode")),
+        response_body_limit_bytes:
+          Number(f.get("signature_response_body_kib")) * 1024,
+        response_body_limit_action: String(
+          f.get("signature_response_action"),
+        ),
+        outbound_threshold: Number(f.get("signature_outbound_threshold")),
+        scoped_exclusions: JSON.parse(
+          String(f.get("signature_scoped_exclusions") || "[]"),
+        ),
+        excluded_rule_ids: String(f.get("signature_exclusions") || "")
+          .split(/[\s,]+/)
+          .filter(Boolean)
+          .map(Number),
+      };
+      // A new distinct managed-signature configuration compiles an engine on
+      // every replica: warn before save, and name the nearest reusable one.
+      if (managedSignatures.mode !== "off" && policyMode !== "off") {
+        const check = await api<CapacityCheck>(
+          "/policy-capacity/check",
+          "POST",
+          {
+            policy_id: p?.id || 0,
+            mode: policyMode,
+            options: managedSignatures,
+          },
+        );
+        if (check.would_create_new) {
+          const nearest = check.nearest_policy
+            ? ` The nearest reusable configuration is policy "${check.nearest_policy}", differing only by ${check.differing_fields.join(", ")}.`
+            : "";
+          if (check.blocked)
+            throw new Error(
+              `Saving needs managed-signature configuration ${check.distinct_after} of ${check.limit}, over the per-replica engine limit. Reuse or edit an existing configuration first.${nearest}`,
+            );
+          if (
+            !confirm(
+              `This policy starts managed-signature configuration ${check.distinct + 1} of ${check.limit}.${nearest} Each distinct configuration compiles a separate engine on every replica. Save anyway?`,
+            )
+          )
+            return;
+        }
+      }
       await api(`/policies${p ? `/${p.id}` : ""}`, p ? "PUT" : "POST", {
         revision: p?.revision || 0,
         refresh_rules: f.has("refresh_rules"),
@@ -514,29 +587,7 @@ export function makePoliciesPage(c: C) {
           site_requests_per_second: value("site_requests_per_second"),
           site_burst: value("site_burst"),
           network_access: readNetworkAccess(f),
-          managed_signatures: {
-            ...managedAPI,
-            set_id: String(f.get("signature_set") || ""),
-            mode: String(f.get("signature_mode") || "off"),
-            paranoia_level: Number(f.get("signature_paranoia")),
-            inbound_threshold: Number(f.get("signature_threshold")),
-            body_limit_bytes: Number(f.get("signature_body_kib")) * 1024,
-            body_limit_action: String(f.get("signature_body_action")),
-            response_mode: String(f.get("signature_response_mode")),
-            response_body_limit_bytes:
-              Number(f.get("signature_response_body_kib")) * 1024,
-            response_body_limit_action: String(
-              f.get("signature_response_action"),
-            ),
-            outbound_threshold: Number(f.get("signature_outbound_threshold")),
-            scoped_exclusions: JSON.parse(
-              String(f.get("signature_scoped_exclusions") || "[]"),
-            ),
-            excluded_rule_ids: String(f.get("signature_exclusions") || "")
-              .split(/[\s,]+/)
-              .filter(Boolean)
-              .map(Number),
-          },
+          managed_signatures: managedSignatures,
           groups,
         },
         applications,
