@@ -155,9 +155,15 @@ type cloudflareChallenge struct {
 	cleanup   func(context.Context, int64) error
 }
 
+// Cloudflare API endpoints never legitimately redirect; refuse rather than
+// follow, matching the gateway's outbound redirect policy.
+func dnsHTTPClient(timeout time.Duration, transport http.RoundTripper) *http.Client {
+	return &http.Client{Timeout: timeout, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("dns api redirects are not accepted") }}
+}
+
 func newCloudflareChallenge(ctx context.Context, token string, client *http.Client) (*cloudflareChallenge, error) {
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second, Transport: challengeTransport{ctx: ctx}}
+		client = dnsHTTPClient(15*time.Second, challengeTransport{ctx: ctx})
 	}
 	provider, e := cloudflare.NewDNSProviderConfig(&cloudflare.Config{AuthToken: token, ZoneToken: token, TTL: 120, PropagationTimeout: 2 * time.Minute, PollingInterval: 2 * time.Second, HTTPClient: client})
 	if e != nil {
@@ -211,7 +217,7 @@ func (t challengeTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		defer cancel()
 		req, _ := http.NewRequestWithContext(cleanup, http.MethodDelete, r.URL.String()+"/"+url.PathEscape(result.Result.ID), nil)
 		req.Header.Set("Authorization", r.Header.Get("Authorization"))
-		res, _ := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+		res, _ := dnsHTTPClient(15*time.Second, nil).Do(req)
 		if res != nil {
 			res.Body.Close()
 		}
@@ -285,7 +291,7 @@ func (a *App) cloudflareForCertificate(ctx context.Context, id, job int64) (*clo
 		_, e := a.db.Exec(ctx, "INSERT INTO dns_challenges(job_id,credential_id,zone_id,record_id) SELECT $1,dns_credential_id,$3,$4 FROM certificates WHERE id=$2", job, id, zone, record)
 		return e
 	}}
-	client := &http.Client{Timeout: 15 * time.Second, Transport: transport}
+	client := dnsHTTPClient(15*time.Second, transport)
 	var provider *cloudflareChallenge
 	if a.dnsFactory != nil {
 		provider, e = a.dnsFactory(ctx, string(token), client)
@@ -340,7 +346,7 @@ func (a *App) cleanupDNSRecords(ctx context.Context, job int64, oldOnly bool) er
 			return e
 		}
 		req.Header.Set("Authorization", "Bearer "+string(token))
-		response, e := (&http.Client{Timeout: 15 * time.Second, Transport: a.dnsTransport}).Do(req)
+		response, e := dnsHTTPClient(15*time.Second, a.dnsTransport).Do(req)
 		if e != nil {
 			return errors.New("Cloudflare TXT cleanup unavailable")
 		}
