@@ -41,6 +41,10 @@ For a tailored detection subset, open **Rules → Signature sets → Create cura
 
 Curated source/version/digest and selections are immutable. **Review upstream** identifies selected rules needing conservative file/shared-helper review, then opens a builder for a replacement artifact. Saving it does not replace published policy references. Sparse selections may not reach full-bundle anomaly thresholds; test legitimate and attack requests in Observe before enforcement. [Preset table, builder and review limits](managed-signatures.md#sensitivity-and-curated-sets).
 
+## Managed-signature engines and posture sharing
+
+Every replica compiles at most **eight distinct managed-signature configurations**. A configuration is the complete set of signature options — set, mode (as capped by policy mode), paranoia, thresholds, body/response limits and actions, exclusions, scoped exclusions, allowed methods and streaming window. Policies with **identical** signature settings share one compiled engine; any single differing option mints a separate engine per replica, even an otherwise inert field such as the streaming window. The policy editor shows current usage ("N of 8") beside the signature controls and warns before saving a policy that would start a new configuration, naming the nearest reusable posture and the fields that differ; a save that would exceed the limit is explained inline instead of surfacing a bare 409. [Measured compile scaling behind the limit](benchmarks.md#managed-signature-engine-compile-scaling-2026-11-16).
+
 ## Included baseline
 
 **Baseline protection** ships with request-side CRS enabled in Block mode, paranoia level 1, anomaly threshold 5 and a 1 MiB body limit. All shipped community mitigations are enabled; the multipart/Brotli guards reject those declared request types, including legitimate uploads. Bot and flood controls are off because their appropriate budgets vary by application. Requests above the body limit receive 413 when this policy enforces; tune upload-heavy applications before assignment.
