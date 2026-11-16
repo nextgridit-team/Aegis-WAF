@@ -30,16 +30,19 @@ type rateLimit struct {
 	Rate, Burst int
 }
 type rateState interface {
-	Take(context.Context, []rateLimit, time.Time) ([2]bool, error)
+	Take(context.Context, []rateLimit, time.Time) ([2]bool, bool, error)
 }
 type localRateState struct{ limiter *floodLimiter }
 
-func (s localRateState) Take(_ context.Context, limits []rateLimit, now time.Time) ([2]bool, error) {
+func (s localRateState) Take(_ context.Context, limits []rateLimit, now time.Time) ([2]bool, bool, error) {
 	var out [2]bool
+	saturated := false
 	for i, l := range limits {
-		out[i] = s.limiter.allow(l.Key, l.Rate, l.Burst, now)
+		allowed, full := s.limiter.allow(l.Key, l.Rate, l.Burst, now)
+		out[i] = allowed
+		saturated = saturated || full
 	}
-	return out, nil
+	return out, saturated, nil
 }
 
 type rateStateKey struct{}
@@ -49,9 +52,10 @@ type rateStateKey struct{}
 var _ rateState = localRateState{}
 var _ rateState = (*sharedRateState)(nil)
 
-func takeRateState(ctx context.Context, local *floodLimiter, limits []rateLimit, now time.Time) ([2]bool, error) {
+func takeRateState(ctx context.Context, local *floodLimiter, limits []rateLimit, now time.Time) ([2]bool, bool, error) {
 	if shared, _ := ctx.Value(rateStateKey{}).(*sharedRateState); shared != nil && shared.stored.Settings.Backend == "redis" {
-		return shared.Take(ctx, limits, now)
+		decisions, _, err := shared.Take(ctx, limits, now)
+		return decisions, false, err
 	}
 	return (localRateState{local}).Take(ctx, limits, now)
 }
@@ -198,18 +202,18 @@ func (s *sharedRateState) retire() {
 		s.client = nil
 	}
 }
-func (s *sharedRateState) Take(parent context.Context, limits []rateLimit, _ time.Time) ([2]bool, error) {
+func (s *sharedRateState) Take(parent context.Context, limits []rateLimit, _ time.Time) ([2]bool, bool, error) {
 	if len(limits) < 1 || len(limits) > 2 {
-		return [2]bool{}, errors.New("invalid rate-state operation")
+		return [2]bool{}, false, errors.New("invalid rate-state operation")
 	}
 	if time.Now().UnixMilli() < s.retryAfter.Load() {
-		return [2]bool{}, errors.New("shared rate-state unavailable")
+		return [2]bool{}, false, errors.New("shared rate-state unavailable")
 	}
 	select {
 	case s.work <- struct{}{}:
 		defer func() { <-s.work }()
 	default:
-		return [2]bool{}, errors.New("shared rate-state busy")
+		return [2]bool{}, false, errors.New("shared rate-state busy")
 	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(s.stored.Settings.TimeoutMS)*time.Millisecond)
 	defer cancel()
@@ -226,13 +230,13 @@ func (s *sharedRateState) Take(parent context.Context, limits []rateLimit, _ tim
 	if e != nil || len(values) != len(limits) {
 		s.failures.Add(1)
 		s.retryAfter.Store(time.Now().Add(250 * time.Millisecond).UnixMilli())
-		return [2]bool{}, errors.New("shared rate-state unavailable")
+		return [2]bool{}, false, errors.New("shared rate-state unavailable")
 	}
 	var out [2]bool
 	for i, value := range values {
 		out[i] = value == 1
 	}
-	return out, nil
+	return out, false, nil
 }
 
 // Server time and one atomic script prevent replica clock skew or races from
