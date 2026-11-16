@@ -155,7 +155,12 @@ export function makeDashboardUI(d: Deps) {
     minutes = "15",
     serial = 0,
     sites: Site[] = [];
-  async function mount(view: HTMLElement, apps: Site[], initialSite?: string) {
+  async function mount(
+    view: HTMLElement,
+    apps: Site[],
+    initialSite?: string,
+    managementPlaintextNonLoopback?: boolean,
+  ) {
     hideLocal = hideLocalTraffic();
     sites = apps;
     if (initialSite !== undefined) site = initialSite;
@@ -166,6 +171,9 @@ export function makeDashboardUI(d: Deps) {
         "A live view of your applications and the traffic reaching them.",
         '<button class="primary" data-action="live-map">Live traffic map</button><button class="secondary" data-action="protection">Protection settings</button>',
       ) +
+      (managementPlaintextNonLoopback
+        ? `<div class="notice error" role="alert"><span><strong>Management connection is not encrypted.</strong> This replica serves the management listener over plaintext HTTP on a non-loopback address, so administrator credentials, session cookies and agent keys can be read on the network. Keep the listener on loopback, front it with a TLS-terminating proxy, or enable MANAGEMENT_TLS with a stored certificate.</span></div>`
+        : "") +
       `<div class="dashboard-controls"><label>Application<select id="dashboard-site" aria-label="Application"><option value="">All applications</option>${sites.map((s) => `<option value="${s.id}" ${site === String(s.id) ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label><label>Time range<select id="dashboard-range" aria-label="Time range">${[5, 15, 60].map((n) => `<option value="${n}" ${minutes === String(n) ? "selected" : ""}>Last ${n} minutes</option>`).join("")}</select></label><label class="check"><input type="checkbox" id="dashboard-hide-local" ${hideLocal ? "checked" : ""}><span>Hide local traffic on maps</span></label><span id="dashboard-freshness" class="muted" role="status">Loading traffic…</span></div><div id="dashboard-data" aria-busy="true"></div>`;
     view
       .querySelector<HTMLSelectElement>("#dashboard-site")!

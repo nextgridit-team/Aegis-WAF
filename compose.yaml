@@ -15,6 +15,9 @@ services:
       ENCRYPTION_KEY_ID: primary
       HTTP_ADDR: :8080
       HTTPS_ADDR: :8443
+      # The management listener serves plaintext by default. The loopback
+      # publish below keeps it host-local; for any non-loopback publish,
+      # store a certificate and set MANAGEMENT_TLS: "true" (docs/deployment.md).
       MANAGEMENT_ADDR: :9090
       TMPDIR: /tmp
     secrets:

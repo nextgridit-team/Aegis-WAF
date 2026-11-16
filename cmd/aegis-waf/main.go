@@ -79,6 +79,9 @@ func run() error {
 		return e
 	}
 	defer a.Close()
+	if cfg.ManagementPlaintextNonLoopback() {
+		slog.Warn("management listener serves plaintext HTTP on a non-loopback bind; administrator credentials, session tokens and MCP keys cross the network unencrypted — set MANAGEMENT_TLS=true with a stored certificate, bind MANAGEMENT_ADDR to loopback, or front the listener with a TLS-terminating proxy", "management_addr", cfg.ManagementAddr)
+	}
 	var wg sync.WaitGroup
 	var servers []*http.Server
 	var listeners []net.Listener

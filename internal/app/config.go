@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -94,6 +95,31 @@ func LoadConfig() (Config, error) {
 	}
 	c.Refresh = 2 * time.Second
 	return c, nil
+}
+
+// ManagementPlaintextNonLoopback reports whether the management plane serves
+// plaintext HTTP on a bind reachable from other interfaces: administrator
+// credentials at login, session tokens and MCP bearer keys then cross the
+// network unencrypted. Operators should enable MANAGEMENT_TLS or keep the
+// management listener on a loopback bind or behind a TLS-terminating proxy.
+func (c Config) ManagementPlaintextNonLoopback() bool {
+	if c.ManagementTLS {
+		return false
+	}
+	host, _, e := net.SplitHostPort(c.ManagementAddr)
+	if e != nil {
+		return true
+	}
+	if host == "" {
+		return true
+	}
+	if host == "localhost" {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return !ip.IsLoopback()
+	}
+	return true
 }
 func seal(key []byte, aad string, plaintext []byte) ([]byte, error) {
 	b, e := aes.NewCipher(key)

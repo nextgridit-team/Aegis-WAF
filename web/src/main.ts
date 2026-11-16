@@ -81,6 +81,7 @@ let state: State = {
     database_available: false,
     propagation_seconds: 2,
     dropped_access_logs: 0,
+    management_plaintext_non_loopback: false,
   },
 };
 let csrf = "",
@@ -300,6 +301,7 @@ async function render() {
       state.sites,
       new URLSearchParams(location.hash.split("?")[1]).get("site_id") ??
         undefined,
+      state.gateway.management_plaintext_non_loopback,
     );
   if (page === "applications") {
     const match = location.hash.match(/^#applications\/(\d+)$/);
