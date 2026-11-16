@@ -53,7 +53,9 @@ func signer(b []byte) (crypto.Signer, error) {
 	return s, nil
 }
 func acmeClient(directory string, key crypto.Signer, kid string) *acme.Client {
-	return &acme.Client{Key: key, KID: acme.KeyID(kid), DirectoryURL: directory, HTTPClient: &http.Client{Timeout: 30 * time.Second}, UserAgent: "aegis-waf/0.1"}
+	// Legitimate ACME directories do not redirect; a directory URL that does
+	// must not steer signed ACME traffic (or probes) anywhere else.
+	return &acme.Client{Key: key, KID: acme.KeyID(kid), DirectoryURL: directory, HTTPClient: &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("acme redirects are not accepted") }}, UserAgent: "aegis-waf/0.1"}
 }
 
 // Some authorities omit Location when finalization returns "processing".
