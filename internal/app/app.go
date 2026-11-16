@@ -626,7 +626,21 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			r = r.WithContext(context.WithValue(ctx, managedResponseKey{}, state))
 		}
 		r = r.WithContext(withEndpointProfile(r.Context(), rt.site.TrafficProfile))
+		inspected := r
+		originalBody := r.Body
 		managedResult, managedBlocked, managedStatus = a.inspectManaged(managed, r, clientIP, reliableIdentity)
+		// The request-body wrapper owns the only reservation when response
+		// inspection is off, and a request that stops before the body is
+		// forwarded (dead upstream, redirect, rejected limit) never reads it
+		// back. Guarantee the release at handler scope like the response side
+		// does with state.Close above; the release is once-guarded, so closing
+		// after the prefix-drain fast path cannot double-release.
+		defer func() {
+			if wrapper, ok := inspected.Body.(*bufferedSignatureBody); ok {
+				inspected.Body = originalBody
+				wrapper.Close()
+			}
+		}()
 	}
 	a.prom.observeInspection("request", time.Since(start))
 	defer func() {
