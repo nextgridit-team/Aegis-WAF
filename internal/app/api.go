@@ -590,9 +590,6 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 			if _, e := tx.Exec(r.Context(), "INSERT INTO policy_assignments(policy_id,site_id,source_cidrs,priority) VALUES($1,$2,'{}',10000)", input.InitialPolicyID, s.ID); e != nil {
 				return e
 			}
-			if e := checkPolicyAssignments(r.Context(), tx); e != nil {
-				return e
-			}
 			if _, e := tx.Exec(r.Context(), "UPDATE policies SET revision=revision+1 WHERE id=$1", input.InitialPolicyID); e != nil {
 				return e
 			}
@@ -602,6 +599,14 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 			if e := audit(r.Context(), tx, i.Username, "policy.application_assigned", strconv.FormatInt(input.InitialPolicyID, 10)); e != nil {
 				return e
 			}
+		}
+		// The save path (including PUT) can activate configurations by
+		// flipping a site to enabled, so the assignment invariants are checked
+		// against the post-save state on every site save, not only when an
+		// initial policy is attached. The site row above is already updated,
+		// so the distinct-active-config and capacity counts see this change.
+		if e := checkPolicyAssignments(r.Context(), tx); e != nil {
+			return e
 		}
 		if e := validateAddressConsumers(r.Context(), tx); e != nil {
 			return e
