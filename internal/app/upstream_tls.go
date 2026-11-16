@@ -112,6 +112,53 @@ type upstreamProbeResult struct {
 	DurationMS  int64                    `json:"duration_ms"`
 }
 
+type errUpstreamProbeAddress struct{}
+
+func (errUpstreamProbeAddress) Error() string { return "upstream probe address refused" }
+
+// probeAddressRefused reports destinations no legitimate upstream uses. The
+// probe is a diagnostic for configured upstreams, which are routinely private
+// backends, so RFC1918 and unique-local addresses stay reachable — matching
+// the forwarding path's own posture. Link-local addresses (which include
+// every cloud metadata endpoint), multicast and unspecified addresses are
+// refused: they are reconnaissance targets, never upstreams.
+func probeAddressRefused(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	return !ip.IsValid() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+// The probe never honors HTTP(S)_PROXY — environment proxies would let an
+// attacker-influenced proxy observe probe traffic and change the egress path.
+// The dial resolves the destination and refuses link-local, multicast and
+// unspecified addresses both as URL literals and after DNS resolution.
+func upstreamProbeTransport(cfg *tls.Config) *http.Transport {
+	return &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, e := net.SplitHostPort(address)
+		if e != nil {
+			return nil, e
+		}
+		ips, e := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+		if e != nil || len(ips) == 0 {
+			return nil, errors.New("upstream host lookup failed")
+		}
+		for _, ip := range ips {
+			if probeAddressRefused(ip) {
+				return nil, errUpstreamProbeAddress{}
+			}
+		}
+		dialer := net.Dialer{Timeout: 5 * time.Second}
+		var last error
+		for _, ip := range ips {
+			var conn net.Conn
+			conn, last = dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if last == nil {
+				return conn, nil
+			}
+		}
+		return nil, last
+	}, TLSClientConfig: cfg, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 5 * time.Second, MaxResponseHeaderBytes: 64 << 10, DisableKeepAlives: true}
+}
+
 func probeUpstream(ctx context.Context, raw string, settings upstreamTLSSettings, host string) upstreamProbeResult {
 	start := time.Now()
 	result := upstreamProbeResult{Stage: "connection"}
@@ -121,7 +168,7 @@ func probeUpstream(ctx context.Context, raw string, settings upstreamTLSSettings
 		result.Message = "Upstream TLS settings are invalid."
 		return result
 	}
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext, TLSClientConfig: cfg, TLSHandshakeTimeout: 5 * time.Second, ResponseHeaderTimeout: 5 * time.Second, MaxResponseHeaderBytes: 64 << 10, DisableKeepAlives: true}
+	transport := upstreamProbeTransport(cfg)
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	req, err := http.NewRequestWithContext(ctx, "GET", raw, nil)
@@ -145,7 +192,11 @@ func probeUpstream(ctx context.Context, raw string, settings upstreamTLSSettings
 		var invalidCert x509.CertificateInvalidError
 		var dns *net.DNSError
 		var timeout net.Error
+		var refused errUpstreamProbeAddress
 		switch {
+		case errors.As(err, &refused):
+			result.Stage = "refused"
+			result.Message = "Aegis does not probe link-local, multicast or unspecified addresses; this includes cloud metadata endpoints."
 		case errors.As(err, &unknown):
 			result.Stage = "tls_trust"
 			result.Message = "The upstream certificate has an untrusted issuer. Add its private CA certificate or an explicitly trusted server certificate under Upstream TLS."
