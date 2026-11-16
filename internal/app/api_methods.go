@@ -37,3 +37,22 @@ func applyManagedMethods(tx types.Transaction, requestProfile string, configured
 func withEndpointProfile(ctx context.Context, profile string) context.Context {
 	return context.WithValue(ctx, endpointProfileKey{}, profile)
 }
+
+// methodDisallowed reports whether the policy's explicitly configured method
+// allowlist rejects this request. Enforcement is native and policy-owned: it
+// no longer depends on CRS rule 911100 being present in the selected
+// signature set, so excluding the rule — or running the site without managed
+// signatures — cannot silently disarm the safeguard. Profile-derived defaults
+// for api/streaming remain managed-signature behavior and are not enforced
+// here.
+func methodDisallowed(b *compiledPolicyBinding, requestMethod string) bool {
+	if b == nil || len(b.ManagedOptions.AllowedMethods) == 0 {
+		return false
+	}
+	for _, method := range b.ManagedOptions.AllowedMethods {
+		if method == requestMethod {
+			return false
+		}
+	}
+	return true
+}

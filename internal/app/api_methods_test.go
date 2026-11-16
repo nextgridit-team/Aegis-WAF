@@ -87,7 +87,8 @@ func TestEndpointMethodDefaultsAndExplicitPolicy(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatal("explicit custom method rejected", response.Code)
 	}
-	// Deliberately excluding the method rule keeps its usual semantics; other checks stay active.
+	// Excluding the CRS method rule no longer disarms the native allowlist;
+	// other checks stay active for allowed methods.
 	noMethodRule := managedPublicFixture(t, up.URL, managedSignatureOptions{Mode: "block", AllowedMethods: []string{"GET"}, Exclusions: []int{911100}})
 	noMethodRule.active.Load().routes["managed.test"].site.TrafficProfile = "api"
 	request = httptest.NewRequest("PUT", "http://managed.test/", strings.NewReader(`{"name":"chair"}`))
@@ -97,8 +98,23 @@ func TestEndpointMethodDefaultsAndExplicitPolicy(t *testing.T) {
 	request.Header.Set("Accept", "application/json")
 	response = httptest.NewRecorder()
 	noMethodRule.Public(response, request)
-	if response.Code != 200 {
-		t.Fatal("excluded CRS method rule unexpectedly enforced", response.Code)
+	if response.Code != 403 {
+		t.Fatal("method allowlist silently unenforced with the CRS method rule excluded", response.Code)
+	}
+	allowed := httptest.NewRequest("GET", "http://managed.test/", nil)
+	allowed.Host = "managed.test"
+	allowed.Header.Set("User-Agent", "curl/8")
+	allowedResponse := httptest.NewRecorder()
+	noMethodRule.Public(allowedResponse, allowed)
+	if allowedResponse.Code != 200 {
+		t.Fatal("allowed method rejected with the CRS method rule excluded", allowedResponse.Code)
+	}
+	// The simulation mirror must reproduce the native method verdict.
+	if out, _, e := simulatePayload(context.Background(), noMethodRule, noMethodRule.active.Load(), simulationPayload{Host: "managed.test", Method: "PUT", ClientIP: "198.51.100.2", Path: "/api/items", Headers: map[string]string{"User-Agent": "curl/8", "Accept": "application/json"}}); e != nil || out != "block" {
+		t.Fatal("simulation did not mirror the native method block", out, e)
+	}
+	if out, _, e := simulatePayload(context.Background(), noMethodRule, noMethodRule.active.Load(), simulationPayload{Host: "managed.test", Method: "GET", ClientIP: "198.51.100.2", Path: "/api/items", Headers: map[string]string{"User-Agent": "curl/8", "Accept": "application/json"}}); e != nil || out != "allow" {
+		t.Fatal("simulation flagged an allowed method", out, e)
 	}
 	for _, methods := range [][]string{{"GET;SecRuleEngine Off"}, {"GET POST"}, {""}} {
 		if _, e := normalizeManagedSignatures(managedSignatureOptions{AllowedMethods: methods}); e == nil {

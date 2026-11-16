@@ -619,6 +619,21 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	evidence := a.deferEvidence(capturePolicy, facts, results, start, rt.site.ID)
 	managedResult := managedSignatureResult{}
 	managedBlocked, managedStatus := false, 0
+	// The method allowlist is policy-owned: enforce it natively instead of
+	// relying on CRS rule 911100, which a curated set may exclude and which is
+	// absent entirely when managed signatures are off. The binding's protection
+	// carries the policy's enforcement mode (set at compile, validated on
+	// snapshot-cache restore).
+	methodBlocked, methodStatus := false, 0
+	if !botEndpoint && selected != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked && methodDisallowed(selected, r.Method) {
+		switch selected.Protection.connectionMode {
+		case "block":
+			methodBlocked, methodStatus = true, http.StatusForbidden
+			signals = append(signals, "method_not_allowed")
+		case "observe":
+			signals = append(signals, "method_would_block")
+		}
+	}
 	if !botEndpoint && managed != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked {
 		if managed.Options.ResponseMode != "off" {
 			ctx, cancel := context.WithCancel(r.Context())
@@ -675,7 +690,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		peer := clientIP.String()
-		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
@@ -739,6 +754,15 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			rt.site.rejectRequest(rec, http.StatusForbidden, "policy_denied")
 		} else {
 			http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
+		}
+		return
+	}
+	if methodBlocked {
+		rec.Header().Set("Cache-Control", "no-store")
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, methodStatus, "method_not_allowed")
+		} else {
+			http.Error(rec, "request method blocked by gateway policy", methodStatus)
 		}
 		return
 	}
