@@ -496,6 +496,11 @@ func simulatePayload(ctx context.Context, app *App, snapshot *snapshot, payload 
 	if blocked {
 		return "block", ids, nil
 	}
+	// Mirror the gateway's native method allowlist: block verdicts must match
+	// what the live path rejects, independent of CRS rule 911100.
+	if selected != nil && methodDisallowed(selected, payload.Method) && selected.Protection.connectionMode == "block" {
+		return "block", ids, nil
+	}
 	if managed != nil {
 		result := managedSignatureResult{}
 		managedBlocked := false

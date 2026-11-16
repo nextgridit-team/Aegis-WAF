@@ -34,6 +34,10 @@ func managedPublicFixture(t *testing.T, upstreamURL string, overrides ...managed
 	}
 	target, _ := url.Parse(upstreamURL)
 	policy, _ := compileProtection(defaultProtection())
+	// The policy's enforcement mode (mirrors the spec mode the live compile
+	// stores on every binding; inert for connection limits, which this
+	// fixture never configures).
+	policy.connectionMode = "block"
 	a := &App{managedSlots: make(chan struct{}, 64), access: make(chan accessEvent, 1024)}
 	a.active.Store(&snapshot{routes: map[string]*route{"managed.test": {site: Site{ID: 1}, proxy: newProxy(target, true)}}, policyBindings: map[int64][]compiledPolicyBinding{1: {{ID: 1, Name: "Managed", Priority: 10000, Protection: policy, ManagedOptions: options, Managed: runtime}}}})
 	return a

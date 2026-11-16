@@ -619,6 +619,21 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	evidence := a.deferEvidence(capturePolicy, facts, results, start, rt.site.ID)
 	managedResult := managedSignatureResult{}
 	managedBlocked, managedStatus := false, 0
+	// The method allowlist is policy-owned: enforce it natively instead of
+	// relying on CRS rule 911100, which a curated set may exclude and which is
+	// absent entirely when managed signatures are off. The binding's protection
+	// carries the policy's enforcement mode (set at compile, validated on
+	// snapshot-cache restore).
+	methodBlocked, methodStatus := false, 0
+	if !botEndpoint && selected != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked && methodDisallowed(selected, r.Method) {
+		switch selected.Protection.connectionMode {
+		case "block":
+			methodBlocked, methodStatus = true, http.StatusForbidden
+			signals = append(signals, "method_not_allowed")
+		case "observe":
+			signals = append(signals, "method_would_block")
+		}
+	}
 	if !botEndpoint && managed != nil && !network.Blocked && !network.BypassWAF && !protectionBlocked && !blocked {
 		if managed.Options.ResponseMode != "off" {
 			ctx, cancel := context.WithCancel(r.Context())
@@ -739,6 +754,15 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			rt.site.rejectRequest(rec, http.StatusForbidden, "policy_denied")
 		} else {
 			http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
+		}
+		return
+	}
+	if methodBlocked {
+		rec.Header().Set("Cache-Control", "no-store")
+		if rt.site.machineEndpoint() {
+			rt.site.rejectRequest(rec, methodStatus, "method_not_allowed")
+		} else {
+			http.Error(rec, "request method blocked by gateway policy", methodStatus)
 		}
 		return
 	}
