@@ -690,7 +690,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		peer := clientIP.String()
-		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled

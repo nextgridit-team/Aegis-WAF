@@ -534,7 +534,7 @@ Prefer the private CA certificate so backend renewals keep working. Trusting a s
 
 An HTTP method describes an operation: GET reads, POST sends, PUT/PATCH update, and DELETE removes. Choose which operations your API should accept.
 
-Automatic Website methods follow the CRS source; API and SSE additionally allow PUT, PATCH and DELETE. Explicit policy methods override these defaults. The CRS method-enforcement rule must remain selected for this setting to enforce; excluding that rule disables its check. TRACE and CONNECT are excluded from automatic defaults. Methods are not application authentication or permission to access particular records.
+Automatic Website methods follow the CRS source; API and SSE additionally allow PUT, PATCH and DELETE. Explicit policy methods override these defaults and are enforced natively by the gateway — they do not depend on the CRS method-enforcement rule staying selected. The automatic endpoint defaults remain tied to that CRS rule: excluding it disables only those default checks. TRACE and CONNECT are excluded from automatic defaults. Methods are not application authentication or permission to access particular records.
 
 [Configuration guide](body-inspection.md)
 

@@ -109,6 +109,13 @@ func TestEndpointMethodDefaultsAndExplicitPolicy(t *testing.T) {
 	if allowedResponse.Code != 200 {
 		t.Fatal("allowed method rejected with the CRS method rule excluded", allowedResponse.Code)
 	}
+	// The simulation mirror must reproduce the native method verdict.
+	if out, _, e := simulatePayload(context.Background(), noMethodRule, noMethodRule.active.Load(), simulationPayload{Host: "managed.test", Method: "PUT", ClientIP: "198.51.100.2", Path: "/api/items", Headers: map[string]string{"User-Agent": "curl/8", "Accept": "application/json"}}); e != nil || out != "block" {
+		t.Fatal("simulation did not mirror the native method block", out, e)
+	}
+	if out, _, e := simulatePayload(context.Background(), noMethodRule, noMethodRule.active.Load(), simulationPayload{Host: "managed.test", Method: "GET", ClientIP: "198.51.100.2", Path: "/api/items", Headers: map[string]string{"User-Agent": "curl/8", "Accept": "application/json"}}); e != nil || out != "allow" {
+		t.Fatal("simulation flagged an allowed method", out, e)
+	}
 	for _, methods := range [][]string{{"GET;SecRuleEngine Off"}, {"GET POST"}, {""}} {
 		if _, e := normalizeManagedSignatures(managedSignatureOptions{AllowedMethods: methods}); e == nil {
 			t.Fatal("invalid methods accepted", methods)
