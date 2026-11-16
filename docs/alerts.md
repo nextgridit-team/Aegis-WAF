@@ -36,7 +36,7 @@ Public receivers require verified HTTPS. Explicitly enable **Allow private-netwo
 | Certificate expiration           | Any scoped certificate already expired or expiring within threshold days (1–90); global includes unassigned certificates     |
 | ACME renewal / issuance failures | At least threshold currently retrying jobs with prior failures; scoped through assigned certificates                         |
 | Signature inspection saturation  | At least threshold requests that skipped signature inspection because the inspection pool was full                           |
-| Stale rule feeds                   | Any scoped rule feed with a recorded sync error or whose last successful sync is older than threshold hours (1–2160)         |
+| Stale rule feeds                   | Any rule feed with a recorded sync error or whose last successful sync is older than threshold hours (1–2160)                  |
 
 Threshold counts accept 1–1,000,000. Cooldowns accept 1–10,080 minutes. All rules are evaluated about every ten seconds while PostgreSQL is available. New or edited volume rules begin at save time, and later volume alerts count events newer than their previous emission within the rolling window. Cooldown suppresses repeat notifications from that trigger; it does not suppress WAF enforcement. Persistent certificate/ACME conditions can alert again after cooldown. There are no automatic recovery notifications, per-signature filters or built-in severity/escalation rules in this first implementation.
 
