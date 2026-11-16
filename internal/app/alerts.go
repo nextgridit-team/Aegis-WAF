@@ -248,9 +248,9 @@ func normalizeAlertRule(in *alertRule) error {
 		return invalid("provide name, threshold 1–1000000, window 1–60 minutes and cooldown 1–10080 minutes")
 	}
 	switch in.Kind {
-	case "blocked_volume", "upstream_errors", "certificate_expiry", "acme_failure":
+	case "blocked_volume", "upstream_errors", "certificate_expiry", "acme_failure", "inspection_saturation":
 	default:
-		return invalid("unsupported alert trigger")
+		return invalid("unsupported alert trigger; use blocked_volume, upstream_errors, certificate_expiry, acme_failure or inspection_saturation")
 	}
 	if in.Kind == "certificate_expiry" && in.Threshold > 90 {
 		return invalid("certificate expiry threshold is days (1–90)")

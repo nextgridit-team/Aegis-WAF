@@ -85,6 +85,10 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		err = tx.QueryRow(ctx, "SELECT count(*) FROM certificates c WHERE c.chain_pem<>'' AND c.not_after<=now()+make_interval(days=>$1) AND ($2=0 OR EXISTS(SELECT 1 FROM sites s WHERE s.id=$2 AND s.certificate_id=c.id))", rule.Threshold, rule.SiteID).Scan(&count)
 	case "acme_failure":
 		err = tx.QueryRow(ctx, "SELECT count(*) FROM jobs j WHERE j.status='retry' AND j.attempts>0 AND ($1=0 OR EXISTS(SELECT 1 FROM sites s WHERE s.id=$1 AND s.certificate_id=j.certificate_id))", rule.SiteID).Scan(&count)
+	case "inspection_saturation":
+		// A busy inspection means the request bypassed signature inspection:
+		// observe policies fail open, block policies answer 503.
+		err = tx.QueryRow(ctx, "SELECT count(*) FROM access_logs WHERE at>$1 AND at<=$2 AND ($3=0 OR site_id=$3) AND managed_signatures->>'inspection'='busy'", start, now, rule.SiteID).Scan(&count)
 	default:
 		return true, invalid("unsupported alert trigger")
 	}
