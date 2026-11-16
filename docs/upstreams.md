@@ -10,7 +10,7 @@ The check sends a single GET from the management replica, waits up to eight seco
 
 Results distinguish DNS, network connection, timeout, untrusted issuer, certificate-name mismatch and invalid certificate failures. An HTTP status means the backend responded: 401 indicates authentication may be required, 404 may indicate an incorrect path/Host header, and 5xx indicates an upstream application error. A redirect is reported without following it. TLS verification success is reported separately from the HTTP status.
 
-The endpoint requires an administrator session/CSRF protection or a Configuration-scoped agent key. At most four tests run concurrently per replica. Tests generate an administrative audit event without recording certificate contents or URL paths. The test can reach private upstream addresses because configuring internal application targets is a management capability; it is not available to unauthenticated callers or Read-only agent keys.
+The endpoint requires an administrator session/CSRF protection or a Configuration-scoped agent key. At most four tests run concurrently per replica. Tests generate an administrative audit event without recording certificate contents or URL paths. The test can reach private upstream addresses because configuring internal application targets is a management capability; it is not available to unauthenticated callers or Read-only agent keys. Two boundaries still apply: the probe never honors `HTTP(S)_PROXY` environment variables, and it refuses link-local addresses — which includes cloud metadata endpoints such as `169.254.169.254` — plus multicast and unspecified destinations, both as typed literals and after DNS resolution.
 
 ## Trust a private CA or server certificate
 
