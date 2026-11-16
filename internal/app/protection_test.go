@@ -69,7 +69,7 @@ func TestFloodConcurrentBound(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if l.allow(rateKey{1, "client"}, 1, 10, now) {
+			if allowed, _ := l.allow(rateKey{1, "client"}, 1, 10, now); allowed {
 				mu.Lock()
 				count++
 				mu.Unlock()

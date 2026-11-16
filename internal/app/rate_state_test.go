@@ -112,7 +112,7 @@ func TestSharedRateStateIntegration(t *testing.T) {
 			if i%2 != 0 {
 				state = second
 			}
-			decisions, e := state.Take(context.Background(), []rateLimit{{rateKey{site, "concurrent"}, 1, 5}}, time.Now())
+			decisions, _, e := state.Take(context.Background(), []rateLimit{{rateKey{site, "concurrent"}, 1, 5}}, time.Now())
 			if e != nil {
 				t.Error(e)
 				return
@@ -152,7 +152,7 @@ func TestSharedRateStateIntegration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if _, e = second.Take(context.Background(), []rateLimit{{rateKey{site, "capacity-test"}, 1, 1}}, time.Now()); e == nil {
+	if _, _, e = second.Take(context.Background(), []rateLimit{{rateKey{site, "capacity-test"}, 1, 1}}, time.Now()); e == nil {
 		t.Fatal("shared bucket capacity was not bounded")
 	}
 	if e = client.Del(context.Background(), registry).Err(); e != nil {
@@ -161,7 +161,7 @@ func TestSharedRateStateIntegration(t *testing.T) {
 	// Retired snapshots can finish a late-acquired operation without closing an
 	// active client's connection; their pool closes again after release.
 	first.retire()
-	if _, e = first.Take(context.Background(), []rateLimit{{rateKey{site, "late"}, 1, 1}}, time.Now()); e != nil {
+	if _, _, e = first.Take(context.Background(), []rateLimit{{rateKey{site, "late"}, 1, 1}}, time.Now()); e != nil {
 		t.Fatal("retired snapshot broke late request", e)
 	}
 	// Missing shared state fails closed instead of returning to local budgets.

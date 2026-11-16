@@ -211,7 +211,7 @@ type floodLimiter struct {
 	cleaned time.Time
 }
 
-func (l *floodLimiter) allow(key rateKey, rate, burst int, now time.Time) bool {
+func (l *floodLimiter) allow(key rateKey, rate, burst int, now time.Time) (allowed bool, saturated bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.buckets == nil {
@@ -228,7 +228,13 @@ func (l *floodLimiter) allow(key rateKey, rate, burst int, now time.Time) bool {
 	b, ok := l.buckets[key]
 	if !ok {
 		if len(l.buckets) >= 100000 {
-			return false
+			// Admit-and-report: during an IP-spray event the map is pinned at
+			// the cap, and rejecting every first-time client as if it had
+			// exhausted its budget is worse than letting one unmetered
+			// request pass. The caller surfaces flood_capacity_exceeded so the
+			// event stays visible instead of masquerading as mass rate
+			// limiting.
+			return true, true
 		}
 		b = rateBucket{tokens: float64(burst), at: now, rate: rate, burst: burst}
 	}
@@ -241,12 +247,12 @@ func (l *floodLimiter) allow(key rateKey, rate, burst int, now time.Time) bool {
 	}
 	b.tokens = min(float64(burst), b.tokens+elapsed*float64(rate))
 	b.at = now
-	allowed := b.tokens >= 1
+	allowed = b.tokens >= 1
 	if allowed {
 		b.tokens--
 	}
 	l.buckets[key] = b
-	return allowed
+	return allowed, false
 }
 func (a *App) protect(p *protectionPolicy, site int64, r *http.Request, ip netip.Addr, now time.Time) ([]string, bool, int) {
 	return a.protectResolved(p, site, r, ip, now, true)
@@ -263,7 +269,7 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		if p.budgetScope != 0 {
 			budgetPrefix = "policy:" + strconv.FormatInt(p.budgetScope, 10) + ":"
 		}
-		decisions, err := takeRateState(r.Context(), &a.flood, []rateLimit{{rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst}, {rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst}}, now)
+		decisions, saturated, err := takeRateState(r.Context(), &a.flood, []rateLimit{{rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst}, {rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst}}, now)
 		client, total := true, true
 		if err != nil {
 			signals = append(signals, "rate_state_unavailable")
@@ -272,6 +278,12 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 			}
 		} else {
 			client, total = decisions[0], decisions[1]
+		}
+		if saturated {
+			// The local limiter's bucket map is full: new clients are admitted
+			// unmetered instead of being denied like rate violators, and the
+			// event is signalled so an IP-spray stays visible.
+			signals = append(signals, "flood_capacity_exceeded")
 		}
 		if !client {
 			signals = append(signals, "client_rate")
