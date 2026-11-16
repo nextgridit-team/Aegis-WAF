@@ -177,6 +177,9 @@ CREATE TABLE IF NOT EXISTS log_settings(id boolean PRIMARY KEY DEFAULT true CHEC
 INSERT INTO log_settings(id) VALUES(true) ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS log_maintenance(id boolean PRIMARY KEY DEFAULT true CHECK(id),last_cleanup_at timestamptz,last_export_at timestamptz,cleanup_error text NOT NULL DEFAULT '',export_error text NOT NULL DEFAULT '',access_deleted bigint NOT NULL DEFAULT 0,audit_deleted bigint NOT NULL DEFAULT 0,evidence_deleted bigint NOT NULL DEFAULT 0);
 INSERT INTO log_maintenance(id) VALUES(true) ON CONFLICT DO NOTHING;
+-- Administrative audits keep a forensic floor: 30 days by default, never below
+-- the traffic-log window (enforced on save).
+ALTER TABLE log_settings ADD COLUMN IF NOT EXISTS audit_retention_hours integer NOT NULL DEFAULT 720 CHECK(audit_retention_hours BETWEEN 1 AND 8760);
 INSERT INTO schema_version VALUES(23) ON CONFLICT DO NOTHING;
 
 -- Version 24: make the existing community enforcement inheritance explicit.

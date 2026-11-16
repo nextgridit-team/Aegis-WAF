@@ -7,22 +7,23 @@ import (
 )
 
 type logSettingsInput struct {
-	RetentionHours int   `json:"retention_hours"`
-	Revision       int64 `json:"revision"`
+	RetentionHours      int   `json:"retention_hours"`
+	AuditRetentionHours int   `json:"audit_retention_hours"`
+	Revision            int64 `json:"revision"`
 }
 
 func logSettingsAPI(a *App, mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/log-settings", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
 		var raw []byte
 		err := a.db.QueryRow(r.Context(), `SELECT jsonb_build_object(
-   'retention_hours',s.retention_hours,'revision',s.revision,
-   'last_cleanup_at',m.last_cleanup_at,'last_export_at',m.last_export_at,
-   'cleanup_error',m.cleanup_error,'export_error',m.export_error,
-   'access_deleted',m.access_deleted,'audit_deleted',m.audit_deleted,'evidence_deleted',m.evidence_deleted,
-   'pending_access_export',EXISTS(SELECT 1 FROM access_logs WHERE NOT stdout_emitted),
-   'pending_audit_export',EXISTS(SELECT 1 FROM audit_events WHERE NOT stdout_emitted),
-   'log_storage_bytes',pg_total_relation_size('access_logs')+pg_total_relation_size('audit_events')+pg_total_relation_size('traffic_evidence'))
-   FROM log_settings s JOIN log_maintenance m ON m.id=s.id WHERE s.id`).Scan(&raw)
+  'retention_hours',s.retention_hours,'audit_retention_hours',s.audit_retention_hours,'revision',s.revision,
+  'last_cleanup_at',m.last_cleanup_at,'last_export_at',m.last_export_at,
+  'cleanup_error',m.cleanup_error,'export_error',m.export_error,
+  'access_deleted',m.access_deleted,'audit_deleted',m.audit_deleted,'evidence_deleted',m.evidence_deleted,
+  'pending_access_export',EXISTS(SELECT 1 FROM access_logs WHERE NOT stdout_emitted),
+  'pending_audit_export',EXISTS(SELECT 1 FROM audit_events WHERE NOT stdout_emitted),
+  'log_storage_bytes',pg_total_relation_size('access_logs')+pg_total_relation_size('audit_events')+pg_total_relation_size('traffic_evidence'))
+  FROM log_settings s JOIN log_maintenance m ON m.id=s.id WHERE s.id`).Scan(&raw)
 		if err != nil {
 			return err
 		}
@@ -32,6 +33,8 @@ func logSettingsAPI(a *App, mux *http.ServeMux) {
 		}
 		status["dropped_stdout_logs"] = a.stdoutDropped.Load()
 		status["dropped_database_logs"] = a.dropped.Load()
+		status["unexported_access_logs"] = a.unexportedAccess.Load()
+		status["unexported_audit_events"] = a.unexportedAudit.Load()
 		respond(w, 200, status)
 		return nil
 	}))
@@ -43,15 +46,30 @@ func logSettingsAPI(a *App, mux *http.ServeMux) {
 		if input.RetentionHours < 1 || input.RetentionHours > 8760 || input.Revision < 1 {
 			return invalid("retention_hours must be 1–8760 and revision is required")
 		}
+		if input.AuditRetentionHours < 0 || input.AuditRetentionHours > 8760 {
+			return invalid("audit_retention_hours must be 0–8760, where 0 keeps the current audit window")
+		}
 		err := a.change(r.Context(), func(tx pgx.Tx) error {
-			tag, err := tx.Exec(r.Context(), "UPDATE log_settings SET retention_hours=$1,revision=revision+1 WHERE id AND revision=$2", input.RetentionHours, input.Revision)
+			// Zero preserves the current audit window; the audit window is a
+			// forensic floor and may never fall below the traffic-log window.
+			var auditHours int
+			if e := tx.QueryRow(r.Context(), "SELECT audit_retention_hours FROM log_settings WHERE id FOR SHARE").Scan(&auditHours); e != nil {
+				return e
+			}
+			if input.AuditRetentionHours > 0 {
+				auditHours = input.AuditRetentionHours
+			}
+			if auditHours < input.RetentionHours {
+				return invalid("audit_retention_hours must be at least the traffic-log retention window")
+			}
+			tag, err := tx.Exec(r.Context(), "UPDATE log_settings SET retention_hours=$1,audit_retention_hours=$2,revision=revision+1 WHERE id AND revision=$3", input.RetentionHours, auditHours, input.Revision)
 			if err != nil {
 				return err
 			}
 			if tag.RowsAffected() != 1 {
 				return apiError{409, "log settings changed; reload before saving"}
 			}
-			return audit(r.Context(), tx, actor.Username, "logging.retention.updated", itoa(int64(input.RetentionHours))+" hours")
+			return audit(r.Context(), tx, actor.Username, "logging.retention.updated", itoa(int64(input.RetentionHours))+" hours, audits "+itoa(int64(auditHours))+" hours")
 		})
 		if err != nil {
 			return err
