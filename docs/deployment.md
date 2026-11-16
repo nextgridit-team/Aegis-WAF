@@ -55,6 +55,8 @@ PostgreSQL is not published on a host port by the supplied Compose file. The app
 
 The default loopback binding is for a browser on the Docker host. A browser on another computer cannot reach it through that computer's `localhost` address. Remote management requires HTTPS: Aegis sets Secure session cookies for every non-loopback management hostname/IP. A plain HTTP LAN URL may display the sign-in page but cannot retain the session.
 
+The cookie behavior is not the whole risk. Serving the management listener plaintext on a non-loopback bind puts the administrator password in the setup and login requests, the session cookie value in every subsequent request, and MCP agent bearer keys in every agent call onto the wire in cleartext, where anything on that network path can read them — browsers dropping the Secure cookie stops the session, not the leaks. When `MANAGEMENT_TLS` is disabled and `MANAGEMENT_ADDR` binds beyond loopback (including the container default `:9090`, which listens on every container interface), Aegis logs a startup warning and shows a banner on the dashboard. Silence it by keeping the listener loopback-published or behind a TLS-terminating proxy, or by enabling native management TLS as below.
+
 There are two supported paths:
 
 1. **An existing HTTPS reverse proxy.** Give management its own DNS hostname and trusted certificate. Route it directly to the separate management listener on port 9090, preserving the browser's Host header, including its port when applicable. Keep the backend private and reachable only by that proxy. The browser must use the HTTPS hostname. Do not publish management paths through Aegis's protected application listeners. This path can provide HTTPS for first-run setup.

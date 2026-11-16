@@ -59,6 +59,7 @@ export type Gateway = {
   database_available: boolean;
   propagation_seconds: number;
   dropped_access_logs: number;
+  management_plaintext_non_loopback: boolean;
 };
 export type Audit = {
   id: number;
