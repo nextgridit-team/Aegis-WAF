@@ -212,8 +212,8 @@ func (a *App) cleanupLogPass(ctx context.Context) (bool, error) {
 	if err = tx.QueryRow(ctx, "SELECT last_cleanup_at IS NULL OR last_cleanup_at<now()-interval '5 seconds' FROM log_maintenance WHERE id").Scan(&due); err != nil || !due {
 		return false, err
 	}
-	var hours int
-	if err = tx.QueryRow(ctx, "SELECT retention_hours FROM log_settings WHERE id FOR SHARE").Scan(&hours); err != nil {
+	var hours, auditHours int
+	if err = tx.QueryRow(ctx, "SELECT retention_hours,audit_retention_hours FROM log_settings WHERE id FOR SHARE").Scan(&hours, &auditHours); err != nil {
 		return false, err
 	}
 	var access, auditCount, evidence int64
@@ -229,7 +229,7 @@ func (a *App) cleanupLogPass(ctx context.Context) (bool, error) {
 			break
 		}
 	}
-	tag, err := tx.Exec(ctx, `DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events WHERE at<now()-make_interval(hours=>$1) AND stdout_emitted ORDER BY at FOR UPDATE SKIP LOCKED LIMIT $2)`, hours, cleanupBatchSize)
+	tag, err := tx.Exec(ctx, `DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events WHERE at<now()-make_interval(hours=>$1) AND stdout_emitted ORDER BY at FOR UPDATE SKIP LOCKED LIMIT $2)`, auditHours, cleanupBatchSize)
 	if err != nil {
 		return false, err
 	}
@@ -260,17 +260,22 @@ func (a *App) LogMaintenanceWorker(ctx context.Context) {
 			cancel()
 			status, statusCancel := context.WithTimeout(ctx, time.Second)
 			if err != nil {
-				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET export_error='Stdout export unavailable; stored records retained' WHERE id")
+				// Keep the error class so a broken sink is distinguishable from
+				// other export failures; the message stays bounded and redacted.
+				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET export_error=$1 WHERE id", "Stdout export unavailable; records retained ("+truncateUTF8(err.Error(), 180)+")")
 			} else {
 				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET last_export_at=now(),export_error='' WHERE id")
 			}
 			statusCancel()
+			// Unexported rows are retained forever while a sink is broken; keep
+			// the backlog visible as gauges instead of silent table growth.
+			a.sampleUnexportedBacklog(ctx)
 			work, cancel = context.WithTimeout(ctx, 3*time.Second)
 			err = a.cleanupLogs(work)
 			cancel()
 			if err != nil {
 				status, statusCancel = context.WithTimeout(ctx, time.Second)
-				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET cleanup_error='Log cleanup unavailable; records retained' WHERE id")
+				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET cleanup_error=$1 WHERE id", "Log cleanup unavailable; records retained ("+truncateUTF8(err.Error(), 180)+")")
 				statusCancel()
 			}
 			a.publishMetrics(ctx)
@@ -280,5 +285,17 @@ func (a *App) LogMaintenanceWorker(ctx context.Context) {
 			return
 		case <-tick.C:
 		}
+	}
+}
+
+// Best-effort backlog sample for the unexported gauges; the partial
+// stdout-pending indexes keep both counts cheap.
+func (a *App) sampleUnexportedBacklog(ctx context.Context) {
+	counts, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	var access, audit int64
+	if e := a.db.QueryRow(counts, "SELECT (SELECT count(*) FROM access_logs WHERE NOT stdout_emitted),(SELECT count(*) FROM audit_events WHERE NOT stdout_emitted)").Scan(&access, &audit); e == nil {
+		a.unexportedAccess.Store(access)
+		a.unexportedAudit.Store(audit)
 	}
 }

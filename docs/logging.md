@@ -1,6 +1,6 @@
 # Logs, collection and retention
 
-Aegis sends completed public requests, committed administrative audits, MCP tool completions and application diagnostics to container stdout as one-line JSON. Ordinary allowed requests are included. Use **System → Logs & retention** to choose how much history Aegis keeps in PostgreSQL: **six hours by default**, configurable from 1 to 8,760 hours, shared by all applications and replicas.
+Aegis sends completed public requests, committed administrative audits, MCP tool completions and application diagnostics to container stdout as one-line JSON. Ordinary allowed requests are included. Use **System → Logs & retention** to choose how much history Aegis keeps in PostgreSQL. Traffic logs and captured samples keep **six hours by default** (1 to 8,760 hours, shared by all applications and replicas). Administrative audits keep a separate forensic window, **720 hours by default**, that is never allowed below the traffic window.
 
 Database retention does not configure Docker, the host journal or a SIEM. Configure a collector and its own retention if you need longer history. No external destination is enabled automatically.
 
@@ -60,15 +60,19 @@ Point Filebeat, Fluent Bit, an OpenTelemetry collector or your SIEM agent at the
 
 ## Retention and upgrades
 
-The global window covers access metadata, administrative audits and optional request evidence. Evidence uses the shorter of the application capture expiry and the current global window; APIs, replay and simulation cannot read samples beyond that window even if physical cleanup is delayed. Alert history and configuration revision history have separate lifecycles. Backups and exported copies are not deleted by this setting.
+The traffic-log window covers access metadata and optional request evidence. Administrative audits are governed by the separate audit window. Evidence uses the shorter of the application capture expiry and the current traffic window — the global window is a **ceiling**: a site's longer capture expiry never extends sample life beyond it, and APIs, replay and simulation cannot read samples beyond that window even if physical cleanup is delayed. Alert history and configuration revision history have separate lifecycles. Backups and exported copies are not deleted by this setting.
+
+The audit window is a forensic floor: it must be at least the traffic window and keeps administrative audit events past routine traffic deletion, so a short traffic window never silently shortens the audit trail. Raising the traffic window above the current audit window requires raising the audit window in the same change; the API rejects the combination with 400.
 
 Reducing retention makes older records eligible for automatic deletion. It does not delete everything in the same management request. Dashboard history and replay depend on available retained data; choosing six hours does not provide a 24-hour investigation history.
 
 Before deleting an access or audit record, Aegis requires a successful stdout export. Live access events are normally emitted before their database write. Committed audits and pending stored access records are exported in batches of 250 per type, coordinated with PostgreSQL row locks across replicas. Upgrading backfills existing stored metadata before it becomes eligible for deletion. Previously emitted records from older versions may be exported again because those versions did not track delivery.
 
+A persistently failing stdout sink therefore retains rows indefinitely by design — deletion is export-gated. While that backlog exists it is visible, not silent: **System → Logs & retention** shows an unexported backlog row per table, `GET /api/log-settings` reports `unexported_access_logs` / `unexported_audit_events`, and Prometheus exposes `aegis_stored_logs_unexported{table="access_logs"|"audit_events"}` gauges sampled by the maintenance worker. The stored `export_error` / `cleanup_error` text includes the bounded underlying error class, so a broken sink is distinguishable from other cleanup failures.
+
 Cleanup uses database coordination, bounded transactions and catch-up passes when a batch limit is reached. Normal checks settle to a five-second interval when caught up. Database outages, export failures, an upgrade backlog or insufficient storage throughput can extend physical retention. This is a retention target, not a guaranteed hard disk-size cap. Deleted PostgreSQL space becomes reusable; files do not necessarily shrink immediately.
 
-**System → Logs & retention** shows export backlog, last checks, cleanup totals/errors, table size and current-replica drop counters. The management API exposes the same state at `GET /api/log-settings`; revision-checked changes use `PUT /api/log-settings`. [API contract](management-api.md#global-log-retention).
+**System → Logs & retention** shows both retention windows, export backlog, last checks, cleanup totals/errors, table size and current-replica drop counters. The management API exposes the same state at `GET /api/log-settings`; revision-checked changes use `PUT /api/log-settings`. [API contract](management-api.md#global-log-retention).
 
 ## Delivery and failure behavior
 

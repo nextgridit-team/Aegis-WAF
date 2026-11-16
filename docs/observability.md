@@ -33,6 +33,7 @@ For a private CA, configure the scraper's `tls_config.ca_file`. Scrape each repl
 | `aegis_inspection_duration_seconds_bucket` | `phase`, `le` | Histogram for request inspection, buffered response/header inspection, or each streaming window. Includes bounded body reads/counter checks; excludes the upstream round-trip wait. |
 | `aegis_mcp_actions_total` | `tool`, `status` | Dispatched tool calls completed successfully, returned an error or had a contained panic. HTTP authorization failures before tool dispatch are not tool calls. |
 | `aegis_access_logs_dropped` | — | This replica's dropped access-log count since startup. |
+| `aegis_stored_logs_unexported` | `table` | Stored log rows still waiting for a successful stdout export (`access_logs` / `audit_events`); grows while the export sink is broken. |
 | `aegis_configuration_version` | — | This replica's active configuration version. |
 
 The official Go client also exposes process/Go-runtime metrics such as CPU consumption, resident memory and garbage collection. These cover the application process, not PostgreSQL or the host's other services.

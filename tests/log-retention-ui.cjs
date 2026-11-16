@@ -38,6 +38,7 @@ const assert = require("node:assert/strict"),
     let fail = false,
       settings = {
         retention_hours: 6,
+        audit_retention_hours: 720,
         revision: 1,
         last_cleanup_at: null,
         last_export_at: null,
@@ -48,6 +49,8 @@ const assert = require("node:assert/strict"),
         evidence_deleted: 0,
         pending_access_export: true,
         pending_audit_export: false,
+        unexported_access_logs: 0,
+        unexported_audit_events: 0,
         log_storage_bytes: 1048576,
         dropped_stdout_logs: 0,
         dropped_database_logs: 0,
@@ -76,6 +79,17 @@ const assert = require("node:assert/strict"),
         };
       if (p === "/api/log-settings") {
         if (req.method() === "PUT") {
+          if (
+            req.postDataJSON().audit_retention_hours <
+            req.postDataJSON().retention_hours
+          )
+            return route.fulfill({
+              status: 400,
+              json: {
+                error:
+                  "audit_retention_hours must be at least the traffic-log retention window",
+              },
+            });
           writes.push(req.postDataJSON());
           if (fail)
             return route.fulfill({
@@ -86,6 +100,7 @@ const assert = require("node:assert/strict"),
           settings = {
             ...settings,
             retention_hours: req.postDataJSON().retention_hours,
+            audit_retention_hours: req.postDataJSON().audit_retention_hours,
             revision: settings.revision + 1,
           };
         }
@@ -100,17 +115,35 @@ const assert = require("node:assert/strict"),
       await form().getByLabel("Retention hours", { exact: true }).inputValue(),
       "6",
     );
+    assert.equal(
+      await form()
+        .getByLabel("Audit retention hours", { exact: true })
+        .inputValue(),
+      "720",
+    );
+    await page
+      .getByText("6 hours traffic · 720 hours audits", { exact: true })
+      .waitFor();
     await page
       .getByText("Stored records pending; retained until exported", {
         exact: true,
       })
       .waitFor();
     await form()
-      .getByLabel("Database log retention", { exact: true })
+      .getByLabel("Traffic log retention", { exact: true })
       .selectOption("24");
     assert.equal(
       await form().getByLabel("Retention hours", { exact: true }).inputValue(),
       "24",
+    );
+    await form()
+      .getByLabel("Administrative audit retention", { exact: true })
+      .selectOption("2160");
+    assert.equal(
+      await form()
+        .getByLabel("Audit retention hours", { exact: true })
+        .inputValue(),
+      "2160",
     );
     await form()
       .getByRole("button", { name: "Save log retention", exact: true })
@@ -121,12 +154,25 @@ const assert = require("node:assert/strict"),
         { exact: true },
       )
       .waitFor();
-    assert.deepEqual(writes[0], { retention_hours: 24, revision: 1 });
+    assert.deepEqual(writes[0], {
+      retention_hours: 24,
+      audit_retention_hours: 2160,
+      revision: 1,
+    });
     const hours = () => form().getByLabel("Retention hours", { exact: true });
+    const auditHours = () =>
+      form().getByLabel("Audit retention hours", { exact: true });
     await hours().fill("49");
     assert.equal(
       await form()
-        .getByLabel("Database log retention", { exact: true })
+        .getByLabel("Traffic log retention", { exact: true })
+        .inputValue(),
+      "custom",
+    );
+    await auditHours().fill("800");
+    assert.equal(
+      await form()
+        .getByLabel("Administrative audit retention", { exact: true })
         .inputValue(),
       "custom",
     );
@@ -136,6 +182,18 @@ const assert = require("node:assert/strict"),
       .click();
     assert.equal(writes.length, 1);
     await hours().fill("49");
+    await auditHours().fill("2");
+    await form()
+      .getByRole("button", { name: "Save log retention", exact: true })
+      .click();
+    await page
+      .getByText(
+        "audit_retention_hours must be at least the traffic-log retention window",
+        { exact: true },
+      )
+      .waitFor();
+    assert.equal(writes.length, 1);
+    await auditHours().fill("800");
     fail = true;
     await form()
       .getByRole("button", { name: "Save log retention", exact: true })
@@ -147,6 +205,8 @@ const assert = require("node:assert/strict"),
     settings = {
       ...settings,
       pending_access_export: false,
+      unexported_access_logs: 0,
+      unexported_audit_events: 0,
       last_export_at: new Date().toISOString(),
       export_error: "<img src=x onerror=alert(1)> sink unavailable",
     };
@@ -154,8 +214,25 @@ const assert = require("node:assert/strict"),
       .getByRole("button", { name: "Refresh logging status", exact: true })
       .click();
     await page.getByText("No stored backlog", { exact: true }).waitFor();
+    await page
+      .getByText("24 hours traffic · 2160 hours audits", { exact: true })
+      .waitFor();
     assert.equal(await page.locator("#log-retention-status img").count(), 0);
     assert.equal(await hours().inputValue(), "49");
+    settings = {
+      ...settings,
+      pending_access_export: true,
+      unexported_access_logs: 3,
+      unexported_audit_events: 2,
+    };
+    await page
+      .getByRole("button", { name: "Refresh logging status", exact: true })
+      .click();
+    await page
+      .getByText("3 traffic · 2 audit — retained until exported", {
+        exact: true,
+      })
+      .waitFor();
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       assert.ok(
@@ -176,7 +253,7 @@ const assert = require("node:assert/strict"),
     }
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: six-hour default, presets/custom values, revision save, validation, conflict preservation, status refresh, escaped errors and responsive layouts.",
+      "PASS: six-hour default, audit retention floor field, presets/custom values, revision save, validation, conflict preservation, unexported backlog status, status refresh, escaped errors and responsive layouts.",
     );
   } finally {
     if (browser) await browser.close();

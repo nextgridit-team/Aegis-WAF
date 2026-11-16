@@ -148,7 +148,7 @@ func TestLogRetentionExportAndCoordination(t *testing.T) {
 	api.call("PUT", "/api/log-settings", logSettingsInput{RetentionHours: 0, Revision: settings.Revision}, 400)
 	api.call("PUT", "/api/log-settings", logSettingsInput{RetentionHours: 12, Revision: settings.Revision}, 200)
 	api.call("PUT", "/api/log-settings", logSettingsInput{RetentionHours: 24, Revision: settings.Revision}, 409)
-	api.call("PUT", "/api/log-settings", logSettingsInput{RetentionHours: 6, Revision: settings.Revision + 1}, 200)
+	api.call("PUT", "/api/log-settings", logSettingsInput{RetentionHours: 6, AuditRetentionHours: 6, Revision: settings.Revision + 1}, 200)
 	anonymous, err := http.Get(api.base + "/api/log-settings")
 	if err != nil {
 		t.Fatal(err)
@@ -366,6 +366,12 @@ func TestLogRetentionCleanupCatchup(t *testing.T) {
 			a, b := newTestReplica(t, cfg), newTestReplica(t, cfg)
 			ctx := context.Background()
 			if _, err := a.db.Exec(ctx, "INSERT INTO sites(id,name,hostnames,upstream) VALUES(1,'test','{test.invalid}','http://127.0.0.1')"); err != nil {
+				t.Fatal(err)
+			}
+			// The audit floor (default 720h) would keep the 7-hour-old rows;
+			// align it with the traffic window so every case exercises the
+			// bounded catch-up sweep it asserts on.
+			if _, err := a.db.Exec(ctx, "UPDATE log_settings SET audit_retention_hours=6 WHERE id"); err != nil {
 				t.Fatal(err)
 			}
 			total := tc.perPass*(cleanupCatchupPasses+1) + 1

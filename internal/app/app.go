@@ -143,6 +143,8 @@ type App struct {
 	access                        chan accessEvent
 	dropped                       atomic.Uint64
 	stdoutDropped                 atomic.Uint64
+	unexportedAccess              atomic.Int64
+	unexportedAudit               atomic.Int64
 }
 
 func New(ctx context.Context, cfg Config) (*App, error) {
