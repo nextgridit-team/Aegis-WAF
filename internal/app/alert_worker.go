@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -76,6 +78,7 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		start = *last
 	}
 	var count int64
+	var details string
 	switch rule.Kind {
 	case "blocked_volume":
 		err = tx.QueryRow(ctx, "SELECT count(*) FROM access_logs WHERE at>$1 AND at<=$2 AND ($3=0 OR site_id=$3) AND blocked", start, now, rule.SiteID).Scan(&count)
@@ -89,6 +92,11 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		// A busy inspection means the request bypassed signature inspection:
 		// observe policies fail open, block policies answer 503.
 		err = tx.QueryRow(ctx, "SELECT count(*) FROM access_logs WHERE at>$1 AND at<=$2 AND ($3=0 OR site_id=$3) AND managed_signatures->>'inspection'='busy'", start, now, rule.SiteID).Scan(&count)
+	case "feed_stale":
+		// Failed feed syncs retry silently every 12 hours; staleness is
+		// day-scale, not traffic-window scale. A feed counts when it carries a
+		// sync error or its last success is older than the threshold hours.
+		count, details, err = staleFeedMatches(ctx, tx, rule.Threshold)
 	default:
 		return true, invalid("unsupported alert trigger")
 	}
@@ -96,13 +104,13 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	threshold := int64(rule.Threshold)
-	if rule.Kind == "certificate_expiry" {
+	if rule.Kind == "certificate_expiry" || rule.Kind == "feed_stale" {
 		threshold = 1
 	}
 	if count < threshold {
 		return true, tx.Commit(ctx)
 	}
-	event := alertEvent{RuleID: id, At: now, Kind: rule.Kind, SiteID: rule.SiteID, Title: rule.Name, Count: count, WindowStart: start, WindowEnd: now}
+	event := alertEvent{RuleID: id, At: now, Kind: rule.Kind, SiteID: rule.SiteID, Title: rule.Name, Details: details, Count: count, WindowStart: start, WindowEnd: now}
 	data, _ := json.Marshal(event)
 	if err = tx.QueryRow(ctx, "INSERT INTO alerts(data) VALUES($1) RETURNING id", data).Scan(&event.ID); err != nil {
 		return false, err
@@ -114,6 +122,40 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	return true, tx.Commit(ctx)
+}
+
+// staleFeedMatches returns the rule feeds that failed their last sync or have
+// not succeeded within thresholdHours, with one human-readable reason per feed
+// naming the feed and why it counts as stale. Feeds that have not yet attempted
+// their first sync (no error, no success) stay quiet to avoid new-feed noise.
+func staleFeedMatches(ctx context.Context, tx pgx.Tx, thresholdHours int) (int64, string, error) {
+	rows, e := tx.Query(ctx, "SELECT name,coalesce(error,''),last_success FROM rule_feeds WHERE error<>'' OR (last_success IS NOT NULL AND last_success<now()-make_interval(hours=>$1)) ORDER BY id", thresholdHours)
+	if e != nil {
+		return 0, "", e
+	}
+	defer rows.Close()
+	var parts []string
+	var count int64
+	for rows.Next() {
+		var name, syncError string
+		var last *time.Time
+		if e = rows.Scan(&name, &syncError, &last); e != nil {
+			return 0, "", e
+		}
+		count++
+		reason := "never synced"
+		if last != nil {
+			reason = fmt.Sprintf("last success %d days ago", int(time.Since(*last).Hours()/24))
+		}
+		if syncError != "" {
+			reason += " · " + syncError
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", name, reason))
+	}
+	if e = rows.Err(); e != nil {
+		return 0, "", e
+	}
+	return count, strings.Join(parts, "; "), nil
 }
 func (a *App) NotificationWorker(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
