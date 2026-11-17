@@ -412,3 +412,39 @@ func TestLogRetentionCleanupCatchup(t *testing.T) {
 		})
 	}
 }
+
+// A failed backlog sample must not be silent: the unexported gauges hold
+// their last value, and the failure is counted and exposed so a frozen gauge
+// is distinguishable from a fresh one.
+func TestBacklogSampleFailureNotSilent(t *testing.T) {
+	a, _, _, _, _ := captchaFixture(t)
+	ctx := context.Background()
+	a.unexportedAccess.Store(41)
+	if _, e := a.db.Exec(ctx, "ALTER TABLE access_logs RENAME COLUMN stdout_emitted TO stdout_emitted_broken"); e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(func() {
+		_, _ = a.db.Exec(ctx, "ALTER TABLE access_logs RENAME COLUMN stdout_emitted_broken TO stdout_emitted")
+	})
+	a.sampleUnexportedBacklog(ctx)
+	if a.unexportedAccess.Load() != 41 {
+		t.Fatal("gauge did not hold its last value:", a.unexportedAccess.Load())
+	}
+	expose := func() string {
+		t.Helper()
+		w := httptest.NewRecorder()
+		a.prom.handler.ServeHTTP(w, httptest.NewRequest("GET", "/metrics", nil))
+		return w.Body.String()
+	}
+	if body := expose(); !strings.Contains(body, "aegis_backlog_sample_failures") {
+		t.Fatal("backlog sample failure not exposed in metrics")
+	}
+	// Recovery clears the failing episode; the counter keeps its history.
+	if _, e := a.db.Exec(ctx, "ALTER TABLE access_logs RENAME COLUMN stdout_emitted_broken TO stdout_emitted"); e != nil {
+		t.Fatal(e)
+	}
+	a.sampleUnexportedBacklog(ctx)
+	if body := expose(); !strings.Contains(body, "aegis_backlog_sample_failures 1") {
+		t.Fatal("failure count not retained after recovery")
+	}
+}

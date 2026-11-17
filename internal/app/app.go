@@ -145,6 +145,8 @@ type App struct {
 	stdoutDropped                 atomic.Uint64
 	unexportedAccess              atomic.Int64
 	unexportedAudit               atomic.Int64
+	backlogSampleFailures         atomic.Int64
+	backlogSampleFailing          atomic.Bool
 }
 
 func New(ctx context.Context, cfg Config) (*App, error) {
