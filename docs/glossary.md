@@ -572,9 +572,9 @@ The policy window ranges from 4–64 KiB and is capped by its response-body limi
 
 ## Database log retention
 
-How long Aegis keeps traffic and administrative history in PostgreSQL. The default is six hours; Docker and your SIEM keep their own copies according to their settings.
+How long Aegis keeps traffic and administrative history in PostgreSQL. Traffic defaults to six hours; administrative audit history keeps a separate, longer window (default 720 hours). Docker and your SIEM keep their own copies according to their settings.
 
-Applies across applications and replicas. Stored traffic and audits are written to stdout before automatic cleanup can remove them. Request samples also follow this ceiling or their earlier capture expiry. Shorter history limits dashboard investigations and replay. Bounded queues can lose traffic records during saturation or crashes, and a stdout write is not an acknowledgement from an external collector. Changing this value does not configure Docker rotation, alerts or policy revision history.
+Applies across applications and replicas. The traffic window governs access logs and request samples; the audit window is a forensic floor that is never shorter than the traffic window and governs administrative audit records. Stored traffic and audits are written to stdout before automatic cleanup can remove them. Request samples also follow the traffic ceiling or their earlier capture expiry. Shorter history limits dashboard investigations and replay. Bounded queues can lose traffic records during saturation or crashes, and a stdout write is not an acknowledgement from an external collector. Changing these values does not configure Docker rotation, alerts or policy revision history.
 
 [Configuration guide](logging.md)
 

@@ -80,7 +80,7 @@ Shared counter configuration: `GET/PUT /rate-state`, `POST /rate-state/test`. Fi
 
 All routes below use the `/api` prefix and session/CSRF or the matching scoped MCP management operation. `GET /alerts`, `GET /alerts/{id}`, `GET /alert-deliveries`, `GET /alert-rules` and `GET /notification-channels` require Read. Notification/rule writes, test sends and acknowledgement require Configuration. They do not require rule simulation.
 
-- `GET /alerts?after_id=0&unacknowledged=true`: up to 200 alert objects. `after_id` selects ascending cursor order; absent selects newest first. Alert fields: `id,rule_id,at,kind,site_id,title,count,window_start,window_end,acknowledged_at,acknowledged_by`.
+- `GET /alerts?after_id=0&unacknowledged=true`: up to 200 alert objects. `after_id` selects ascending cursor order; absent selects newest first. Alert fields: `id,rule_id,at,kind,site_id,title,count,window_start,window_end,details,acknowledged_at,acknowledged_by`.
 - `POST /alerts/{id}/acknowledge` with `{}`: persist reviewed status; idempotent state, audited invocation.
 - `GET /alert-deliveries`: latest 200 delivery records with `id,alert_id,channel_id,status,attempts,error,next_attempt`.
 - `POST /notification-channels`, `PUT /notification-channels/{id}`: `{name,provider,enabled,revision?,config?:{url,secret,allow_private}}`. Providers: `automation,webhook,slack,discord,gotify,ntfy,apprise`. Creation/provider changes require config; omission on edit retains encrypted settings. PUT requires current revision. Automation secret must be at least 32 bytes. Read fields: `id,name,provider,enabled,revision,has_config`; no URL or secret.
