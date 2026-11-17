@@ -123,13 +123,27 @@ func (errUpstreamProbeAddress) Error() string { return "upstream probe address r
 var nat64Prefixes = []netip.Prefix{netip.MustParsePrefix("64:ff9b::/96"), netip.MustParsePrefix("64:ff9b:1::/48")}
 
 // nat64Embedded extracts the IPv4 destination embedded in a NAT64-wrapped
-// address (the final 32 bits).
+// address. RFC 6052 §2.2 places the embedded address in the final 32 bits of
+// the well-known 64:ff9b::/96 prefix, but splits it around the u octet for
+// the local-use 64:ff9b:1::/48 prefix (RFC 8215): bits 48-63 carry the first
+// half, the mandatory-zero u octet sits at byte 8, bits 72-87 carry the second
+// half, and bytes 11-15 are a zero suffix. Non-canonical wrapped forms (a
+// nonzero u octet or suffix) report the zero address so callers treat them as
+// refused: a translating gateway may still honor them, so their embedded
+// reading cannot be trusted.
 func nat64Embedded(ip netip.Addr) (netip.Addr, bool) {
-	for _, prefix := range nat64Prefixes {
-		if prefix.Contains(ip) {
-			b := ip.As16()
-			return netip.AddrFromSlice(b[12:])
+	for index, prefix := range nat64Prefixes {
+		if !prefix.Contains(ip) {
+			continue
 		}
+		b := ip.As16()
+		if index == 1 {
+			if b[8] != 0 || b[11] != 0 || b[12] != 0 || b[13] != 0 || b[14] != 0 || b[15] != 0 {
+				return netip.AddrFrom4([4]byte{}), true
+			}
+			return netip.AddrFrom4([4]byte{b[6], b[7], b[9], b[10]}), true
+		}
+		return netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]}), true
 	}
 	return netip.Addr{}, false
 }

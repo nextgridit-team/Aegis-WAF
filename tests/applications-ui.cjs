@@ -317,7 +317,10 @@ const path = require("node:path");
           evidence: null,
           policy_snapshot: { ...base, mode: "block" },
         };
-      if (req.method() !== "GET") {
+      if (req.method() !== "GET" && p !== "/api/policy-capacity/check") {
+        // The save-time capacity preflight is expected editor chatter, not a
+        // policy write: the editor POSTs /policy-capacity/check before every
+        // managed-signature save and only then PUTs the policy.
         writes.push({ p, body: req.postDataJSON() });
         if (p === "/api/policies/1") {
           const b = req.postDataJSON();

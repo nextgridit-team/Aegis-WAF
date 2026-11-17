@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/netip"
@@ -306,8 +307,8 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 				key := managedRuntimeKey(options)
 				runtime := s.managedWAFs[key]
 				if runtime == nil {
-					if len(s.managedWAFs) >= 8 {
-						return nil, errors.New("cached signature capacity exceeded")
+					if len(s.managedWAFs) >= managedConfigurationLimit {
+						return nil, fmt.Errorf("cached signature capacity exceeded: at most %d active managed signature configurations per replica", managedConfigurationLimit)
 					}
 					runtime, e = compileManagedSignatures(set, options)
 					if e != nil {

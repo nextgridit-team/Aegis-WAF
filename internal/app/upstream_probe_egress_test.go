@@ -55,6 +55,46 @@ func TestUpstreamProbeRefusesNAT64Metadata(t *testing.T) {
 	}
 }
 
+// RFC 6052 places the embedded IPv4 address at bits 48-63 and 72-87 for the
+// local-use 64:ff9b:1::/48 prefix — around the mandatory-zero u octet at byte
+// 8, with a zero suffix — not in the final 32 bits like the well-known /96.
+// Reading the final 32 bits for both prefixes gets both directions wrong:
+// canonical /48 forms of public upstreams look like 0.0.0.0 and are refused,
+// while suffix-padded /48 forms of metadata endpoints can smuggle a public
+// reading in the suffix.
+func TestUpstreamProbeNAT64Prefix48Positions(t *testing.T) {
+	// Canonical /48 form of 8.8.8.8: bits 48-63 carry 0x0808, byte 8 is the
+	// zero u octet, bits 72-87 carry 0x0808, and the suffix is zero.
+	canonical := netip.MustParseAddr("64:ff9b:1:808:8:800::")
+	if probeAddressRefused(canonical) {
+		t.Fatal("canonical /48 form of a public upstream refused")
+	}
+	if embedded, ok := nat64Embedded(canonical); !ok || embedded.String() != "8.8.8.8" {
+		t.Fatalf("canonical /48 form did not unwrap to 8.8.8.8: %v %v", embedded, ok)
+	}
+	// A suffix-padded /48 form of the metadata endpoint: the embedded
+	// address sits at the RFC 6052 positions while junk fills the bytes a
+	// final-32-bits reading mistakes for a public upstream.
+	if !probeAddressRefused(netip.MustParseAddr("64:ff9b:1:a9fe:a9:fe00:808:808")) {
+		t.Fatal("suffix-padded /48 form of the metadata endpoint not refused")
+	}
+	// Canonical /48 form of the metadata endpoint stays refused.
+	if !probeAddressRefused(netip.MustParseAddr("64:ff9b:1:a9fe:a9:fe00::")) {
+		t.Fatal("canonical /48 form of the metadata endpoint not refused")
+	}
+	// A nonzero u octet is non-canonical and must not smuggle a public read.
+	if !probeAddressRefused(netip.MustParseAddr("64:ff9b:1:808:108:800::")) {
+		t.Fatal("nonzero u octet not refused")
+	}
+	// The well-known /96 behavior is unchanged.
+	if embedded, ok := nat64Embedded(netip.MustParseAddr("64:ff9b::808:808")); !ok || embedded.String() != "8.8.8.8" {
+		t.Fatalf("/96 form did not unwrap to 8.8.8.8: %v %v", embedded, ok)
+	}
+	if !probeAddressRefused(netip.MustParseAddr("64:ff9b::a9fe:a9fe")) {
+		t.Fatal("/96 metadata form not refused")
+	}
+}
+
 // An unresolvable hostname must be diagnosed at the DNS stage, not reported
 // as a connection failure.
 func TestUpstreamProbeReportsDNSStage(t *testing.T) {
