@@ -100,6 +100,9 @@ const path = require("node:path");
         if (syncFails) {
           status = 502;
           sources[0].error = "Feed is temporarily unavailable";
+          sources[0].last_success = new Date(
+            Date.now() - 2 * 60 * 60 * 1000,
+          ).toISOString();
           json = { error: sources[0].error };
         } else {
           sources[0] = {
@@ -165,6 +168,18 @@ const path = require("node:path");
     await page
       .getByRole("alert")
       .filter({ hasText: "Feed is temporarily unavailable" })
+      .waitFor();
+    // The stale surfaces operators monitor: the row state with its
+    // last-success detail, and the page notice pointing at feed-stale
+    // alert rules instead of manual checking.
+    await page.getByText("Needs attention", { exact: true }).waitFor();
+    await page.getByText("Last success:").first().waitFor();
+    const feedNotice = page
+      .getByRole("alert")
+      .filter({ hasText: "Rule feed problems." });
+    await feedNotice.waitFor();
+    await feedNotice
+      .getByRole("link", { name: "Create a feed-stale alert rule" })
       .waitFor();
     syncFails = false;
     await page.getByRole("button", { name: "Sync now", exact: true }).click();

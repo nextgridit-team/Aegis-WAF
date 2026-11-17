@@ -158,3 +158,52 @@ func alertsFor(t *testing.T, a *App, rule int64) int {
 	}
 	return fired
 }
+
+// The reason string must be hours-accurate under a day: "0 days ago" hides
+// hour-scale staleness from the operator reading the alert.
+func TestFeedStaleReasonHoursAccurate(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	ctx := context.Background()
+	management := httptest.NewServer(a.Management())
+	defer management.Close()
+	jar, _ := cookiejar.New(nil)
+	api := testAPI{t, &http.Client{Jar: jar}, management.URL, ""}
+	api.call("POST", "/api/setup", map[string]string{"username": "feed-admin", "password": "feed hours password", "secret": cfg.BootstrapSecret}, 201)
+	var login map[string]string
+	json.Unmarshal(api.call("POST", "/api/login", map[string]string{"username": "feed-admin", "password": "feed hours password"}, 200), &login)
+	api.csrf = login["csrf"]
+	feed := mustID(t, api.call("POST", "/api/rule-feeds", map[string]any{"name": "Hourly CRS feed", "url": "https://feeds.example.test/rules.json"}, 201))
+	rule := mustID(t, api.call("POST", "/api/alert-rules", alertRule{Name: "Hourly staleness", Enabled: true, Kind: "feed_stale", Threshold: 1, WindowMinutes: 5, CooldownMinutes: 10}, 200))
+	reason := func() string {
+		t.Helper()
+		a.db.Exec(ctx, "UPDATE alert_rules SET next_eval=now(),last_emitted=NULL WHERE id=$1", rule)
+		a.db.Exec(ctx, "DELETE FROM alerts WHERE (data->>'rule_id')::bigint=$1", rule)
+		if err := a.evaluateAlerts(ctx); err != nil {
+			t.Fatal(err)
+		}
+		var events []alertEvent
+		json.Unmarshal(api.call("GET", "/api/alerts", nil, 200), &events)
+		for n := range events {
+			if events[n].RuleID == rule {
+				return events[n].Details
+			}
+		}
+		return ""
+	}
+	// Two hours stale against a one-hour threshold names the hours.
+	if _, e := a.db.Exec(ctx, "UPDATE rule_feeds SET last_success=now()-interval '2 hours',last_attempt=now(),error='' WHERE id=$1", feed); e != nil {
+		t.Fatal(e)
+	}
+	details := reason()
+	if !strings.Contains(details, "2 hours ago") || strings.Contains(details, "0 days ago") {
+		t.Fatalf("hour-scale staleness floored to days: %s", details)
+	}
+	// Three days stale keeps the day-scale wording.
+	if _, e := a.db.Exec(ctx, "UPDATE rule_feeds SET last_success=now()-interval '3 days' WHERE id=$1", feed); e != nil {
+		t.Fatal(e)
+	}
+	if details = reason(); !strings.Contains(details, "3 days ago") {
+		t.Fatalf("day-scale staleness lost its wording: %s", details)
+	}
+}
