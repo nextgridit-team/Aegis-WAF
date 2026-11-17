@@ -295,7 +295,11 @@ func (a *App) refresh(ctx context.Context) error {
 // buildSnapshot compiles a complete candidate without committing database state
 // or changing the active pointer. Refresh and offline simulation share it.
 func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*snapshot, error) {
-	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>''")
+	// Certificates restored from a configuration bundle carry the public
+	// chain only (private keys are never exported), so rows without sealed
+	// key material provide no TLS here; their sites keep serving plain HTTP
+	// until the key is re-uploaded or ACME renews. See config_backup.go.
+	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>'' AND key_cipher IS NOT NULL AND key_id IS NOT NULL")
 	if e != nil {
 		return nil, e
 	}
