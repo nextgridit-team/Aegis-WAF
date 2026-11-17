@@ -16,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestCertificateDomainValidation(t *testing.T) {
@@ -240,4 +241,29 @@ func TestDNSIntegration(t *testing.T) {
 		t.Fatal("manual DNS renewal did not rotate certificate key")
 	}
 
+}
+
+// Dedicated 30x coverage for the DNS API client: Cloudflare endpoints never
+// legitimately redirect, and the guard must refuse rather than follow.
+func TestDNSHTTPClientRefusesRedirects(t *testing.T) {
+	var followed atomic.Int64
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		followed.Add(1)
+		w.WriteHeader(200)
+	}))
+	defer target.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/api", http.StatusFound)
+	}))
+	defer redirector.Close()
+	_, e := dnsHTTPClient(2*time.Second, nil).Get(redirector.URL)
+	if e == nil {
+		t.Fatal("dns api redirect was followed")
+	}
+	if !strings.Contains(e.Error(), "dns api redirects are not accepted") {
+		t.Fatalf("redirect refusal cause lost: %v", e)
+	}
+	if followed.Load() != 0 {
+		t.Fatal("redirect target received a request")
+	}
 }

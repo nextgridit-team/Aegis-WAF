@@ -36,7 +36,6 @@ func main() {
 		if host == "::" {
 			host = "::1"
 		}
-		client := http.Client{Timeout: 2 * time.Second}
 		scheme := "http"
 		if flag := os.Getenv("MANAGEMENT_TLS"); flag != "" {
 			enabled, err := strconv.ParseBool(flag)
@@ -45,11 +44,9 @@ func main() {
 			}
 			if enabled {
 				scheme = "https"
-				// Local readiness only: no credentials or application data are sent. The
-				// certificate normally covers the management DNS name, not this local IP.
-				client.Transport = &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}}
 			}
 		}
+		client := healthcheckClient(scheme == "https")
 		r, e := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/readyz")
 		if e != nil {
 			os.Exit(1)
@@ -64,6 +61,17 @@ func main() {
 		slog.Error(e.Error())
 		os.Exit(1)
 	}
+}
+func healthcheckClient(insecureTLS bool) *http.Client {
+	// Redirects are refused: /readyz answers directly, and a 3xx must read
+	// as not ready rather than be followed to whatever it points at.
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if insecureTLS {
+		// Local readiness only: no credentials or application data are sent. The
+		// certificate normally covers the management DNS name, not this local IP.
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}}
+	}
+	return client
 }
 func run() error {
 	cfg, e := app.LoadConfig()
