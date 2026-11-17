@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -467,5 +468,52 @@ func TestInvestigationAgentScopes(t *testing.T) {
 	result, e = evidence.CallTool(ctx, &mcp.CallToolParams{Name: "management_operation", Arguments: map[string]any{"method": "GET", "path": "/api/access-logs/export?site_id=" + itoa(site) + "&request_id=scope-1&format=csv"}})
 	if e != nil || result.IsError {
 		t.Fatalf("evidence key export failed: %v %+v", e, result)
+	}
+}
+
+// Attacker-influenced text exported to CSV must stay inert in spreadsheet
+// applications: cells beginning with formula metacharacters are prefixed, so
+// traffic can never plant a live formula in a forensic export.
+func TestAccessLogsExportNeutralizesCSVFormulas(t *testing.T) {
+	a, c := investigationReplica(t)
+	site := investigationSite(t, c, "CSV Injection", "csv.example.com")
+	base := time.Now().Add(-time.Hour).UTC()
+	events := []accessEvent{
+		{at: base, site: site, method: "=SUM(1+1)", status: 403, duration: 4, peer: "198.51.100.7", blocked: true, responseSource: "waf", host: "\t=HYPERLINK(\"http://evil.example\")", requestID: "csv-1", pathClass: "@SUM(9+9)", policyID: 5, policyName: "+cmd|' /C calc'!A0"},
+	}
+	if e := a.storeAccessBatch(context.Background(), events); e != nil {
+		t.Fatal(e)
+	}
+	res := c.raw("GET", "/api/access-logs/export?site_id="+itoa(site)+"&format=csv", nil)
+	if res.StatusCode != 200 {
+		body, _ := io.ReadAll(res.Body)
+		t.Fatalf("csv export status %d: %s", res.StatusCode, body)
+	}
+	records, e := csv.NewReader(res.Body).ReadAll()
+	if e != nil || len(records) != 2 {
+		t.Fatalf("csv export parse: %v rows=%d", e, len(records))
+	}
+	row := records[1]
+	want := map[int]string{4: "'	=HYPERLINK(\"http://evil.example\")", 5: "'=SUM(1+1)", 6: "'@SUM(9+9)", 14: "'+cmd|' /C calc'!A0"}
+	for i, cell := range row {
+		if strings.HasPrefix(cell, "=") || strings.HasPrefix(cell, "@") || strings.HasPrefix(cell, "\t") {
+			t.Fatalf("unneutralized formula cell %d %q", i, cell)
+		}
+	}
+	for i, expected := range want {
+		if row[i] != expected {
+			t.Fatalf("cell %d = %q, want neutralized %q", i, row[i], expected)
+		}
+	}
+}
+
+// "format" is export-route-only: the listing route rejects it like any other
+// unknown parameter instead of silently ignoring it.
+func TestAccessLogsRejectsFormatParam(t *testing.T) {
+	_, c := investigationReplica(t)
+	res := c.raw("GET", "/api/access-logs?format=csv", nil)
+	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != 400 || !strings.Contains(string(body), "format") {
+		t.Fatalf("format on listing route: status %d body %s, want 400 naming format", res.StatusCode, body)
 	}
 }

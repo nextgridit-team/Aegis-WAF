@@ -60,7 +60,7 @@ func parseAccessLogQuery(r *http.Request) (accessLogQuery, error) {
 	query := r.URL.Query()
 	for name := range query {
 		switch name {
-		case "from", "to", "site_id", "client_ip", "blocked", "status", "rule_id", "request_id", "host", "policy_id", "path_class", "limit", "cursor", "format":
+		case "from", "to", "site_id", "client_ip", "blocked", "status", "rule_id", "request_id", "host", "policy_id", "path_class", "limit", "cursor":
 		default:
 			return q, invalid("unknown filter " + name)
 		}
@@ -433,9 +433,26 @@ const accessLogExportColumns = "id,at,site_id,site_name,host,method,path_class,s
 
 const accessExportHeader = "id,at,site_id,site_name,host,method,path_class,status,blocked,response_source,client_ip,request_id,policy_id,policy_revision,policy_name,duration_ms,upstream_us,observed_country,region_code,rule_ids,signals"
 
+// csvNeutralize prefixes a cell that spreadsheet applications would otherwise
+// interpret as a live formula. Request-derived text (host, method, path_class,
+// names) can carry attacker-chosen leading characters, and an investigator
+// opening a forensic export must not execute traffic-controlled formulas.
+func csvNeutralize(s string) string {
+	if s == "" {
+		return s
+	}
+	switch s[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + s
+	}
+	return s
+}
+
 // exportAccessLogs serves a bounded CSV or JSON export of one filtered window.
 // The window is counted first; anything over the row cap is rejected so an
-// export is never silently truncated.
+// export is never silently truncated. The fetch itself is also bounded by the
+// cap: rows inserted between the count and the fetch cannot push the export
+// past the cap.
 func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identity) error {
 	format := r.URL.Query().Get("format")
 	if format == "" {
@@ -450,6 +467,11 @@ func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identit
 	if r.URL.Query().Get("limit") != "" {
 		return invalid("export does not accept a limit; the window is bounded by the row cap")
 	}
+	// The export route owns "format"; parseAccessLogQuery must not accept it
+	// on the listing route (strict-400 doctrine), so strip it before parsing.
+	query := r.URL.Query()
+	query.Del("format")
+	r.URL.RawQuery = query.Encode()
 	q, e := parseAccessLogQuery(r)
 	if e != nil {
 		return e
@@ -463,10 +485,17 @@ func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identit
 		return apiError{409, fmt.Sprintf("export window has %d rows, over the %d-row cap; narrow the filters (from/to, site, client IP) and retry", count, accessExportRowCap)}
 	}
 	if format == "json" {
-		sql := "SELECT coalesce(jsonb_agg(t),'[]'::jsonb) FROM (SELECT " + accessLogExportColumns + " FROM access_logs WHERE " + where + " ORDER BY at DESC, id DESC) t"
+		sql := "SELECT coalesce(jsonb_agg(t),'[]'::jsonb) FROM (SELECT " + accessLogExportColumns + " FROM access_logs WHERE " + where + " ORDER BY at DESC, id DESC LIMIT " + strconv.FormatInt(accessExportRowCap+1, 10) + ") t"
 		var raw []byte
 		if e := a.db.QueryRow(r.Context(), sql, args...).Scan(&raw); e != nil {
 			return e
+		}
+		var window []json.RawMessage
+		if e := json.Unmarshal(raw, &window); e != nil {
+			return e
+		}
+		if int64(len(window)) > accessExportRowCap {
+			return apiError{409, fmt.Sprintf("export window grew past the %d-row cap between count and fetch; narrow the filters and retry", accessExportRowCap)}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", `attachment; filename="access-logs.json"`)
@@ -474,11 +503,35 @@ func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identit
 		w.Write(raw)
 		return nil
 	}
-	rows, e := a.db.Query(r.Context(), "SELECT "+accessLogExportColumns+" FROM access_logs WHERE "+where+" ORDER BY at DESC, id DESC", args...)
+	rows, e := a.db.Query(r.Context(), "SELECT "+accessLogExportColumns+" FROM access_logs WHERE "+where+" ORDER BY at DESC, id DESC LIMIT "+strconv.FormatInt(accessExportRowCap+1, 10), args...)
 	if e != nil {
 		return e
 	}
 	defer rows.Close()
+	// Scan the whole bounded window first so a growth past the cap between
+	// count and fetch is rejected before a single byte of the export is sent.
+	type exportRow struct {
+		id, siteID, policyID, policyRevision, duration, upstream                                int64
+		at                                                                                      time.Time
+		status                                                                                  int
+		blocked                                                                                 bool
+		siteName, host, method, pathClass, source, peer, requestID, policyName, country, region string
+		ruleResults, signalsJSON                                                                []byte
+	}
+	window := []exportRow{}
+	for rows.Next() {
+		var row exportRow
+		if e := rows.Scan(&row.id, &row.at, &row.siteID, &row.siteName, &row.host, &row.method, &row.pathClass, &row.status, &row.blocked, &row.source, &row.peer, &row.requestID, &row.policyID, &row.policyRevision, &row.policyName, &row.duration, &row.upstream, &row.country, &row.region, &row.ruleResults, &row.signalsJSON); e != nil {
+			return e
+		}
+		window = append(window, row)
+	}
+	if e := rows.Err(); e != nil {
+		return e
+	}
+	if int64(len(window)) > accessExportRowCap {
+		return apiError{409, fmt.Sprintf("export window grew past the %d-row cap between count and fetch; narrow the filters and retry", accessExportRowCap)}
+	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="access-logs.csv"`)
 	w.WriteHeader(200)
@@ -486,39 +539,27 @@ func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identit
 	if e := csvOut.Write(strings.Split(accessExportHeader, ",")); e != nil {
 		return e
 	}
-	for rows.Next() {
-		var id, siteID, policyID, policyRevision, duration, upstream int64
-		var at time.Time
-		var status int
-		var blocked bool
-		var siteName, host, method, pathClass, source, peer, requestID, policyName, country, region string
-		var ruleResults, signalsJSON []byte
-		if e := rows.Scan(&id, &at, &siteID, &siteName, &host, &method, &pathClass, &status, &blocked, &source, &peer, &requestID, &policyID, &policyRevision, &policyName, &duration, &upstream, &country, &region, &ruleResults, &signalsJSON); e != nil {
-			return e
-		}
+	for _, row := range window {
 		ruleIDs := []string{}
 		var results []RuleResult
-		if json.Unmarshal(ruleResults, &results) == nil {
+		if json.Unmarshal(row.ruleResults, &results) == nil {
 			for _, result := range results {
 				ruleIDs = append(ruleIDs, strconv.FormatInt(result.RuleID, 10))
 			}
 		}
 		signals := []string{}
 		var parsed []string
-		if json.Unmarshal(signalsJSON, &parsed) == nil {
+		if json.Unmarshal(row.signalsJSON, &parsed) == nil {
 			signals = parsed
 		}
 		record := []string{
-			strconv.FormatInt(id, 10), at.UTC().Format(time.RFC3339Nano), strconv.FormatInt(siteID, 10), siteName, host, method, pathClass,
-			strconv.Itoa(status), strconv.FormatBool(blocked), source, peer, requestID, strconv.FormatInt(policyID, 10), strconv.FormatInt(policyRevision, 10), policyName,
-			strconv.FormatInt(duration, 10), strconv.FormatInt(upstream, 10), country, region, strings.Join(ruleIDs, ";"), strings.Join(signals, ";"),
+			strconv.FormatInt(row.id, 10), row.at.UTC().Format(time.RFC3339Nano), strconv.FormatInt(row.siteID, 10), csvNeutralize(row.siteName), csvNeutralize(row.host), csvNeutralize(row.method), csvNeutralize(row.pathClass),
+			strconv.Itoa(row.status), strconv.FormatBool(row.blocked), csvNeutralize(row.source), csvNeutralize(row.peer), csvNeutralize(row.requestID), strconv.FormatInt(row.policyID, 10), strconv.FormatInt(row.policyRevision, 10), csvNeutralize(row.policyName),
+			strconv.FormatInt(row.duration, 10), strconv.FormatInt(row.upstream, 10), csvNeutralize(row.country), csvNeutralize(row.region), csvNeutralize(strings.Join(ruleIDs, ";")), csvNeutralize(strings.Join(signals, ";")),
 		}
 		if e := csvOut.Write(record); e != nil {
 			return e
 		}
-	}
-	if e := rows.Err(); e != nil {
-		return e
 	}
 	csvOut.Flush()
 	return csvOut.Error()
