@@ -52,7 +52,7 @@ func (a *App) readPolicyLibraryRule(ctx context.Context, tx pgx.Tx, id int64) (p
 	feed.CVEs = meta.CVEs
 	return policyRule{RuleID: id, Spec: spec, Feed: &feed}, nil
 }
-func commitCatalogue(ctx context.Context, tx pgx.Tx, id int64, manifest ruleManifest, items []catalogueCandidate) error {
+func commitCatalogue(ctx context.Context, tx pgx.Tx, id int64, manifest ruleManifest, items []catalogueCandidate, limits *growthLimits) error {
 	var previous int
 	var oldDigest string
 	if e := tx.QueryRow(ctx, "SELECT manifest_revision,manifest_digest FROM rule_feeds WHERE id=$1", id).Scan(&previous, &oldDigest); e != nil {
@@ -75,6 +75,14 @@ func commitCatalogue(ctx context.Context, tx pgx.Tx, id int64, manifest ruleMani
 			return invalid("rule revision rollback or conflicting contents; publisher must increment revision")
 		}
 	}
+	// Capture the pre-import counts so the growth caps bound growth rather
+	// than incumbents: an over-cap source may take same-size replacements.
+	var before, totalBefore int
+	if limits != nil {
+		if e := tx.QueryRow(ctx, "SELECT (SELECT count(*) FROM rule_catalog WHERE feed_id=$1),(SELECT count(*) FROM rule_catalog)", id).Scan(&before, &totalBefore); e != nil {
+			return e
+		}
+	}
 	if _, e := tx.Exec(ctx, "UPDATE rule_catalog SET available=false WHERE feed_id=$1", id); e != nil {
 		return e
 	}
@@ -85,12 +93,8 @@ func commitCatalogue(ctx context.Context, tx pgx.Tx, id int64, manifest ruleMani
 			return e
 		}
 	}
-	var count int
-	if e := tx.QueryRow(ctx, "SELECT count(*) FROM rule_catalog").Scan(&count); e != nil {
+	if e := checkCatalogueGrowth(ctx, tx, id, limits, before, totalBefore); e != nil {
 		return e
-	}
-	if count > 2000 {
-		return invalid("catalogue capacity reached (2000 entries); remove unused sources")
 	}
 	if _, e := tx.Exec(ctx, "UPDATE rule_feeds SET manifest_revision=$2,manifest_digest=$3 WHERE id=$1", id, manifest.Revision, digest); e != nil {
 		return e

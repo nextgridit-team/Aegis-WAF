@@ -83,6 +83,9 @@ export function mountPolicyLayout(form: HTMLFormElement) {
     .querySelector<HTMLSelectElement>('[name="network_geo_mode"]')!
     .closest("details")!;
   const community = form.querySelector<HTMLElement>("[data-community]")!;
+  const communityCapacity = form.querySelector<HTMLElement>(
+    "[data-community-capacity]",
+  )!;
   const apps = form.querySelector<HTMLElement>("#policy-assignment-section")!;
   const footer = form.querySelector<HTMLElement>(":scope > .form-actions")!;
   const managed = index("Managed signatures"),
@@ -122,7 +125,11 @@ export function mountPolicyLayout(form: HTMLFormElement) {
       title: "Targeted rules",
       description:
         "Choose community mitigations and optional application-specific rule groups.",
-      nodes: [community, ...nodes.slice(rules, nodes.indexOf(apps))],
+      nodes: [
+        community,
+        communityCapacity,
+        ...nodes.slice(rules, nodes.indexOf(apps)),
+      ],
     },
     {
       id: "applications",

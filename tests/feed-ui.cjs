@@ -41,6 +41,7 @@ const path = require("node:path");
     page.on("pageerror", (e) => errors.push(e.message));
     let sources = [];
     let syncFails = true;
+    let capped = false;
     let imported = 0;
     const requests = [];
     const spec = {
@@ -90,6 +91,8 @@ const path = require("node:path");
               error: "",
               candidates: 0,
               pending: 0,
+              rule_count: 0,
+              rule_limit: 2000,
             },
           ];
           status = 201;
@@ -97,7 +100,16 @@ const path = require("node:path");
         } else json = sources;
       }
       if (url.pathname === "/api/rule-feeds/1/sync") {
-        if (syncFails) {
+        if (capped) {
+          status = 400;
+          sources[0] = {
+            ...sources[0],
+            error:
+              "source rule cap reached: this release would grow the source from 1 to 2001 stored rules, over the per-source rule cap of 2000 (RULE_FEED_SOURCE_LIMIT); the previous catalogue stays applied",
+            rule_count: 2001,
+          };
+          json = { error: sources[0].error };
+        } else if (syncFails) {
           status = 502;
           sources[0].error = "Feed is temporarily unavailable";
           sources[0].last_success = new Date(
@@ -111,6 +123,7 @@ const path = require("node:path");
             last_success: new Date().toISOString(),
             candidates: 1,
             pending: 1,
+            rule_count: 1,
           };
           json = { synced: true };
         }
@@ -187,6 +200,27 @@ const path = require("node:path");
     syncFails = false;
     await page.getByRole("button", { name: "Sync now", exact: true }).click();
     await page.getByText("1 pending import", { exact: true }).waitFor();
+    await page.getByText("1 of 2000 rules stored", { exact: true }).waitFor();
+    // Growth past the per-source cap must be visible on the source row: the
+    // stored count over the cap and the warning that further growth is
+    // refused, mirroring the import-time refusal the API reports.
+    capped = true;
+    await page.getByRole("button", { name: "Sync now", exact: true }).click();
+    await page
+      .getByText("2001 of 2000 rules stored", { exact: true })
+      .waitFor();
+    await page
+      .getByText("Over the per-source rule cap; further growth is refused", {
+        exact: true,
+      })
+      .waitFor();
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "source rule cap reached" })
+      .waitFor();
+    capped = false;
+    await page.getByRole("button", { name: "Sync now", exact: true }).click();
+    await page.getByText("1 of 2000 rules stored", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Review", exact: true }).click();
     await dialog.getByText(spec.name, { exact: true }).waitFor();
     assert.equal(await dialog.locator("img").count(), 0);
@@ -243,7 +277,7 @@ const path = require("node:path");
       .waitFor();
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: custom rule source form, trust badges, legacy URL compatibility, sync failure/retry, escaped review JSON, draft imports, removal and 4 responsive layouts.",
+      "PASS: custom rule source form, trust badges, legacy URL compatibility, sync failure/retry, per-source rule cap visibility, escaped review JSON, draft imports, removal and 4 responsive layouts.",
     );
   } finally {
     await browser.close();

@@ -308,6 +308,20 @@ const path = require("node:path");
           hours: 1,
           endpoints: [],
         };
+      if (p === "/api/policy-capacity")
+        json = {
+          limit: 8,
+          distinct: 1,
+          remaining: 7,
+          community_rules: {
+            limit: 2000,
+            stored: 102,
+            remaining: 1898,
+            per_source_limit: 2000,
+            sources: 1,
+          },
+          configurations: [],
+        };
       if (p === "/api/protection-settings")
         json = sites.map((s) => ({ site_id: s.id, settings: local }));
       if (p === "/api/access-logs/51")

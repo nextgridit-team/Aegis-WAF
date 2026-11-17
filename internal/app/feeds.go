@@ -229,10 +229,14 @@ func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string)
 		return e
 	}
 	if !unchanged && site == 0 {
-		if e = commitCatalogue(ctx, tx, id, manifest, candidates); e != nil {
+		if e = commitCatalogue(ctx, tx, id, manifest, candidates, a.growthLimits()); e != nil {
 			return e
 		}
 	} else if !unchanged {
+		var stagedBefore int
+		if e = tx.QueryRow(ctx, "SELECT count(*) FROM rule_feed_items WHERE feed_id=$1", id).Scan(&stagedBefore); e != nil {
+			return e
+		}
 		if _, e = tx.Exec(ctx, "UPDATE rule_feed_items SET available=false WHERE feed_id=$1", id); e != nil {
 			return e
 		}
@@ -241,6 +245,9 @@ func (a *App) syncFeed(ctx context.Context, id int64, manual bool, actor string)
 			if _, e = tx.Exec(ctx, "INSERT INTO rule_feed_items(feed_id,entry_id,spec) VALUES($1,$2,$3) ON CONFLICT(feed_id,entry_id) DO UPDATE SET spec=excluded.spec,available=true", id, item.ID, raw); e != nil {
 				return e
 			}
+		}
+		if e = checkSiteFeedGrowth(ctx, tx, id, a.growthLimits(), stagedBefore); e != nil {
+			return e
 		}
 	}
 	if site == 0 {
@@ -427,7 +434,7 @@ func (a *App) importFeed(w http.ResponseWriter, r *http.Request, i identity) err
 }
 func feedAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/rule-feeds", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
-		return a.list(w, r, `SELECT f.id,f.name,f.url,f.site_id,f.last_attempt,f.last_success,f.next_sync,f.error,CASE WHEN f.site_id IS NULL THEN (SELECT count(*) FROM rule_catalog c WHERE c.feed_id=f.id AND c.available) ELSE (SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available) END AS candidates,(SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available AND i.spec IS DISTINCT FROM i.imported_spec) AS pending FROM rule_feeds f ORDER BY f.id`)
+		return a.list(w, r, `SELECT f.id,f.name,f.url,f.site_id,f.last_attempt,f.last_success,f.next_sync,f.error,CASE WHEN f.site_id IS NULL THEN (SELECT count(*) FROM rule_catalog c WHERE c.feed_id=f.id AND c.available) ELSE (SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available) END AS candidates,(SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id AND i.available AND i.spec IS DISTINCT FROM i.imported_spec) AS pending,CASE WHEN f.site_id IS NULL THEN (SELECT count(*) FROM rule_catalog c WHERE c.feed_id=f.id) ELSE (SELECT count(*) FROM rule_feed_items i WHERE i.feed_id=f.id) END AS rule_count,`+strconv.Itoa(a.feedSourceRuleLimit())+` AS rule_limit FROM rule_feeds f ORDER BY f.id`)
 	}))
 	m.HandleFunc("POST /api/rule-feeds", a.wrap(true, a.createFeed))
 	m.HandleFunc("GET /api/rule-feeds/{id}/items", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {

@@ -118,6 +118,13 @@ const path = require("node:path");
           limit: 8,
           distinct: 3,
           remaining: 5,
+          community_rules: {
+            limit: 2000,
+            stored: 102,
+            remaining: 1898,
+            per_source_limit: 2000,
+            sources: 1,
+          },
           configurations: [
             {
               id: "abcd1234",
@@ -173,6 +180,11 @@ const path = require("node:path");
     await chip.waitFor();
     assert.match(await chip.innerText(), /3 of 8/);
     assert.match(await chip.innerText(), /share one engine/);
+    // The community-rule budget is reported alongside the engine budget.
+    const communityChip = form().locator("[data-community-capacity]");
+    await communityChip.waitFor();
+    assert.match(await communityChip.innerText(), /102 of 2000 rules stored/);
+    assert.match(await communityChip.innerText(), /per-source cap 2000/);
     // Saving an unchanged posture reuses the engine: the preflight runs but
     // needs no confirmation.
     await page
