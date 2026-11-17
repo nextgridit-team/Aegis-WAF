@@ -10,6 +10,8 @@ type Source = {
   error: string;
   candidates: number;
   pending: number;
+  rule_count: number;
+  rule_limit: number;
 };
 type Candidate = {
   catalog_id?: number;
@@ -86,7 +88,7 @@ export function makeFeedsUI(c: Context) {
                       s.site_id,
               ),
               `<span>${s.error ? "Needs attention" : s.last_success ? "Up to date" : "Queued"}</span>${s.error ? `<small class="error-text">${esc(s.error)}</small>` : ""}<small>Last success: ${esc(date(s.last_success))}</small><small>Next check: ${esc(date(s.next_sync))}</small>`,
-              `<strong>${s.candidates} available</strong><small>${s.site_id ? `${s.pending} pending import` : "Select in Policies"}</small>`,
+              `<strong>${s.candidates} available</strong><small>${s.rule_count} of ${s.rule_limit} rules stored</small>${s.rule_count > s.rule_limit ? `<small class="error-text">Over the per-source rule cap; further growth is refused</small>` : ""}<small>${s.site_id ? `${s.pending} pending import` : "Select in Policies"}</small>`,
               `<div class="row-actions">${button("sync-feed", "Sync now", s.id)}${button("review-feed", "Review", s.id)}${button("remove-feed", "Remove", s.id)}</div>`,
             ]),
             "Rule sources",

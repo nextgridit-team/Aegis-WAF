@@ -194,5 +194,8 @@ func seedCommunityCatalogue(ctx context.Context, tx pgx.Tx) error {
 	if _, e = tx.Exec(ctx, "SELECT version FROM config_version WHERE id FOR UPDATE"); e != nil {
 		return e
 	}
-	return commitCatalogue(ctx, tx, *id, manifest, candidates)
+	// The bundled baseline ships inside the image and is build-bounded; it is
+	// the initial state, not network-driven growth, so it seeds without the
+	// growth caps. Every later network sync enforces them.
+	return commitCatalogue(ctx, tx, *id, manifest, candidates, nil)
 }

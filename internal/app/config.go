@@ -20,6 +20,8 @@ type Config struct {
 	SnapshotCacheMaxAge                                                      time.Duration
 	ManagementTLS                                                            bool
 	ManagedEngineLimit                                                       int
+	FeedSourceRuleLimit                                                      int
+	CommunityRuleBudget                                                      int
 	DatabaseURL, BootstrapSecret, KeyID, HTTPAddr, HTTPSAddr, ManagementAddr string
 	Key                                                                      []byte
 	Refresh                                                                  time.Duration
@@ -79,6 +81,14 @@ func LoadConfig() (Config, error) {
 	c.ManagedEngineLimit, e = strconv.Atoi(env("MANAGED_ENGINE_LIMIT", strconv.Itoa(managedConfigurationLimit)))
 	if e != nil || c.ManagedEngineLimit < 1 || c.ManagedEngineLimit > managedEngineMaxLimit {
 		return c, fmt.Errorf("MANAGED_ENGINE_LIMIT must be between 1 and %d", managedEngineMaxLimit)
+	}
+	c.FeedSourceRuleLimit, e = strconv.Atoi(env("RULE_FEED_SOURCE_LIMIT", strconv.Itoa(defaultFeedSourceRuleLimit)))
+	if e != nil || c.FeedSourceRuleLimit < 1 || c.FeedSourceRuleLimit > maxPackedCatalogueRules {
+		return c, fmt.Errorf("RULE_FEED_SOURCE_LIMIT must be between 1 and %d", maxPackedCatalogueRules)
+	}
+	c.CommunityRuleBudget, e = strconv.Atoi(env("COMMUNITY_RULE_BUDGET", strconv.Itoa(defaultCommunityRuleBudget)))
+	if e != nil || c.CommunityRuleBudget < 1 || c.CommunityRuleBudget > maxCommunityRuleBudget {
+		return c, fmt.Errorf("COMMUNITY_RULE_BUDGET must be between 1 and %d", maxCommunityRuleBudget)
 	}
 	c.SnapshotCacheFile = env("SNAPSHOT_CACHE_FILE", "")
 	c.SnapshotCacheMaxAge, e = time.ParseDuration(env("SNAPSHOT_CACHE_MAX_AGE", "24h"))

@@ -123,6 +123,8 @@ The image runs as UID/GID 10001 by default and supports platform-assigned non-ro
 | `MANAGEMENT_ADDR`                             | `:9090`                                                                    |
 | `MANAGEMENT_TLS`                              | `false`; native HTTPS requires a previously stored matching certificate    |
 | `MANAGED_ENGINE_LIMIT`                        | `8`; distinct managed-signature engines per replica, 1–64 (see below)      |
+| `RULE_FEED_SOURCE_LIMIT`                      | `2000`; rules a rule-feed source may grow to, 1–2000 (see below)           |
+| `COMMUNITY_RULE_BUDGET`                       | `2000`; total stored catalogue rules workspace-wide, 1–20000 (see below)   |
 | `TMPDIR`                                      | `/tmp` in the image                                                        |
 | `SSL_CERT_FILE`, `SSL_CERT_DIR`               | Optional operational CA trust settings                                     |
 | `SNAPSHOT_CACHE_FILE`                         | Unset; opt-in absolute path to encrypted recovery snapshot                 |
@@ -135,6 +137,10 @@ Set these in the container environment through your deployment configuration. De
 ### Managed-signature engine budget
 
 `MANAGED_ENGINE_LIMIT` (1–64, default 8) caps how many distinct managed-signature configurations each replica compiles into Coraza CRS engines. Policies with identical signature settings share one engine; each distinct combination costs roughly 54 MiB of resident memory and about 45 ms of compile time at every configuration refresh (see the [compile benchmark](benchmarks.md) — cost scales linearly), so raising the limit raises resident memory roughly linearly and adds refresh work. The dashboard's managed-signature chip and `GET /api/policy-capacity` always report the live value, and the save-time 409 names it. Take the per-engine cost from the benchmark into account against the host's memory: a replica at the default 8 engines already holds roughly 380–430 MiB, and a host that has OOM'd should not raise the limit without headroom. Restoring an encrypted snapshot whose cached engine count exceeds the currently configured limit fails closed: the replica discards the cache and performs full database startup (unchanged behavior, now limit-dependent).
+
+### Community rule budget
+
+`RULE_FEED_SOURCE_LIMIT` (1–2000, default 2000) bounds the rules a single rule-feed source may grow to — workspace catalogues and application feeds alike, signed official or untrusted custom. `COMMUNITY_RULE_BUDGET` (1–20000, default 2000) bounds the total rules stored across workspace catalogue sources. An import that would grow past a cap is refused inside the sync transaction: the source records the error with the counts, keeps its last-good catalogue and retries every 12 hours — never partial application, never silent truncation. Caps bound growth, not incumbents: an over-cap source still accepts same-size replacement releases and can shrink. Each stored rule carries its spec plus metadata (at most a 64 KiB member; typically a few kilobytes), so raising the budget trades catalogue coverage for storage and sync work, roughly linearly. The Rules page shows every source's `N of M rules stored` count with an over-cap warning, `GET /api/policy-capacity` reports the budget, and a `feed_stale` alert carries any refusal with its numbers. The bundled community catalogue ships inside the image and seeds regardless of the caps; lowering them below the official source's current size pins that source to its last synced release until the cap is raised.
 
 ## Administrator and certificate security
 

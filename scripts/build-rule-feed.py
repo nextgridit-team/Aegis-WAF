@@ -29,6 +29,19 @@ for file in sorted(folder.rglob('*.json')):
 rule_count = len(files)
 if rule_count > 2000:
     raise SystemExit('Release exceeds the 2000-entry catalogue limit')
+# The default selection a following policy adopts is the whole release, and
+# policies hold at most 100 rules (custom + feed combined; internal/app/
+# policy.go policyRuleCount and internal/app/rules.go maxRulesPerSite).
+# Publishing a larger release stalls every following client at adoption, so
+# the publisher gate fails here with the overflow count instead.
+per_policy_selection_cap = 100
+if rule_count > per_policy_selection_cap:
+    raise SystemExit(
+        f'Release carries {rule_count} rules; following policies select the '
+        f'whole catalogue and are capped at {per_policy_selection_cap} rules '
+        f'per policy ({rule_count - per_policy_selection_cap} over). Retire '
+        'rules before publishing a larger release.'
+    )
 files['LICENSE'] = (root / 'LICENSE').read_bytes()
 files['LICENSES/nuclei-templates.txt'] = (root / 'third_party_licenses/nuclei-templates.txt').read_bytes()
 if sum(map(len, files.values())) > 8 * 1024 * 1024:

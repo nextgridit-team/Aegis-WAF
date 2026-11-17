@@ -51,6 +51,16 @@ type managedCapacity struct {
 	Distinct       int                    `json:"distinct"`
 	Remaining      int                    `json:"remaining"`
 	Configurations []managedConfiguration `json:"configurations"`
+	// CommunityRules reports the stored-catalogue growth budget alongside the
+	// engine budget so operators see both capacity surfaces in one place.
+	CommunityRules communityRuleCapacity `json:"community_rules"`
+}
+type communityRuleCapacity struct {
+	Limit          int `json:"limit"`
+	Stored         int `json:"stored"`
+	Remaining      int `json:"remaining"`
+	PerSourceLimit int `json:"per_source_limit"`
+	Sources        int `json:"sources"`
 }
 type policyCapacityCheckInput struct {
 	PolicyID int64                   `json:"policy_id"`
@@ -149,6 +159,11 @@ func (a *App) policyCapacityReport(w http.ResponseWriter, r *http.Request, _ ide
 		report.Configurations = append(report.Configurations, *entry)
 	}
 	sort.Slice(report.Configurations, func(i, j int) bool { return report.Configurations[i].ID < report.Configurations[j].ID })
+	report.CommunityRules = communityRuleCapacity{Limit: a.communityRuleBudget(), PerSourceLimit: a.feedSourceRuleLimit()}
+	if e := a.db.QueryRow(r.Context(), "SELECT count(*),count(DISTINCT feed_id) FROM rule_catalog").Scan(&report.CommunityRules.Stored, &report.CommunityRules.Sources); e != nil {
+		return e
+	}
+	report.CommunityRules.Remaining = max(0, report.CommunityRules.Limit-report.CommunityRules.Stored)
 	respond(w, 200, report)
 	return nil
 }
