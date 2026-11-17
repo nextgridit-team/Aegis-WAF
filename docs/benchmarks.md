@@ -65,7 +65,7 @@ These are single-phase fixture measurements on a shared local host, not sustaine
 
 ## Managed-signature engine compile scaling (2026-11-16)
 
-Every distinct managed-signature configuration compiles one Coraza CRS engine per replica at snapshot load. The eight-configuration budget is enforced at save time; this benchmark measures the compile cost that gates raising it. Run with `go test ./internal/app -run '^$' -bench 'BenchmarkCompileManagedSignatures' -benchmem` (Linux/amd64, AMD Ryzen 9 7950X3D, Go 1.26, bundled CRS source, 10 iterations per case).
+Every distinct managed-signature configuration compiles one Coraza CRS engine per replica at snapshot load. The compiled-engine budget (`MANAGED_ENGINE_LIMIT`, default 8, range 1–64) is enforced at save time; this benchmark measures the compile cost that gates raising it. Run with `go test ./internal/app -run '^$' -bench 'BenchmarkCompileManagedSignatures' -benchmem` (Linux/amd64, AMD Ryzen 9 7950X3D, Go 1.26, bundled CRS source, 10 iterations per case).
 
 | Distinct engines | Compile time | Allocated | Allocations |
 | ---: | ---: | ---: | ---: |

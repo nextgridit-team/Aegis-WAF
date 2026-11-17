@@ -19,6 +19,7 @@ type Config struct {
 	SnapshotCacheFile                                                        string
 	SnapshotCacheMaxAge                                                      time.Duration
 	ManagementTLS                                                            bool
+	ManagedEngineLimit                                                       int
 	DatabaseURL, BootstrapSecret, KeyID, HTTPAddr, HTTPSAddr, ManagementAddr string
 	Key                                                                      []byte
 	Refresh                                                                  time.Duration
@@ -74,6 +75,10 @@ func LoadConfig() (Config, error) {
 	c.ManagementTLS, e = strconv.ParseBool(env("MANAGEMENT_TLS", "false"))
 	if e != nil {
 		return c, errors.New("MANAGEMENT_TLS must be true or false")
+	}
+	c.ManagedEngineLimit, e = strconv.Atoi(env("MANAGED_ENGINE_LIMIT", strconv.Itoa(managedConfigurationLimit)))
+	if e != nil || c.ManagedEngineLimit < 1 || c.ManagedEngineLimit > managedEngineMaxLimit {
+		return c, fmt.Errorf("MANAGED_ENGINE_LIMIT must be between 1 and %d", managedEngineMaxLimit)
 	}
 	c.SnapshotCacheFile = env("SNAPSHOT_CACHE_FILE", "")
 	c.SnapshotCacheMaxAge, e = time.ParseDuration(env("SNAPSHOT_CACHE_MAX_AGE", "24h"))
