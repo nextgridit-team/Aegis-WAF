@@ -169,6 +169,20 @@ const path = require("node:path");
         {id: 101, official: true, revision: 1, spec: {name: "Official guard"}},
         {id: 102, official: false, revision: 1, spec: {name: "Custom guard"}},
       ];
+      if (p === "/api/policy-capacity")
+        json = {
+          limit: 8,
+          distinct: 1,
+          remaining: 7,
+          community_rules: {
+            limit: 2000,
+            stored: 102,
+            remaining: 1898,
+            per_source_limit: 2000,
+            sources: 1,
+          },
+          configurations: [],
+        };
       if (p === "/api/policies") json = policies;
       if (
         /\/api\/policies(?:\/1)?$/.test(p) &&

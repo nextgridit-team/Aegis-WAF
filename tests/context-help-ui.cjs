@@ -48,6 +48,20 @@ const topics = require("../web/src/help-topics.json");
       if (req.method() !== "GET") writes++;
       if (p === "/api/setup") json = { setup_required: false };
       if (p === "/api/me") json = { username: "help-test", csrf: "fixture" };
+      if (p === "/api/policy-capacity")
+        json = {
+          limit: 8,
+          distinct: 1,
+          remaining: 7,
+          community_rules: {
+            limit: 2000,
+            stored: 102,
+            remaining: 1898,
+            per_source_limit: 2000,
+            sources: 1,
+          },
+          configurations: [],
+        };
       if (p === "/api/status")
         json = { database_available: true, configuration_version: 1 };
       if (p === "/api/signature-sets")
