@@ -38,6 +38,7 @@ type protectionPolicy struct {
 	network          *networkAccessPolicy
 	budgetScope      int64
 	botFingerprint   string
+	endpoints        []compiledEndpointRate
 	ProtectionSettings
 	trusted                []netip.Prefix
 	floodExempt, botExempt []netip.Prefix
@@ -269,8 +270,21 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		if p.budgetScope != 0 {
 			budgetPrefix = "policy:" + strconv.FormatInt(p.budgetScope, 10) + ":"
 		}
-		decisions, saturated, err := takeRateState(r.Context(), &a.flood, []rateLimit{{rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst}, {rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst}}, now)
-		client, total := true, true
+		limits := []rateLimit{{rateKey{site, budgetPrefix + ip.String()}, p.RequestsPerSecond, p.Burst}, {rateKey{site, budgetPrefix + "*"}, p.SiteRequestsPerSecond, p.SiteBurst}}
+		// A matching endpoint override adds one more budget underneath the
+		// client and site budgets: first matching pattern wins, keyed by
+		// client for per-client scope or by site for site-wide scope. The
+		// override can only tighten enforcement, never widen it.
+		if rule, ok := p.matchEndpoint(r.URL.Path); ok {
+			subject := ip.String()
+			if rule.SiteWide {
+				subject = "*"
+			}
+			limits = append(limits, rateLimit{rateKey{site, budgetPrefix + subject + "|ep" + strconv.Itoa(rule.Index)}, rule.Rate, rule.Burst})
+		}
+		var decisions [3]bool
+		saturated, err := takeRateState(r.Context(), &a.flood, limits, decisions[:], now)
+		client, total, endpoint := true, true, true
 		if err != nil {
 			signals = append(signals, "rate_state_unavailable")
 			if p.Mode == "block" {
@@ -278,6 +292,7 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 			}
 		} else {
 			client, total = decisions[0], decisions[1]
+			endpoint = len(limits) < 3 || decisions[2]
 		}
 		if saturated {
 			// The local limiter's bucket map is full: new clients are admitted
@@ -291,7 +306,10 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		if !total {
 			signals = append(signals, "application_rate")
 		}
-		if (!client || !total) && p.Mode == "block" {
+		if !endpoint {
+			signals = append(signals, "endpoint_rate")
+		}
+		if (!client || !total || !endpoint) && p.Mode == "block" {
 			blocked = true
 			status = http.StatusTooManyRequests
 		}

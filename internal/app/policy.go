@@ -32,6 +32,7 @@ type policySpec struct {
 	BotChallenge          botChallengeSettings     `json:"bot_challenge"`
 	NetworkAccess         networkAccessSettings    `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions  `json:"managed_signatures"`
+	EndpointRates         []endpointRateRule       `json:"endpoint_rates,omitempty"`
 	Name                  string                   `json:"name"`
 	Description           string                   `json:"description"`
 	Mode                  string                   `json:"mode"`
@@ -56,6 +57,7 @@ type policySpecInput struct {
 	BotChallenge          botChallengeSettings     `json:"bot_challenge"`
 	NetworkAccess         networkAccessSettings    `json:"network_access"`
 	ManagedSignatures     managedSignatureOptions  `json:"managed_signatures"`
+	EndpointRates         []endpointRateRuleInput  `json:"endpoint_rates,omitempty"`
 	Name                  string                   `json:"name"`
 	Description           string                   `json:"description"`
 	Mode                  string                   `json:"mode"`
@@ -134,6 +136,10 @@ func policyProtection(base *protectionPolicy, s policySpec, id int64) (*protecti
 		compiled.connectionMode = s.Mode
 		compiled.budgetScope = id
 		compiled.network, e = compileNetworkAccess(s.NetworkAccess, s.Mode)
+		if e != nil {
+			return nil, e
+		}
+		compiled.endpoints, e = compileEndpointRates(s.EndpointRates)
 	}
 	return compiled, e
 }
@@ -258,7 +264,11 @@ func (a *App) normalizePolicy(ctx context.Context, tx pgx.Tx, in policySpecInput
 	if e != nil {
 		return policySpec{}, e
 	}
-	s := policySpec{ConnectionLimits: limits, BotChallenge: challenge, NetworkAccess: network.Settings, ManagedSignatures: managed, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
+	rates, e := normalizeEndpointRates(in.EndpointRates)
+	if e != nil {
+		return policySpec{}, e
+	}
+	s := policySpec{ConnectionLimits: limits, BotChallenge: challenge, NetworkAccess: network.Settings, ManagedSignatures: managed, EndpointRates: rates, Name: strings.TrimSpace(in.Name), Description: in.Description, Mode: in.Mode, FloodEnabled: in.FloodEnabled, BotEnabled: in.BotEnabled, BlockEmptyUA: in.BlockEmptyUA, RequestsPerSecond: in.RequestsPerSecond, Burst: in.Burst, SiteRequestsPerSecond: in.SiteRequestsPerSecond, SiteBurst: in.SiteBurst, Groups: []policyGroup{}}
 	if len(in.Groups) > 10 {
 		return s, invalid("at most 10 groups per policy")
 	}
@@ -414,6 +424,9 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 		return invalid("the policy request body could not be read")
 	}
 	if e := rejectUnknownScopedExclusionKeys(body); e != nil {
+		return e
+	}
+	if e := rejectUnknownEndpointRateKeys(body); e != nil {
 		return e
 	}
 	r.Body = io.NopCloser(bytes.NewReader(body))

@@ -24,7 +24,10 @@ const snapshotCacheLimit = 64 << 20
 
 // Format 1 stored policy-overwritten rule actions and cannot recover the saved
 // intent. Require a database rebuild before trusting a cache from that version.
-const snapshotCacheFormat = 3
+// Format 4 added per-policy endpoint rate overrides: older caches cannot carry
+// them (and older binaries would silently drop them on rollback), so any cache
+// from another format is rejected and rebuilt from the database.
+const snapshotCacheFormat = 4
 
 type cachedCertificate struct {
 	Chain [][]byte
@@ -44,6 +47,7 @@ type cachedBinding struct {
 	NetworkAccess    networkAccessSettings
 	NetworkMode      string
 	ManagedOptions   managedSignatureOptions
+	EndpointRates    []compiledEndpointRate
 	ID, Revision     int64
 	Name             string
 	Priority         int
@@ -130,7 +134,7 @@ func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
 	}
 	for site, bindings := range s.policyBindings {
 		for _, b := range bindings {
-			binding := cachedBinding{ConnectionLimits: b.Protection.connectionLimits, ConnectionMode: b.Protection.connectionMode, ManagedOptions: b.ManagedOptions, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
+			binding := cachedBinding{ConnectionLimits: b.Protection.connectionLimits, ConnectionMode: b.Protection.connectionMode, ManagedOptions: b.ManagedOptions, EndpointRates: b.Protection.endpoints, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
 			if b.Protection.network != nil {
 				binding.NetworkAccess = b.Protection.network.Settings
 				binding.NetworkMode = b.Protection.network.Mode
@@ -271,6 +275,10 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 			p.connectionMode = b.ConnectionMode
 			if p.connectionLimits != nil && p.connectionMode != "off" && p.connectionMode != "observe" && p.connectionMode != "block" {
 				return nil, errors.New("invalid cached connection mode")
+			}
+			p.endpoints, e = validateCachedEndpointRates(b.EndpointRates)
+			if e != nil {
+				return nil, e
 			}
 			p.budgetScope = b.ID
 			p.network, e = compileNetworkAccess(b.NetworkAccess, b.NetworkMode)
