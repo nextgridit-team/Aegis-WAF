@@ -31,12 +31,11 @@ Detailed execution evidence and its scope are in [verification](verification.md)
 
 ## Remaining feature gaps
 
-1. **Administrator MFA and recovery.** Add TOTP or WebAuthn with enrollment, recovery, one-use backup codes, rate limits and security audits. Neither MCP bearer keys nor CAPTCHA provides administrator MFA.
-2. **Per-application/resource authority.** Current MCP scopes restrict management domains across the workspace; administrators do not have granular roles. Enforce any future resource scope consistently through direct APIs and generic MCP operations.
-3. **Verified-bot identity.** Challenge clearance is available; authenticated crawler identity is not. Provider verification or bounded forward-confirmed reverse DNS would need an explicit trust/failure design.
-4. **Online encryption-key rotation.** Ciphertexts have key identifiers, but there is no overlapping keyring and transactional resealing/recovery workflow. Changing one external key while old ciphertext remains is not rotation.
+1. **Per-application/resource authority.** Current MCP scopes restrict management domains across the workspace; administrator roles are owner/operator/read-only but not resource-scoped. Enforce any future resource scope consistently through direct APIs and generic MCP operations.
+2. **Verified-bot identity.** Challenge clearance is available; authenticated crawler identity is not. Provider verification or bounded forward-confirmed reverse DNS would need an explicit trust/failure design.
+3. **Online encryption-key rotation.** Ciphertexts have key identifiers, but there is no overlapping keyring and transactional resealing/recovery workflow. Changing one external key while old ciphertext remains is not rotation.
 
-Administrator MFA remains a priority operational improvement. Protocol-specific protections for AI/MCP traffic and upstream API-key brokerage are separate proposed capabilities, not implied by the existing API/SSE endpoint profiles.
+Administrator MFA and recovery are implemented: TOTP enrollment with a QR code and manual key, single-use recovery codes, host-side password-reset tokens, session revocation on every credential change, and transactional audits. Protocol-specific protections for AI/MCP traffic and upstream API-key brokerage are separate proposed capabilities, not implied by the existing API/SSE endpoint profiles.
 
 ## Boundaries to retain
 

@@ -2253,3 +2253,9 @@ dialog:has(#policy-form) > .dialog-heading { position:sticky;top:0;z-index:12;ba
 .filter-grid input, .filter-grid select { width: 100%; }
 .filter-actions { display: flex; gap: 8px; grid-column: 1 / -1; }
 .load-more { display: flex; justify-content: center; padding: 12px 0 4px; }
+.mfa-enroll { display: grid; gap: 10px; margin-top: 14px; }
+.mfa-qr-wrap { display: flex; justify-content: center; padding: 12px; background: #fff; border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 10px; width: fit-content; justify-self: center; }
+.mfa-qr { width: 208px; height: 208px; display: block; }
+.mfa-secret { font-size: 1.05rem; letter-spacing: 2px; padding: 8px 12px; background: rgba(128, 128, 128, 0.12); border-radius: 8px; user-select: all; }
+.recovery-codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin: 10px 0; }
+.recovery-codes code { font-size: 1.05rem; letter-spacing: 2px; padding: 8px 12px; background: rgba(128, 128, 128, 0.12); border-radius: 8px; user-select: all; text-align: center; }

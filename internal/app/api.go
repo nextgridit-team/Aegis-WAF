@@ -55,8 +55,9 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 func hash(s string) string { b := sha256.Sum256([]byte(s)); return hex.EncodeToString(b[:]) }
 
 type identity struct {
-	ID             int64
-	Username, CSRF string
+	ID                   int64
+	Username, CSRF, Role string
+	MFAEnabled           bool
 }
 type endpoint func(http.ResponseWriter, *http.Request, identity) error
 
@@ -83,7 +84,7 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 				respond(w, 401, map[string]string{"error": "authentication required"})
 				return
 			}
-			e = a.db.QueryRow(ctx, "SELECT a.id,a.username,s.csrf FROM sessions s JOIN administrators a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.expires_at>now()", hash(cookie.Value)).Scan(&who.ID, &who.Username, &who.CSRF)
+			e = a.db.QueryRow(ctx, "SELECT a.id,a.username,a.role,a.mfa_enrolled_at IS NOT NULL,s.csrf FROM sessions s JOIN administrators a ON a.id=s.admin_id WHERE s.token_hash=$1 AND s.expires_at>now()", hash(cookie.Value)).Scan(&who.ID, &who.Username, &who.Role, &who.MFAEnabled, &who.CSRF)
 			if errors.Is(e, pgx.ErrNoRows) {
 				respond(w, 401, map[string]string{"error": "session expired"})
 				return
@@ -92,6 +93,18 @@ func (a *App) wrap(auth bool, fn endpoint) http.HandlerFunc {
 				respond(w, 503, map[string]string{"error": "session store unavailable"})
 				return
 			}
+			// Role enforcement lives here, before any handler runs, so the
+			// operation-domain matrix applies to every route registration and
+			// cannot be bypassed by an individual handler or the dashboard.
+			// Agent-key invocations keep their own scope check instead.
+			if !roleAtLeast(who.Role, adminRouteRole(r.Pattern)) {
+				respond(w, 403, map[string]string{"error": "insufficient administrator role for this operation"})
+				return
+			}
+			// Session inventory accounting: a best-effort last-seen refresh,
+			// throttled to one write per session per 30 seconds. A failure
+			// here never affects the authenticated request.
+			_, _ = a.db.Exec(ctx, "UPDATE sessions SET last_seen_at=now() WHERE token_hash=$1 AND last_seen_at<now()-interval '30 seconds'", hash(cookie.Value))
 		}
 		if !internal && r.Method != "GET" && r.Method != "HEAD" {
 			if origin := r.Header.Get("Origin"); origin != "" {
@@ -155,9 +168,10 @@ func (a *App) Management() http.Handler {
 	}))
 	m.HandleFunc("POST /api/setup", a.wrap(false, a.setup))
 	m.HandleFunc("POST /api/login", a.wrap(false, a.login))
+	adminAPI(a, m)
 	m.HandleFunc("POST /api/logout", a.wrap(true, a.logout))
 	m.HandleFunc("GET /api/me", a.wrap(true, func(w http.ResponseWriter, r *http.Request, i identity) error {
-		respond(w, 200, map[string]string{"username": i.Username, "csrf": i.CSRF})
+		respond(w, 200, map[string]any{"username": i.Username, "csrf": i.CSRF, "role": i.Role, "mfa_enabled": i.MFAEnabled})
 		return nil
 	}))
 	m.HandleFunc("GET /api/status", a.wrap(true, func(w http.ResponseWriter, r *http.Request, _ identity) error {
@@ -295,7 +309,8 @@ func (a *App) login(w http.ResponseWriter, r *http.Request, _ identity) error {
 	}
 	var id int64
 	var pw string
-	e := a.db.QueryRow(r.Context(), "SELECT id,password_hash FROM administrators WHERE username=$1", b.Username).Scan(&id, &pw)
+	var mfaEnrolled bool
+	e := a.db.QueryRow(r.Context(), "SELECT id,password_hash,mfa_enrolled_at IS NOT NULL FROM administrators WHERE username=$1", b.Username).Scan(&id, &pw, &mfaEnrolled)
 	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
 		return e
 	}
@@ -310,13 +325,27 @@ func (a *App) login(w http.ResponseWriter, r *http.Request, _ identity) error {
 		}
 		return apiError{401, "invalid credentials"}
 	}
-	t, csrf := token(), token()
+	// An enrolled administrator never receives a session from the password
+	// step alone: login pauses at a short-lived, attempt-bounded ticket that
+	// only a valid second factor can redeem.
+	if mfaEnrolled {
+		t := token()
+		if _, e = a.db.Exec(r.Context(), "DELETE FROM admin_mfa_pending WHERE expires_at<now()"); e != nil {
+			return e
+		}
+		if _, e = a.db.Exec(r.Context(), "INSERT INTO admin_mfa_pending(token_hash,admin_id,expires_at) VALUES($1,$2,$3)", hash(t), id, time.Now().Add(mfaTicketLifetime)); e != nil {
+			return e
+		}
+		respond(w, 200, map[string]any{"mfa_required": true, "ticket": t})
+		return nil
+	}
 	tx, e := a.db.Begin(r.Context())
 	if e != nil {
 		return e
 	}
 	defer tx.Rollback(r.Context())
-	if _, e = tx.Exec(r.Context(), "INSERT INTO sessions(token_hash,admin_id,csrf,expires_at) VALUES($1,$2,$3,now()+interval '12 hours')", hash(t), id, csrf); e != nil {
+	csrf, e := a.createAdminSession(r.Context(), r, tx, id)
+	if e != nil {
 		return e
 	}
 	if e = audit(r.Context(), tx, b.Username, "login.succeeded", "management"); e != nil {
@@ -325,8 +354,8 @@ func (a *App) login(w http.ResponseWriter, r *http.Request, _ identity) error {
 	if e = tx.Commit(r.Context()); e != nil {
 		return e
 	}
-	http.SetCookie(w, sessionCookie(r, t, 43200))
-	respond(w, 200, map[string]string{"csrf": csrf, "username": b.Username})
+	http.SetCookie(w, sessionCookie(r, csrf.token, 43200))
+	respond(w, 200, map[string]string{"csrf": csrf.csrf, "username": b.Username, "role": a.adminRoleOf(r.Context(), id)})
 	return nil
 }
 func sessionCookie(r *http.Request, value string, maxAge int) *http.Cookie {

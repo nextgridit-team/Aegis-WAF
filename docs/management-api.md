@@ -21,6 +21,19 @@ All endpoint paths below are relative to `/api` on the management listener. Stor
 
 For mutations, send `Content-Type: application/json`, `X-Requested-With: aegis-waf`, and the current `X-CSRF-Token` (except setup/login, which have no session yet). Errors return JSON with an `error` field. Database failures return 503 without claiming success; invalid input returns 400; conflicts return 409. A connection loss exactly at commit can leave an ambiguous result; refresh state before repeating a create operation.
 
+## Administrator accounts
+
+Account routes are self-service for every authenticated administrator; the three roles — owner, operator, read-only — are enforced by the gateway on every request before any handler runs. Read-only is denied every mutation, operators additionally cannot manage administrators or agent keys, and owners hold account and credential authority. Sign-in responses include `role`; `GET /me` also reports `mfa_enabled`.
+
+- `POST /login` (`username`, `password`): for an MFA-enrolled administrator, returns `{mfa_required:true, ticket}` without a session cookie. `POST /login/mfa` (`ticket`, `code`) completes sign-in with a current six-digit TOTP code or an unused recovery code; the ticket is single-use, expires in five minutes and allows at most five attempts. TOTP follows RFC 6238 (SHA-1, six digits, 30-second step, ±1 step of skew) with replay rejection; both endpoints share the sign-in throttling.
+- `POST /mfa/enroll` with `{}`: returns `{secret, uri}` exactly once (base32 key and `otpauth://` URI; the dashboard renders the QR locally). `POST /mfa/confirm` (`code`) activates MFA and returns ten single-use `recovery_codes` once — stored as bcrypt hashes, never shown again — and revokes every session. `POST /mfa/disable` (`password`, `code`) requires the current password plus a fresh TOTP code or an unused recovery code, then revokes every session.
+- `POST /password` (`current_password`, `new_password` of 14–72 bytes): rotates the password and revokes every session.
+- `GET /sessions`: the caller's active sessions with `id, ip, user_agent, created_at, last_seen_at, current`. `DELETE /sessions/{id}` revokes one; `DELETE /sessions` revokes all. Sessions live in PostgreSQL, so a revocation applies on the next request from any replica.
+- `GET /administrators`, `POST /administrators` (`username`, `password`, `role`), `PUT /administrators/{id}/role` (`role`): owner-only account management. An administrator cannot change their own role, and the workspace always keeps at least one owner.
+- `POST /reset-password` (`token`, `new_password`): redeems a single-use, expiring token minted host-side by `aegis-waf reset-admin-password`. Redemption rotates the password, clears MFA enrollment and revokes every session. There is no unauthenticated token creation and no email flow.
+
+Every state change here is audited transactionally: `administrator.created`, `administrator.role_changed`, `administrator.mfa_enrolled`, `administrator.mfa_disabled`, `administrator.password_changed`, `administrator.password_reset`, `administrator.reset_token_created` and `session.revoked`. Stored TOTP secrets are AES-256-GCM sealed with an administrator-bound AAD and are never returned by reads. These routes are dashboard/API-only and are not part of the MCP operation catalog; agent keys keep their own scope enforcement unchanged.
+
 ## Additional resources
 
 - [Policies and application assignments](policies.md).
