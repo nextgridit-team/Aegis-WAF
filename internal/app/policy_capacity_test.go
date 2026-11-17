@@ -42,6 +42,14 @@ func capacityFixture(t *testing.T) (testAPI, string, int64, *App) {
 	t.Helper()
 	cfg := testDB(t)
 	cfg.SnapshotCacheFile = filepath.Join(t.TempDir(), "snapshot")
+	return capacityFixtureWithConfig(t, cfg)
+}
+
+func capacityFixtureWithConfig(t *testing.T, cfg Config) (testAPI, string, int64, *App) {
+	t.Helper()
+	if cfg.SnapshotCacheFile == "" {
+		cfg.SnapshotCacheFile = filepath.Join(t.TempDir(), "snapshot")
+	}
 	a := newTestReplica(t, cfg)
 	management := httptest.NewServer(a.Management())
 	t.Cleanup(management.Close)

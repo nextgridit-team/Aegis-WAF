@@ -364,7 +364,7 @@ func checkAssignedRuleCapacity(ctx context.Context, tx pgx.Tx, replacementID int
 	}
 	return nil
 }
-func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
+func checkPolicyAssignments(ctx context.Context, tx pgx.Tx, managedLimit int) error {
 	var invalidSite bool
 	if e := tx.QueryRow(ctx, "SELECT EXISTS(SELECT site_id FROM policy_assignments GROUP BY site_id HAVING count(*) FILTER(WHERE cardinality(source_cidrs)=0)<>1 OR count(*)>10)").Scan(&invalidSite); e != nil {
 		return e
@@ -403,8 +403,8 @@ func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 	if e = rows.Err(); e != nil {
 		return e
 	}
-	if len(configurations) > managedConfigurationLimit {
-		return apiError{409, fmt.Sprintf("at most %d distinct active managed signature configurations", managedConfigurationLimit)}
+	if len(configurations) > managedLimit {
+		return apiError{409, fmt.Sprintf("at most %d distinct active managed signature configurations", managedLimit)}
 	}
 	return nil
 }
@@ -564,7 +564,7 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 				return e
 			}
 		}
-		if e = checkPolicyAssignments(ctx, tx); e != nil {
+		if e = checkPolicyAssignments(ctx, tx, a.managedEngineLimit()); e != nil {
 			return e
 		}
 		if _, e = tx.Exec(ctx, "INSERT INTO policy_revisions(policy_id,revision,spec,actor) SELECT id,revision,spec,$2 FROM policies WHERE id=$1", id, i.Username); e != nil {
@@ -728,7 +728,7 @@ func policyAPI(a *App, m *http.ServeMux) {
 			if tag.RowsAffected() != 1 {
 				return apiError{409, "policy changed; reload before rollback"}
 			}
-			if e = checkPolicyAssignments(ctx, tx); e != nil {
+			if e = checkPolicyAssignments(ctx, tx, a.managedEngineLimit()); e != nil {
 				return e
 			}
 			if _, e = tx.Exec(ctx, "INSERT INTO policy_revisions(policy_id,revision,spec,actor) SELECT id,revision,spec,$2 FROM policies WHERE id=$1", id, i.Username); e != nil {
@@ -764,7 +764,7 @@ func policyAPI(a *App, m *http.ServeMux) {
 			if tag.RowsAffected() != 1 {
 				return apiError{409, "policy changed or was removed; reload before deleting"}
 			}
-			if e = checkPolicyAssignments(r.Context(), tx); e != nil {
+			if e = checkPolicyAssignments(r.Context(), tx, a.managedEngineLimit()); e != nil {
 				return e
 			}
 			return audit(r.Context(), tx, i.Username, "policy.deleted", strconv.FormatInt(id, 10))

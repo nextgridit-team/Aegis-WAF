@@ -38,7 +38,7 @@ Eligible responses are buffered to EOF or the limit plus one byte **before clien
 
 There are 64 shared inspection reservations per replica. Request-only transactions close after inspection; their replay prefix releases its reservation when consumed or closed. Response-enabled transactions carry request state into the response phases and hold a reservation until the response prefix is forwarded/closed. Streaming responses release the request transaction after headers and reserve a slot only during each window check; idle streams and WebSockets do not retain an inspection slot. Early errors, redirects and cancellation also release reservations.
 
-Memory includes bounded connector prefixes and Coraza's own bounded buffers/collections. A body limit is not a total process-memory limit. Enabling response inspection increases memory residency and can reduce available inspection concurrency while upstreams are responding. There is no disk body spooling or new persistent volume. At most eight distinct active managed configurations are supported per replica.
+Memory includes bounded connector prefixes and Coraza's own bounded buffers/collections. A body limit is not a total process-memory limit. Enabling response inspection increases memory residency and can reduce available inspection concurrency while upstreams are responding. There is no disk body spooling or new persistent volume. Distinct active managed configurations are capped per replica by the compiled-engine budget (`MANAGED_ENGINE_LIMIT`, default 8, range 1–64).
 
 ## Investigation and exclusions
 

@@ -13,11 +13,28 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// managedConfigurationLimit is the compiled-engine budget per replica: every
-// distinct managed-signature configuration (the full serialized options) is
-// keyed by managedRuntimeKey and compiles one Coraza CRS engine per replica
-// at snapshot load. Raising it is a compile-time question, not a memory one.
+// managedConfigurationLimit is the default compiled-engine budget per replica
+// when MANAGED_ENGINE_LIMIT is unset: every distinct managed-signature
+// configuration (the full serialized options) is keyed by managedRuntimeKey
+// and compiles one Coraza CRS engine per replica at snapshot load. The
+// enforced value comes from Config.ManagedEngineLimit (see managedEngineLimit).
 const managedConfigurationLimit = 8
+
+// managedEngineMaxLimit caps MANAGED_ENGINE_LIMIT: each engine costs roughly
+// 54 MiB resident and ~45 ms compile at config refresh (see docs/benchmarks.md),
+// so the knob is bounded rather than unbounded.
+const managedEngineMaxLimit = 64
+
+// managedEngineLimit resolves the enforced budget: the configured value when
+// it is in range, otherwise the default. Configs built directly (tests, bare
+// App literals) carry the zero value and get the default, keeping unset
+// behavior byte-identical to the previous constant.
+func (a *App) managedEngineLimit() int {
+	if a.cfg.ManagedEngineLimit >= 1 && a.cfg.ManagedEngineLimit <= managedEngineMaxLimit {
+		return a.cfg.ManagedEngineLimit
+	}
+	return managedConfigurationLimit
+}
 
 type managedConfigurationPolicy struct {
 	ID   int64  `json:"id"`
@@ -126,7 +143,7 @@ func (a *App) policyCapacityReport(w http.ResponseWriter, r *http.Request, _ ide
 	if e != nil {
 		return e
 	}
-	report := managedCapacity{Limit: managedConfigurationLimit, Distinct: len(configurations), Configurations: []managedConfiguration{}}
+	report := managedCapacity{Limit: a.managedEngineLimit(), Distinct: len(configurations), Configurations: []managedConfiguration{}}
 	report.Remaining = max(0, report.Limit-report.Distinct)
 	for _, entry := range configurations {
 		report.Configurations = append(report.Configurations, *entry)
@@ -173,7 +190,7 @@ func (a *App) policyCapacityCheck(w http.ResponseWriter, r *http.Request, _ iden
 	if e != nil {
 		return e
 	}
-	result := policyCapacityCheckOutput{Limit: managedConfigurationLimit, Distinct: len(before), DifferingFields: []string{}}
+	result := policyCapacityCheckOutput{Limit: a.managedEngineLimit(), Distinct: len(before), DifferingFields: []string{}}
 	if options.Mode == "off" {
 		result.DistinctAfter = result.Distinct
 		respond(w, 200, result)
@@ -205,7 +222,7 @@ func (a *App) policyCapacityCheck(w http.ResponseWriter, r *http.Request, _ iden
 		after[managedRuntimeKey(options)] = &managedConfiguration{}
 	}
 	result.DistinctAfter = len(after)
-	result.Blocked = result.DistinctAfter > managedConfigurationLimit
+	result.Blocked = result.DistinctAfter > a.managedEngineLimit()
 	if result.WouldCreateNew {
 		if entry := nearestManagedConfiguration(before, options); entry != nil {
 			result.NearestPolicyID = entry.Policies[0].ID

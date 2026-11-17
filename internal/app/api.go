@@ -605,7 +605,7 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 		// against the post-save state on every site save, not only when an
 		// initial policy is attached. The site row above is already updated,
 		// so the distinct-active-config and capacity counts see this change.
-		if e := checkPolicyAssignments(r.Context(), tx); e != nil {
+		if e := checkPolicyAssignments(r.Context(), tx, a.managedEngineLimit()); e != nil {
 			return e
 		}
 		if e := validateAddressConsumers(r.Context(), tx); e != nil {

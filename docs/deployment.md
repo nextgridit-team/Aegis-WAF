@@ -122,6 +122,7 @@ The image runs as UID/GID 10001 by default and supports platform-assigned non-ro
 | `HTTPS_ADDR`                                  | `:8443`                                                                    |
 | `MANAGEMENT_ADDR`                             | `:9090`                                                                    |
 | `MANAGEMENT_TLS`                              | `false`; native HTTPS requires a previously stored matching certificate    |
+| `MANAGED_ENGINE_LIMIT`                        | `8`; distinct managed-signature engines per replica, 1–64 (see below)      |
 | `TMPDIR`                                      | `/tmp` in the image                                                        |
 | `SSL_CERT_FILE`, `SSL_CERT_DIR`               | Optional operational CA trust settings                                     |
 | `SNAPSHOT_CACHE_FILE`                         | Unset; opt-in absolute path to encrypted recovery snapshot                 |
@@ -130,6 +131,10 @@ The image runs as UID/GID 10001 by default and supports platform-assigned non-ro
 | `FORWARD_USE_ENV_PROXY`                       | `false`; route forwarded traffic through `HTTP(S)_PROXY` when set          |
 
 Set these in the container environment through your deployment configuration. Defining both a secret variable and its `_FILE` variant is an error. Only bootstrap/operational configuration belongs here; application settings belong in PostgreSQL. Online encryption-key rotation is not implemented: changing the key or key identifier alone makes existing encrypted records unreadable.
+
+### Managed-signature engine budget
+
+`MANAGED_ENGINE_LIMIT` (1–64, default 8) caps how many distinct managed-signature configurations each replica compiles into Coraza CRS engines. Policies with identical signature settings share one engine; each distinct combination costs roughly 54 MiB of resident memory and about 45 ms of compile time at every configuration refresh (see the [compile benchmark](benchmarks.md) — cost scales linearly), so raising the limit raises resident memory roughly linearly and adds refresh work. The dashboard's managed-signature chip and `GET /api/policy-capacity` always report the live value, and the save-time 409 names it. Take the per-engine cost from the benchmark into account against the host's memory: a replica at the default 8 engines already holds roughly 380–430 MiB, and a host that has OOM'd should not raise the limit without headroom. Restoring an encrypted snapshot whose cached engine count exceeds the currently configured limit fails closed: the replica discards the cache and performs full database startup (unchanged behavior, now limit-dependent).
 
 ## Administrator and certificate security
 
