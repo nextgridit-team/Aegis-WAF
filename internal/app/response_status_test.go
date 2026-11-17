@@ -158,12 +158,14 @@ func TestResponseStatusBreakdownIntegration(t *testing.T) {
 		}
 	}
 	c.call("PUT", fmt.Sprintf("/api/address-objects/%d", object), map[string]string{"name": "Renamed monitor", "value": "198.51.100.4"}, 200)
-	var logs []struct {
-		Peer    string
-		Objects []string `json:"client_objects"`
+	var logs struct {
+		Rows []struct {
+			Peer    string
+			Objects []string `json:"client_objects"`
+		} `json:"rows"`
 	}
 	json.Unmarshal(c.call("GET", "/api/access-logs", nil, 200), &logs)
-	if len(logs) == 0 || logs[0].Objects[0] != "Renamed monitor" {
+	if len(logs.Rows) == 0 || logs.Rows[0].Objects[0] != "Renamed monitor" {
 		t.Fatal("object rename not reflected")
 	}
 	var detail struct {

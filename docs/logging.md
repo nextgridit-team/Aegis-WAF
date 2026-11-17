@@ -4,6 +4,8 @@ Aegis sends completed public requests, committed administrative audits, MCP tool
 
 Database retention does not configure Docker, the host journal or a SIEM. Configure a collector and its own retention if you need longer history. No external destination is enabled automatically.
 
+Retained rows are navigable, not just stored. **Activity** filters the access log by application, decision, status, client IP or CIDR, request ID, host, rule, policy, path class and a from/to time window, with cursor-based paging that stays stable while new traffic arrives; the administrative audit trail filters by actor, action and time window (`GET /api/access-logs`, `GET /api/audit`). A filtered window exports to CSV or JSON through `GET /api/access-logs/export`, bounded at 10,000 rows — a larger window is rejected with the row count, never silently truncated, and exports carry only listing metadata (no request bodies, headers or captured samples). Retention still bounds what any of these can return: a six-hour traffic window does not provide a 24-hour investigation history.
+
 ## Event types
 
 | Record | Identification | Contents |

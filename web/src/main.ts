@@ -4,18 +4,18 @@ import {
   readUpstreamTLS,
 } from "./upstream-check";
 import { makeApplicationAccess } from "./application-access";
+import { makeActivityPage } from "./activity";
 import { makeApplications } from "./applications";
 import { installContextHelp } from "./context-help";
 import { botChallengeMarkup, readBotChallenge } from "./bot-challenge";
 import { makeLiveMap } from "./live-map";
-import { clientAddress } from "./response-status";
 import {
   makeAddressObjects,
   emptyInventory,
   type AddressInventory,
 } from "./address-objects";
 import { makeRequestDetails } from "./request-details";
-import { makeSignatureSetsUI, managedSignatureSummary } from "./signature-sets";
+import { makeSignatureSetsUI } from "./signature-sets";
 import type {
   Site,
   Certificate,
@@ -23,8 +23,6 @@ import type {
   DNSCredential,
   Job,
   Gateway,
-  Audit,
-  Access,
   State,
 } from "./types";
 import {
@@ -366,76 +364,7 @@ async function render() {
             )
           : '<div class="simple-empty">Connect a scoped Cloudflare API token, then select DNS-01 when requesting a certificate.</div>'
       }</section>`;
-  if (page === "activity") {
-    view.innerHTML =
-      heading(
-        "Activity",
-        "Administrative changes and recent requests to your applications.",
-        button("refresh", `${icon("refresh")}Refresh`, "secondary"),
-      ) + '<div class="loading">Loading activity…</div>';
-    const stamp = epoch;
-    const [audit, access] = await Promise.all([
-      api<Audit[]>("/audit"),
-      api<Access[]>("/access-logs"),
-    ]);
-    if (stamp !== epoch || page !== "activity") return;
-    view.innerHTML =
-      heading(
-        "Activity",
-        "Administrative changes and recent requests to your applications.",
-        button("refresh", `${icon("refresh")}Refresh`, "secondary"),
-      ) +
-      `<section class="section"><div class="section-heading"><h2>Administrative audit</h2><span class="muted">Latest 200 events</span></div>${
-        audit.length
-          ? table(
-              ["Time", "Administrator", "Action", "Resource"],
-              audit.map((a) => [
-                esc(dateTime(a.at)),
-                esc(a.actor),
-                esc(a.action),
-                esc(a.resource),
-              ]),
-              "Administrative audit",
-            )
-          : '<div class="simple-empty">Administrative changes will appear here.</div>'
-      }</section><section class="section"><div class="section-heading"><h2>Application requests</h2><span class="muted">Latest 200 requests</span></div>${
-        access.length
-          ? table(
-              [
-                "Time",
-                "Site / sender",
-                "Request",
-                "Rule outcomes",
-                "Duration",
-                "",
-              ],
-              access.map((a) => [
-                esc(dateTime(a.at)),
-                `${a.site_id}<div>${clientAddress(a.peer, a.client_objects)}</div>${a.policy_name ? `<small>${esc(a.policy_name)} · v${a.policy_revision}</small>` : ""}${managedSignatureSummary(a.managed_signatures, esc)}`,
-                `${esc(a.method)} · ${a.status}`,
-                [
-                  ...(a.rule_results || []).map(
-                    (r) =>
-                      `#${r.rule_id} · ${esc(r.action)} · ${esc(r.result)}`,
-                  ),
-                  ...(a.protection_exemptions || []).map((v) =>
-                    esc(
-                      v === "http_flood"
-                        ? "HTTP flood exempt"
-                        : v === "anti_bot"
-                          ? "Anti-bot exempt"
-                          : v,
-                    ),
-                  ),
-                ].join("<br>") || "—",
-                `${a.duration_ms} ms`,
-                `<button type="button" class="secondary compact" data-action="request-details" data-id="${a.id}">View details</button>`,
-              ]),
-              "Application requests",
-            )
-          : '<div class="simple-empty">Requests appear after a proxy host starts receiving traffic.</div>'
-      }</section>`;
-  }
+  if (page === "activity") await activityPage.render(view, state.sites);
   if (page === "rules" || page === "traffic") {
     const stamp = epoch;
     view.innerHTML = '<div class="loading">Loading policy workspace…</div>';
@@ -831,6 +760,7 @@ const alertsPage = makeAlertsPage({
   openEditor,
   closeEditor,
 });
+const activityPage = makeActivityPage({ api, handleError });
 const applicationAccessPage = makeApplicationAccess({
   api,
   formHandler,

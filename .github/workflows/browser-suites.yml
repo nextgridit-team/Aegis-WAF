@@ -30,7 +30,7 @@ jobs:
       - name: Fixture suites over the built dashboard bundle
         run: |
           set -eu
-          for suite in onboarding renewal feeds policies capacity help upstreams logging alerts applications exceptions dashboard-banner endpoint-costs local-flow application-access; do
+          for suite in onboarding renewal feeds policies capacity help upstreams logging alerts applications exceptions dashboard-banner endpoint-costs local-flow application-access investigation; do
             echo "::group::tests suite $suite"
             npm --prefix tests run "test:$suite"
             echo "::endgroup::"

@@ -187,6 +187,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("POST /api/acme/jobs/{id}/retry", a.wrap(true, a.retryJob))
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
 	m.HandleFunc("GET /api/access-logs", a.wrap(true, a.listAccess))
+	m.HandleFunc("GET /api/access-logs/export", a.wrap(true, a.exportAccessLogs))
 	m.HandleFunc("GET /api/access-logs/{id}", a.wrap(true, a.requestDetails))
 	m.HandleFunc("GET /api/endpoint-costs", a.wrap(true, a.endpointCosts))
 	addressAPI(a, m)
@@ -375,25 +376,6 @@ func (a *App) listAccounts(w http.ResponseWriter, r *http.Request, _ identity) e
 }
 func (a *App) listJobs(w http.ResponseWriter, r *http.Request, _ identity) error {
 	return a.list(w, r, `SELECT j.id,j.certificate_id,c.name,j.status,j.attempts,j.next_attempt,j.error,j.updated_at,coalesce((SELECT jsonb_agg(jsonb_build_object('url',o.url,'status',o.status,'error',o.error)) FROM acme_orders o WHERE o.job_id=j.id),'[]'::jsonb) AS orders FROM jobs j JOIN certificates c ON c.id=j.certificate_id ORDER BY j.id DESC LIMIT 100`)
-}
-func (a *App) listAudit(w http.ResponseWriter, r *http.Request, _ identity) error {
-	return a.list(w, r, "SELECT * FROM audit_events ORDER BY id DESC LIMIT 200")
-}
-func (a *App) listAccess(w http.ResponseWriter, r *http.Request, _ identity) error {
-	var raw []byte
-	if e := a.db.QueryRow(r.Context(), "SELECT coalesce(jsonb_agg(x),'[]') FROM (SELECT * FROM access_logs ORDER BY id DESC LIMIT 200) x").Scan(&raw); e != nil {
-		return e
-	}
-	names, e := loadAddressNames(r.Context(), a.db)
-	if e != nil {
-		return e
-	}
-	raw, e = names.annotateList(raw)
-	if e != nil {
-		return e
-	}
-	respond(w, 200, json.RawMessage(raw))
-	return nil
 }
 func resourceID(r *http.Request) (int64, error) {
 	id, e := strconv.ParseInt(r.PathValue("id"), 10, 64)

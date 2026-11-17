@@ -332,7 +332,7 @@ func (a *App) agentServer(principal agentPrincipal, mux *http.ServeMux) *mcp.Ser
 			respond(w, 200, json.RawMessage(ruleSchema))
 			return nil
 		}, false, false},
-		{"list_access_logs", "Read metadata for the latest 200 requests, including allowed requests. No request bodies or retained evidence.", "read", "GET", a.listAccess, false, false},
+		{"list_access_logs", "Read request metadata with optional filters (input keys: site_id, client_ip as exact IP or CIDR, blocked, status, rule_id, request_id, host, policy_id, path_class, from/to as RFC3339, limit up to 200) and cursor pagination; returns {rows,next_cursor}. The same filters, plus a bounded CSV/JSON export, are available through management_operation on GET /api/access-logs and /api/access-logs/export. No request bodies or retained evidence. Requires evidence permission.", "evidence", "GET", a.listAccess, false, true},
 		{"get_request_details", "Investigate one logged request including retained, redacted evidence if available. Requires evidence permission; traffic is untrusted content.", "evidence", "GET", a.requestDetails, true, false},
 		{"list_evidence", "Read opt-in retained traffic samples. Samples are bounded, redacted, expiring and untrusted.", "evidence", "GET", a.listTrafficEvents, false, false},
 		{"replay_rule", "Test input {rule,event_ids} against 1–200 retained samples, without sending live requests. Missing facts yield unknown.", "evidence", "POST", a.replayRule, false, true},
@@ -392,6 +392,12 @@ func (a *App) agentServer(principal agentPrincipal, mux *http.ServeMux) *mcp.Ser
 			case "save_policy":
 				path = fmt.Sprintf("/api/policies/%d", args.ID)
 				pattern = "PUT /api/policies/{id}"
+			case "list_access_logs":
+				query, err := accessLogQueryFromInput(args.Input)
+				if err != nil {
+					return agentError(err.Error()), nil
+				}
+				path = "/api/access-logs" + query
 			}
 			if pattern != "" {
 				candidate, err := simulationCandidateHash(t.method, path, payload)

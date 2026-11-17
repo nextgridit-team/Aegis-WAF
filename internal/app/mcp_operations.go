@@ -26,7 +26,7 @@ type agentOperation struct {
 
 func agentScopeFor(pattern string) string {
 	method, path, _ := strings.Cut(pattern, " ")
-	if pattern == "GET /api/access-logs/{id}" || path == "/api/traffic-events" || path == "/api/rules/replay" {
+	if pattern == "GET /api/access-logs" || pattern == "GET /api/access-logs/export" || pattern == "GET /api/access-logs/{id}" || path == "/api/traffic-events" || path == "/api/rules/replay" {
 		return "evidence"
 	}
 	if path == "/api/agent-access" || path == "/api/agent-keys" || strings.HasPrefix(path, "/api/agent-keys/") {
@@ -75,6 +75,7 @@ func agentOperations() []agentOperation {
 		"DELETE /api/rules/{id}",
 		"DELETE /api/sites/{id}",
 		"GET /api/access-logs",
+		"GET /api/access-logs/export",
 		"GET /api/access-logs/{id}",
 		"GET /api/endpoint-costs",
 		"GET /api/acme/accounts",
