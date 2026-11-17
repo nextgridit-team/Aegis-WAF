@@ -108,9 +108,9 @@ func applicationPage(w http.ResponseWriter, status int, title, message, action, 
 	w.WriteHeader(status)
 	_ = applicationLoginTemplate.Execute(w, map[string]any{"Title": title, "Message": message, "Action": action, "CSRF": csrf, "Return": returnTo, "Button": button, "Login": login})
 }
-func (a *App) logApplicationAuthRequest(r *http.Request, site Site, start time.Time, status int) {
+func (a *App) logApplicationAuthRequest(r *http.Request, site Site, start time.Time, status int, requestID string) {
 	peer, _, _ := net.SplitHostPort(r.RemoteAddr)
-	event := accessEvent{at: time.Now(), host: requestHost(r.Host), site: site.ID, siteName: site.Name, method: r.Method, status: status, duration: time.Since(start).Milliseconds(), peer: peer, responseSource: "application_auth", blocked: status >= 400}
+	event := accessEvent{at: time.Now(), host: requestHost(r.Host), site: site.ID, siteName: site.Name, method: r.Method, status: status, duration: time.Since(start).Milliseconds(), peer: peer, responseSource: "application_auth", blocked: status >= 400, requestID: requestID}
 	if status >= 400 {
 		event.signals = []string{"application_auth"}
 	}
@@ -224,7 +224,10 @@ func (a *App) applicationAccessGate(w http.ResponseWriter, r *http.Request, site
 	handled := true
 	defer func() {
 		if handled {
-			a.logApplicationAuthRequest(r, site, start, rec.status)
+			// The correlation ID was stamped on the response headers before
+			// the gate ran, so the access row carries the same value the
+			// visitor can quote from X-Request-ID — no independent backfill.
+			a.logApplicationAuthRequest(r, site, start, rec.status, w.Header().Get("X-Request-Id"))
 		}
 	}()
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)

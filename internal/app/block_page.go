@@ -27,7 +27,7 @@ func wantsJSONResponse(r *http.Request) bool {
 	}
 	for _, value := range r.Header.Values("Accept") {
 		for _, part := range strings.Split(value, ",") {
-			if strings.TrimSpace(strings.SplitN(part, ";", 2)[0]) == "application/json" {
+			if strings.EqualFold(strings.TrimSpace(strings.SplitN(part, ";", 2)[0]), "application/json") {
 				return true
 			}
 		}
@@ -110,7 +110,7 @@ func validateBlockPageText(field, value string, maxChars int) error {
 		return invalid(field + " must be at most " + strconv.Itoa(maxChars) + " bytes")
 	}
 	for _, r := range value {
-		if r < 0x20 || r == 0x7f {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
 			return invalid(field + " must be plain text without control characters")
 		}
 	}

@@ -501,6 +501,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	s := a.active.Load()
 	if s == nil {
 		a.prom.recordHTTP(503, "unrouted", "blocked")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "configuration unavailable", 503)
 		a.logEarlyRequest(r, started, 503, "gateway_error", "configuration_unavailable", requestID)
 		return
@@ -508,12 +509,14 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	rt := s.routes[requestHost(r.Host)]
 	if rt == nil {
 		a.prom.recordHTTP(421, "unrouted", "blocked")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "unknown hostname", 421)
 		a.logEarlyRequest(r, started, 421, "gateway_error", "unknown_hostname", requestID)
 		return
 	}
 	if r.TLS != nil && requestHost(r.TLS.ServerName) != requestHost(r.Host) {
 		a.prom.recordHTTP(421, "unrouted", "blocked")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "SNI and Host must match", 421)
 		a.logEarlyRequest(r, started, 421, "gateway_error", "sni_host_mismatch", requestID)
 		return

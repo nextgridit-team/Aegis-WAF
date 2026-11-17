@@ -3,6 +3,8 @@ package app
 import (
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -85,5 +87,30 @@ func TestIdentityHTTPBoundaries(t *testing.T) {
 	request, _ = http.NewRequest("GET", "https://provider.test/keys", nil)
 	if _, err := transport.RoundTrip(request); err == nil || !called {
 		t.Fatal("oversized provider response accepted")
+	}
+}
+
+// The correlation ID stamped on the response must equal the request_id stored
+// on the application-auth access row — including denials — so a visitor can
+// quote X-Request-ID and find the matching row.
+func TestApplicationAuthCorrelationIDMatchesResponseHeader(t *testing.T) {
+	cfg := testDB(t)
+	cfg.SnapshotCacheFile = filepath.Join(t.TempDir(), "snapshot")
+	a := newTestReplica(t, cfg)
+	a.active.Store(&snapshot{version: 1, routes: map[string]*route{"app.example.com": {site: Site{ID: 1}}}})
+	r := httptest.NewRequest("GET", "http://app.example.com"+applicationAuthPrefix+"login", nil)
+	r.RemoteAddr = "192.0.2.10:1234"
+	w := httptest.NewRecorder()
+	a.Public(w, r)
+	headerID := w.Header().Get("X-Request-Id")
+	if headerID == "" {
+		t.Fatal("application-auth response carries no X-Request-ID")
+	}
+	event := <-a.access
+	if event.responseSource != "application_auth" {
+		t.Fatalf("response source = %q, want application_auth", event.responseSource)
+	}
+	if event.requestID != headerID {
+		t.Fatalf("row request_id %q != response header %q", event.requestID, headerID)
 	}
 }
