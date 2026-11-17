@@ -15,6 +15,7 @@
     "test:applications": "node applications-ui.cjs",
     "test:exceptions": "node policy-exceptions-strict.cjs",
     "test:dashboard-banner": "node dashboard-banner-ui.cjs",
+    "test:endpoint-costs": "node endpoint-costs-ui.cjs",
     "test:local-flow": "node local-flow-ui.cjs",
     "test:application-access": "node application-access-ui.cjs"
   },

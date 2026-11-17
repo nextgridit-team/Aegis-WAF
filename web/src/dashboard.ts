@@ -99,6 +99,22 @@ export type Report = {
     protection_exemptions?: string[];
   }[];
 };
+export type EndpointCost = {
+  path_class: string;
+  requests: number;
+  blocked: number;
+  forwarded: number;
+  total_p50_ms: number;
+  total_p95_ms: number;
+  added_p50_ms: number;
+  added_p95_ms: number;
+  top_rules: { rule_id: number; group?: string; count: number }[];
+};
+export type EndpointCostReport = {
+  site_id: number;
+  hours: number;
+  endpoints: EndpointCost[];
+};
 type Deps = {
   api: <T>(path: string, method?: string, body?: unknown) => Promise<T>;
   esc: (v: unknown) => string;
@@ -147,6 +163,47 @@ const countryName = (code: string) => {
     return code;
   }
 };
+const milliseconds = (n: number) => `${format(n)} ms`;
+function costPanel(
+  scope: string,
+  costs: EndpointCostReport | null,
+  sites: Site[],
+  table: Deps["table"],
+  esc: (v: unknown) => string,
+  format: (n: number) => string,
+) {
+  const appName = sites.find((s) => String(s.id) === scope)?.name;
+  const body = costs
+    ? costs.endpoints.length
+      ? table(
+          [
+            "Endpoint",
+            "Requests",
+            "Blocked",
+            "Total p50 / p95",
+            "WAF-added p50 / p95",
+            "Top rules",
+          ],
+          costs.endpoints.map((e) => [
+            `<code>${esc(e.path_class)}</code>`,
+            format(e.requests),
+            `${format(e.blocked)}`,
+            `${milliseconds(e.total_p50_ms)} / ${milliseconds(e.total_p95_ms)}`,
+            `${milliseconds(e.added_p50_ms)} / ${milliseconds(e.added_p95_ms)}`,
+            e.top_rules.length
+              ? e.top_rules
+                  .map((rule) =>
+                    `${esc(rule.group || `rule ${rule.rule_id}`)} ×${format(rule.count)}`,
+                  )
+                  .join(", ")
+              : "—",
+          ]),
+          "Cost of protection",
+        )
+      : '<p class="muted">No requests reached this application in the trailing hour.</p>'
+    : '<p class="muted">Select a single application to see what protection costs per endpoint.</p>';
+  return `<section class="dashboard-panel"><div class="section-heading"><h2>Cost of protection</h2><span class="muted">${scope ? `Trailing hour${appName ? ` · ${esc(appName)}` : ""}` : "Per application"}</span></div>${body}<p class="muted">Total is the full request duration; WAF-added is total minus the measured upstream service time, over forwarded requests. Endpoints group dynamic segments ({id}, {uuid}, {hash}); query strings are excluded and at most 256 classes are tracked per application, with the rest folded into <code>other</code>.</p></section>`;
+}
 export function makeDashboardUI(d: Deps) {
   const { api, esc, heading, table } = d;
   let selectedCountry = "",
@@ -316,6 +373,12 @@ export function makeDashboardUI(d: Deps) {
         "/protection-settings",
       );
       if (stamp !== serial || !target.isConnected) return;
+      const costs = scope
+        ? await api<EndpointCostReport>(
+            `/endpoint-costs?site_id=${scope}&hours=1`,
+          )
+        : null;
+      if (stamp !== serial || !target.isConnected) return;
       const scoped = scope
         ? sites.filter((s) => String(s.id) === scope)
         : sites;
@@ -357,6 +420,7 @@ export function makeDashboardUI(d: Deps) {
      ),
      "No bot or flood signals in this time range.",
    )}<p class="muted">Signals indicate suspicious requests. User-agent signals can be spoofed and do not prove a visitor is a bot.</p></section>
+   ${costPanel(scope, costs, sites, table, esc, format)}
    <section class="dashboard-panel"><div class="section-heading"><h2>Application protection</h2><button class="text-button" data-action="protection">Configure protection</button></div>${rowList(
      scoped.map((s) => {
        const p =
