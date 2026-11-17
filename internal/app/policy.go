@@ -402,7 +402,7 @@ func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 	if e = rows.Err(); e != nil {
 		return e
 	}
-	if len(configurations) > 8 {
+	if len(configurations) > managedConfigurationLimit {
 		return apiError{409, "at most eight distinct active managed signature configurations"}
 	}
 	return nil

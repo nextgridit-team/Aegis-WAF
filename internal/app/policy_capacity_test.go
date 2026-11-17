@@ -172,6 +172,37 @@ func TestPolicyCapacityPreflight(t *testing.T) {
 	if result = check(0, off); result.WouldCreateNew || result.Blocked {
 		t.Fatalf("disabled signatures flagged: %+v", result)
 	}
+	// An unassigned policy mints no engine even at 8/8: the preflight must
+	// model the policy's actual assignments, not a hypothetical one, so an
+	// edit that would save fine is not refused up front.
+	unassignedInput := capacityPolicy("Posture unassigned", setID, site, 77, false)
+	unassignedInput.Applications = nil
+	unassigned := mustID(t, api.call("POST", "/api/policies", unassignedInput, 200))
+	if result = check(unassigned, options); result.WouldCreateNew || result.Blocked || result.DistinctAfter != 8 {
+		t.Fatalf("unassigned policy modeled as engine-occupying: %+v", result)
+	}
+	// A new policy stays conservative: its save typically carries the
+	// assignments that mint the engine.
+	if result = check(0, options); !result.WouldCreateNew || !result.Blocked || result.DistinctAfter != 9 {
+		t.Fatalf("new policy not modeled conservatively: %+v", result)
+	}
 	// Invalid candidate options surface before the save attempt.
 	api.call("POST", "/api/policy-capacity/check", map[string]any{"policy_id": 0, "mode": "observe", "options": managedSignatureOptions{SetID: setID, Mode: "observe", Exclusions: []int{999999}}}, 400)
+}
+
+// The capacity report is documented for agents; the MCP operation allowlist
+// must carry the read pattern so an agent can discover engine usage.
+func TestPolicyCapacityAgentAllowlist(t *testing.T) {
+	found := false
+	for _, op := range agentOperations() {
+		if op.Pattern == "GET /api/policy-capacity" {
+			found = true
+			if op.Scope != "read" {
+				t.Fatalf("policy-capacity read has scope %s", op.Scope)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("GET /api/policy-capacity missing from the agent operation allowlist")
+	}
 }
