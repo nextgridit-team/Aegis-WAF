@@ -18,10 +18,21 @@ on:
   schedule:
     - cron: '17 7 * * *'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: 'Version tag to publish (for example v0.1.0); empty publishes the main build'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      digest:
+        description: "Digest of the published image"
+        value: ${{ jobs.build-publish.outputs.digest }}
 permissions:
   contents: read
 concurrency:
-  group: application-image-main
+  group: application-image-${{ inputs.release_tag || 'main' }}
   cancel-in-progress: false
 jobs:
   security-regressions:
@@ -32,12 +43,14 @@ jobs:
     uses: ./.github/workflows/browser-suites.yml
   build-publish:
     needs: [security-regressions, community-rules, browser-suites]
-    if: github.ref == 'refs/heads/main'
+    if: inputs.release_tag != '' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
     env:
       IMAGE: ghcr.io/nextgridit-team/aegis-waf
       TEST_REDIS_ADDRESS: 127.0.0.1:6379
@@ -111,10 +124,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish immutable build and moving latest
+      - name: Publish immutable build, moving latest and release tag
+        id: publish
         env:
           BUILD_TAG: ${{ steps.image.outputs.build_tag }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           docker push "$IMAGE:$BUILD_TAG"
-          docker push "$IMAGE:latest"
-          echo "Published $IMAGE:latest and $IMAGE:$BUILD_TAG" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$RELEASE_TAG" ]; then
+            docker tag "$IMAGE:$BUILD_TAG" "$IMAGE:$RELEASE_TAG"
+            docker push "$IMAGE:$RELEASE_TAG"
+          else
+            docker push "$IMAGE:latest"
+          fi
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$BUILD_TAG" | cut -d@ -f2)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "Published $IMAGE:$BUILD_TAG ($digest)" >> "$GITHUB_STEP_SUMMARY"

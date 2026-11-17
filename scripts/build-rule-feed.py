@@ -74,6 +74,17 @@ new = {
     'revision': version,
     'package': {'path': package.name, 'sha256': hashlib.sha256(raw).hexdigest(), 'rule_count': rule_count, 'size_bytes': len(raw)},
 }
+# A release signature covers the package bytes and survives regeneration while
+# those bytes are unchanged; a changed package drops it until the release
+# workflow signs the new archive.
+signature = old.get('signature') if old else None
+if signature is not None:
+    if (not isinstance(signature, dict) or signature.get('algorithm') != 'cosign-keyless-v1'
+            or not isinstance(signature.get('certificate'), str) or not isinstance(signature.get('value'), str)
+            or not isinstance(signature.get('integrated_time_ms'), int) or isinstance(signature.get('integrated_time_ms'), bool)):
+        raise SystemExit('Existing release signature is malformed; remove it and re-sign the release')
+    if old['package']['sha256'] == new['package']['sha256']:
+        new['signature'] = signature
 if old and new != old:
     new['revision'] += 1
 text = json.dumps(new, indent=2) + '\n'

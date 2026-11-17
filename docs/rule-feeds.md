@@ -63,7 +63,7 @@ Increment a rule's revision whenever its bytes change; run `python3 scripts/buil
 
 Limits: 20 sources, 4 KiB descriptor, 2000 rules/package, 8 MiB compressed and expanded package, 64 KiB/member, 2000 stored catalogue entries, 2–16 regression cases/rule, 30-second overall download and 20-second individual requests. Removed entries still consume catalogue capacity until their source is removed. Policy execution remains separately bounded at 100 effective rules/policy and 1000 assigned rules globally; a larger catalogue does not raise those execution budgets. Full packages are downloaded when changed; delta updates are not implemented.
 
-Checksums verify package bytes against the downloaded descriptor. **They are not publisher signatures**: trust the publisher and HTTPS source. This format carries bounded declarative signatures, never executable plugins or remote scripts. NASL, Nuclei, ModSecurity/CRS, Suricata, YARA and arbitrary vendor feeds need an explicit converter.
+Checksums verify package bytes against the downloaded descriptor. The official release additionally carries a cosign keyless signature the client verifies against the pinned Aegis release identity; a sync of the official source without a valid signature is refused. **Custom sources are not publisher-verified**: they are labelled as untrusted sources and never inherit official trust, so evaluate the publisher and HTTPS source yourself. This format carries bounded declarative signatures, never executable plugins or remote scripts. NASL, Nuclei, ModSecurity/CRS, Suricata, YARA and arbitrary vendor feeds need an explicit converter.
 
 ## Upgrade compatibility
 
