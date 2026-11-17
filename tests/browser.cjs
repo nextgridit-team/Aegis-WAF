@@ -1195,7 +1195,7 @@ const { execFileSync } = require("node:child_process");
     }
     await dialog().getByRole("button",{name:"Close",exact:true}).click();
     await nav("Activity").click();
-    const logged=await (await page.request.get(base+"/api/access-logs")).json();
+    const logged=(await (await page.request.get(base+"/api/access-logs")).json()).rows;
     for(const outcome of ["allowed","flagged","blocked"]){
       const entry=logged.find(event=>outcome==="blocked"?event.blocked:outcome==="flagged"?!event.blocked&&(event.signals.length>0||event.rule_results.some(r=>r.result==="matched"&&r.action==="observe")):!event.blocked&&!event.signals.length&&!event.rule_results.some(r=>r.result==="matched"&&r.action==="observe"));
       assert.ok(entry,"missing "+outcome+" fixture request");
@@ -1227,7 +1227,7 @@ const { execFileSync } = require("node:child_process");
     await dialog().getByRole("button",{name:"Save local location",exact:true}).click();
     await message("Local location saved").waitFor();
     assert.equal((await (await page.request.get(base+"/api/geolocation/local")).json()).public_ip,"216.160.83.56");
-    const loggedPeer=await page.evaluate(async()=>{const response=await fetch('/api/access-logs');return (await response.json())[0].peer;});
+    const loggedPeer=await page.evaluate(async()=>{const response=await fetch('/api/access-logs');return (await response.json()).rows[0].peer;});
     await nav("Address objects").click();
     await page.getByRole("button",{name:"New object",exact:true}).click();
     await dialog().getByLabel("Name",{exact:true}).fill("Recorded client");
@@ -1292,7 +1292,7 @@ const { execFileSync } = require("node:child_process");
     await page.waitForTimeout(1900);
     assert.equal(await flow.locator('.local-flow-packet').count(),0,'idle feed must not generate synthetic pulses');
     await eventually(async()=>{
-      const events=await (await page.request.get(base+"/api/access-logs")).json();
+      const events=(await (await page.request.get(base+"/api/access-logs")).json()).rows;
       const local=events.find(event=>event.peer===loggedPeer&&event.location_source?.startsWith("local_"));
       assert.ok(local,"new requests should carry local display-location provenance");
       assert.equal(local.location_reference_ip,"216.160.83.56");
@@ -1313,7 +1313,7 @@ const { execFileSync } = require("node:child_process");
     await eventually(async()=>assert.equal(await liveLog.getByText(/Local network ·/).count(),0));
     const externalFeed=await (await page.request.get(base+'/api/live-traffic?exclude_local=true')).json();
     assert.ok(externalFeed.events.every(event=>!event.location_source?.startsWith('local_')));
-    const retainedLocal=await (await page.request.get(base+'/api/access-logs')).json();
+    const retainedLocal=(await (await page.request.get(base+'/api/access-logs')).json()).rows;
     assert.ok(retainedLocal.some(event=>event.location_source?.startsWith('local_')),'hiding local traffic must retain logs');
     await page.getByRole("link",{name:"Back to dashboard",exact:true}).click();
     await page.getByRole('checkbox',{name:'Hide local traffic on maps',exact:true}).waitFor();

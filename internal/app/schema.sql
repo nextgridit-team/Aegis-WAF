@@ -251,3 +251,16 @@ ALTER TABLE sites ADD COLUMN IF NOT EXISTS block_title text NOT NULL DEFAULT '';
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS block_contact text NOT NULL DEFAULT '';
 ALTER TABLE sites ADD COLUMN IF NOT EXISTS block_reference text NOT NULL DEFAULT '';
 INSERT INTO schema_version VALUES (29) ON CONFLICT DO NOTHING;
+
+-- Version 30: investigation history. Keyset indexes backing the (at,id)
+-- cursor pagination (descending so the ORDER BY needs no sort node), a btree
+-- for exact request-ID correlation lookup, a GIN jsonb_path_ops index for
+-- rule-ID containment over rule_results, and the audit keyset index. Peers are
+-- only indexed as text here; the CIDR filter evaluates inet containment at
+-- query time over the keyset-ordered scan.
+CREATE INDEX IF NOT EXISTS access_logs_at_id ON access_logs(at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS access_logs_site_at_id ON access_logs(site_id, at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS access_logs_request_id ON access_logs(request_id);
+CREATE INDEX IF NOT EXISTS access_logs_rule_results ON access_logs USING gin(rule_results jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS audit_events_at_id ON audit_events(at DESC, id DESC);
+INSERT INTO schema_version VALUES (30) ON CONFLICT DO NOTHING;
