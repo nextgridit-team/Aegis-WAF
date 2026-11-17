@@ -12,7 +12,8 @@
     "test:upstreams": "node upstream-ui.cjs",
     "test:logging": "node log-retention-ui.cjs",
     "test:alerts": "node alerts-ui.cjs",
-    "test:applications": "node applications-ui.cjs"
+    "test:applications": "node applications-ui.cjs",
+    "test:exceptions": "node policy-exceptions-strict.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
