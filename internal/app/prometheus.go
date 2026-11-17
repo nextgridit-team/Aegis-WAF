@@ -109,7 +109,11 @@ func (p *gatewayTelemetry) observeEvent(event accessEvent) {
 		} else if event.bot.Decision != "" && event.bot.Decision != "allow" {
 			rule = "bot"
 		} else if len(event.signals) > 0 {
-			rule = "signal"
+			// Attribute to the primary signal instead of one undifferentiated
+			// bucket, so flood_capacity_exceeded is distinguishable from
+			// client_rate in aegis_requests_total. Signals are a fixed
+			// vocabulary, so cardinality stays bounded.
+			rule = event.signals[0]
 		}
 	}
 	action := "allowed"

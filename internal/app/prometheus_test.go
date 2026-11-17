@@ -199,3 +199,27 @@ func TestPrometheusAgentMiddlewarePrivacy(t *testing.T) {
 		t.Fatal("unstructured or unsafe MCP log", e)
 	}
 }
+
+// Signal-only requests attribute to their primary signal instead of one
+// undifferentiated bucket, so flood_capacity_exceeded stays distinguishable
+// from client_rate in aegis_requests_total.
+func TestPrometheusPerSignalAttribution(t *testing.T) {
+	a := &App{}
+	p := newGatewayTelemetry(a)
+	a.prom = p
+	p.observeEvent(accessEvent{status: 200, signals: []string{"flood_capacity_exceeded"}})
+	p.observeEvent(accessEvent{status: 200, signals: []string{"client_rate", "flood_capacity_exceeded"}})
+	p.observeEvent(accessEvent{status: 200, signals: []string{"bot_rate_capacity_exceeded"}})
+	if prometheusCounter(t, p, "aegis_requests_total", map[string]string{"status": "200", "rule_id": "flood_capacity_exceeded"}) != 1 {
+		t.Fatal("capacity signal not attributed by name")
+	}
+	if prometheusCounter(t, p, "aegis_requests_total", map[string]string{"status": "200", "rule_id": "client_rate"}) != 1 {
+		t.Fatal("primary signal not attributed by name")
+	}
+	if prometheusCounter(t, p, "aegis_requests_total", map[string]string{"status": "200", "rule_id": "bot_rate_capacity_exceeded"}) != 1 {
+		t.Fatal("bot capacity signal not attributed by name")
+	}
+	if prometheusCounter(t, p, "aegis_requests_total", map[string]string{"status": "200", "rule_id": "signal"}) != 0 {
+		t.Fatal("undifferentiated signal bucket still present")
+	}
+}

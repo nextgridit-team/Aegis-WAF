@@ -36,13 +36,19 @@ Public receivers require verified HTTPS. Explicitly enable **Allow private-netwo
 | Certificate expiration           | Any scoped certificate already expired or expiring within threshold days (1–90); global includes unassigned certificates     |
 | ACME renewal / issuance failures | At least threshold currently retrying jobs with prior failures; scoped through assigned certificates                         |
 | Signature inspection saturation  | At least threshold requests that skipped signature inspection because the inspection pool was full                           |
-| Stale rule feeds                   | Any rule feed with a recorded sync error or whose last successful sync is older than threshold hours (1–2160)                  |
+| Stale rule feeds                   | Any rule feed with a recorded sync error or whose last successful sync is older than threshold hours (1–2160)            |
+| Flood-limiter capacity exceeded     | At least threshold requests admitted unmetered because the per-replica flood-limiter map was full                          |
+| Plaintext management listener        | This replica serves the management interface over plaintext on a non-loopback bind (fires on any occurrence; threshold 1)  |
 
 Threshold counts accept 1–1,000,000. Cooldowns accept 1–10,080 minutes. All rules are evaluated about every ten seconds while PostgreSQL is available. New or edited volume rules begin at save time, and later volume alerts count events newer than their previous emission within the rolling window. Cooldown suppresses repeat notifications from that trigger; it does not suppress WAF enforcement. Persistent certificate/ACME conditions can alert again after cooldown. There are no automatic recovery notifications, per-signature filters or built-in severity/escalation rules in this first implementation.
 
 Signature inspection saturation means the inspection pool was full, so requests were not inspected by managed signatures: observe policies allow uninspected traffic (fail-open) while block policies reject it with 503. Either way the signatures were not checked — treat it as an operational incident (inspection capacity, a stuck request or a dead upstream behind managed signatures), not a traffic pattern.
 
 Stale rule feeds means a rule feed failed its latest sync or has not completed one within the threshold window. Protections keep running on the last pinned snapshot, so staleness is an operational signal — connectivity, credentials or upstream feed changes — not an attack indicator. Alert details name each affected feed and its reason.
+
+Flood-limiter capacity means the per-replica flood map was full, so first-time clients were admitted unmetered with the `flood_capacity_exceeded` signal — existing clients keep their budgets, but enforcement is degraded while the map is pinned; investigate an IP-spray (see [shared rate state](shared-rate-state.md)).
+
+Plaintext management listener means this replica serves the management interface over plaintext on a non-loopback bind — admin sessions, API keys and MCP tokens cross the network unencrypted. The condition clears only with a loopback bind or `MANAGEMENT_TLS` enabled; a TLS-terminating proxy in front does not clear it.
 
 Evaluation and delivery run asynchronously in each complete app replica. PostgreSQL row locks and delivery leases coordinate replicas; there is no external worker image. Creation of an alert, its selected enabled-destination jobs and its cooldown update is transactional. Failed delivery uses exponential backoff (30 seconds, one, two and four minutes), up to five attempts, with visible generic errors. A disabled destination pauses pending jobs; alerts raised while it is disabled do not enqueue it. Delivery is **at least once**, so a crash after an external send can cause a retry. Deduplicate by alert ID at the receiver. Disabling or deleting a destination cannot recall an in-flight send. Remove rule references before deleting a destination.
 

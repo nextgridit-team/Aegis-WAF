@@ -92,6 +92,20 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		// A busy inspection means the request bypassed signature inspection:
 		// observe policies fail open, block policies answer 503.
 		err = tx.QueryRow(ctx, "SELECT count(*) FROM access_logs WHERE at>$1 AND at<=$2 AND ($3=0 OR site_id=$3) AND managed_signatures->>'inspection'='busy'", start, now, rule.SiteID).Scan(&count)
+	case "flood_capacity_exceeded":
+		// The local limiter's bucket map is pinned: new clients are admitted
+		// unmetered during an IP-spray, so flood enforcement is degraded, not
+		// enforced — exactly when an operator needs a push alert.
+		err = tx.QueryRow(ctx, "SELECT count(*) FROM access_logs WHERE at>$1 AND at<=$2 AND ($3=0 OR site_id=$3) AND signals @> '[\"flood_capacity_exceeded\"]'::jsonb", start, now, rule.SiteID).Scan(&count)
+	case "management_plaintext_non_loopback":
+		// Config-derived, not traffic-derived: this replica serves the
+		// management listener over plaintext HTTP on a non-loopback bind, so
+		// credentials, session tokens and MCP keys cross the network in the
+		// clear. Centralized alerting makes the startup warning durable.
+		if a.cfg.ManagementPlaintextNonLoopback() {
+			count = 1
+			details = "management listener serves plaintext HTTP on a non-loopback bind (" + a.cfg.ManagementAddr + "); administrator credentials, session tokens and MCP agent keys cross the network unencrypted"
+		}
 	case "feed_stale":
 		// Failed feed syncs retry silently every 12 hours; staleness is
 		// day-scale, not traffic-window scale. A feed counts when it carries a
@@ -104,7 +118,7 @@ func (a *App) evaluateAlertRule(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	threshold := int64(rule.Threshold)
-	if rule.Kind == "certificate_expiry" || rule.Kind == "feed_stale" {
+	if rule.Kind == "certificate_expiry" || rule.Kind == "feed_stale" || rule.Kind == "management_plaintext_non_loopback" {
 		threshold = 1
 	}
 	if count < threshold {

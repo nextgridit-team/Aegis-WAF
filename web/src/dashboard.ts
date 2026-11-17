@@ -126,6 +126,8 @@ export const defaultProtection: Protection = {
 const signalNames: Record<string, string> = {
   client_rate: "Client request rate",
   application_rate: "Application request rate",
+  flood_capacity_exceeded: "Flood limiter capacity exceeded",
+  bot_rate_capacity_exceeded: "Bot limiter capacity exceeded",
   automation_user_agent: "Automation user agent",
   empty_user_agent: "Missing user agent",
   bot_challenge_required: "Bot verification required",
