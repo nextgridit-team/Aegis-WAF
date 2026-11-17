@@ -261,7 +261,8 @@ func (a *App) LogMaintenanceWorker(ctx context.Context) {
 			status, statusCancel := context.WithTimeout(ctx, time.Second)
 			if err != nil {
 				// Keep the error class so a broken sink is distinguishable from
-				// other export failures; the message stays bounded and redacted.
+				// other export failures; the message is length-bounded (these
+				// paths carry write/DB errors, not row data).
 				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET export_error=$1 WHERE id", "Stdout export unavailable; records retained ("+truncateUTF8(err.Error(), 180)+")")
 			} else {
 				_, _ = a.db.Exec(status, "UPDATE log_maintenance SET last_export_at=now(),export_error='' WHERE id")
@@ -297,5 +298,14 @@ func (a *App) sampleUnexportedBacklog(ctx context.Context) {
 	if e := a.db.QueryRow(counts, "SELECT (SELECT count(*) FROM access_logs WHERE NOT stdout_emitted),(SELECT count(*) FROM audit_events WHERE NOT stdout_emitted)").Scan(&access, &audit); e == nil {
 		a.unexportedAccess.Store(access)
 		a.unexportedAudit.Store(audit)
+		a.backlogSampleFailing.Store(false)
+	} else {
+		// Still best-effort, but not silent: count the failure and warn once
+		// per failing episode, so a gauge frozen at its last value stays
+		// distinguishable from a fresh one in metrics and logs.
+		a.backlogSampleFailures.Add(1)
+		if !a.backlogSampleFailing.Swap(true) {
+			slog.Warn("unexported backlog sample failed; gauges hold their last value", "error", truncateUTF8(e.Error(), 180))
+		}
 	}
 }
