@@ -261,6 +261,17 @@ const assert = require("node:assert/strict"),
       );
     }
     await form
+      .locator("summary")
+      .filter({ hasText: "Advanced settings" })
+      .click();
+    await form
+      .getByLabel("Page title", { exact: true })
+      .fill("Access denied — example service");
+    await form
+      .getByLabel("Contact line", { exact: true })
+      .fill("security@example.test");
+    await form.getByLabel("Reference line", { exact: true }).fill("ref-42");
+    await form
       .getByRole("button", { name: "Save application", exact: true })
       .click();
     await page.waitForFunction(() => !document.querySelector("#editor").open);
@@ -269,9 +280,12 @@ const assert = require("node:assert/strict"),
       server_name: "backend.example.test",
       trusted_certificates_pem: "PUBLIC CERTIFICATE FIXTURE",
     });
+    assert.equal(writes[0].block_title, "Access denied — example service");
+    assert.equal(writes[0].block_contact, "security@example.test");
+    assert.equal(writes[0].block_reference, "ref-42");
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: disabled trust explanations, covered names and server-name repair, verified/expired states, unsaved upstream diagnostics, stale-result rejection, responsive form and saved trust payload.",
+      "PASS: disabled trust explanations, covered names and server-name repair, verified/expired states, unsaved upstream diagnostics, stale-result rejection, responsive form, block page fields and saved trust payload.",
     );
   } finally {
     await browser.close();

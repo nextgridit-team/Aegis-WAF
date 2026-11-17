@@ -29,7 +29,7 @@ func normalizeSiteTraffic(site *Site) error {
 	if site.StreamWindowBytes < 4096 || site.StreamWindowBytes > 65536 {
 		return invalid("stream_window_bytes must be 4096–65536")
 	}
-	return nil
+	return normalizeBlockPage(site)
 }
 func newSiteProxy(target *url.URL, site Site, headers HeaderSettings, a *App) *httputil.ReverseProxy {
 	proxy := newProxyWithHeaders(target, site.PreserveHost, headers)
@@ -54,7 +54,7 @@ func newSiteProxy(target *url.URL, site Site, headers HeaderSettings, a *App) *h
 				if status, ok := w.(*statusWriter); ok {
 					status.responseSource = "gateway_error"
 				}
-				site.rejectRequest(w, http.StatusGatewayTimeout, code)
+				site.rejectRequest(w, r, http.StatusGatewayTimeout, code)
 				return
 			}
 			source, code := "gateway_error", "upstream_unavailable"
@@ -69,7 +69,7 @@ func newSiteProxy(target *url.URL, site Site, headers HeaderSettings, a *App) *h
 			if status, ok := w.(*statusWriter); ok {
 				status.responseSource = source
 			}
-			site.rejectRequest(w, http.StatusBadGateway, code)
+			site.rejectRequest(w, r, http.StatusBadGateway, code)
 		}
 	}
 	previous := proxy.ErrorHandler
@@ -81,7 +81,25 @@ func newSiteProxy(target *url.URL, site Site, headers HeaderSettings, a *App) *h
 			if status, ok := w.(*statusWriter); ok {
 				status.responseSource = "gateway_error"
 			}
-			site.rejectRequest(w, http.StatusGatewayTimeout, code)
+			site.rejectRequest(w, r, http.StatusGatewayTimeout, code)
+			return
+		}
+		if !site.machineEndpoint() {
+			// Visitor-facing upstream failures render the block page with the
+			// correlation ID instead of a bare status line.
+			source, code := "gateway_error", "upstream_unavailable"
+			var forwardingRefused errForwardingAddressRefused
+			if errors.As(err, &forwardingRefused) {
+				code = "upstream_refused"
+			}
+			var rejected managedResponseError
+			if errors.As(err, &rejected) {
+				source, code = "waf", "response_rejected"
+			}
+			if status, ok := w.(*statusWriter); ok {
+				status.responseSource = source
+			}
+			site.rejectRequest(w, r, http.StatusBadGateway, code)
 			return
 		}
 		previous(w, r, err)
@@ -94,14 +112,16 @@ func (s Site) machineEndpoint() bool {
 }
 
 // The profile changes gateway-owned errors only; upstream responses are preserved.
-func (s Site) rejectRequest(w http.ResponseWriter, status int, code string) {
+// Machine endpoints and clients that asked for JSON keep the JSON error shape;
+// every other visitor gets the HTML block page carrying the correlation ID.
+func (s Site) rejectRequest(w http.ResponseWriter, r *http.Request, status int, code string) {
 	w.Header().Set("Cache-Control", "no-store")
-	if s.machineEndpoint() {
+	if s.machineEndpoint() || wantsJSONResponse(r) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		respond(w, status, map[string]string{"error": code})
 		return
 	}
-	http.Error(w, code, status)
+	s.writeBlockPage(w, status)
 }
 
 func (s *managedResponseState) stream(response *http.Response, mediaType string) error {

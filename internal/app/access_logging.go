@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-func (a *App) logEarlyRequest(r *http.Request, started time.Time, status int, source, signal string) {
+func (a *App) logEarlyRequest(r *http.Request, started time.Time, status int, source, signal, requestID string) {
 	peer, _, _ := net.SplitHostPort(r.RemoteAddr)
-	event := accessEvent{at: time.Now(), host: truncateUTF8(requestHost(r.Host), 253), method: r.Method, status: status, duration: time.Since(started).Milliseconds(), peer: peer, responseSource: source, blocked: signal != ""}
+	event := accessEvent{at: time.Now(), host: truncateUTF8(requestHost(r.Host), 253), method: r.Method, status: status, duration: time.Since(started).Milliseconds(), peer: peer, responseSource: source, blocked: signal != "", requestID: requestID}
 	if signal != "" {
 		event.signals = []string{signal}
 	}

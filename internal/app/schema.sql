@@ -244,3 +244,10 @@ ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS path_class text NOT NULL DEFAUL
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS upstream_us bigint NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS access_logs_site_class ON access_logs(site_id, path_class);
 INSERT INTO schema_version VALUES (28) ON CONFLICT DO NOTHING;
+
+-- Version 29: per-site visitor block page text. Empty strings select the
+-- built-in page; values are bounded plain text validated at save time.
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS block_title text NOT NULL DEFAULT '';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS block_contact text NOT NULL DEFAULT '';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS block_reference text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES (29) ON CONFLICT DO NOTHING;

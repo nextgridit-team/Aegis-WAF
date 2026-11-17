@@ -38,7 +38,10 @@ func TestForwardingDataplaneRefusesLinkLocalAndUnspecified(t *testing.T) {
 	proxy := newSiteProxy(target, Site{ID: 1, Hostnames: []string{"guard.test"}}, HeaderSettings{}, nil)
 	w := httptest.NewRecorder()
 	proxy.ServeHTTP(w, httptest.NewRequest("GET", "http://guard.test/", nil))
-	if w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), "refused") {
+	// Web-profile visitors get the block page: the coarse refusal class is
+	// audited and returned as JSON on machine profiles, never as upstream
+	// detail on the visitor page.
+	if w.Code != http.StatusBadGateway || !strings.Contains(w.Header().Get("Content-Type"), "text/html") || w.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("link-local upstream not refused: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -54,8 +57,11 @@ func TestForwardingDataplaneRefusesUnspecifiedLiteral(t *testing.T) {
 	proxy := newSiteProxy(target, Site{ID: 1, Hostnames: []string{"guard.test"}}, HeaderSettings{}, nil)
 	w := httptest.NewRecorder()
 	proxy.ServeHTTP(w, httptest.NewRequest("GET", "http://guard.test/", nil))
-	if w.Code != http.StatusBadGateway || !strings.Contains(w.Body.String(), "refused") {
+	if w.Code != http.StatusBadGateway || !strings.Contains(w.Header().Get("Content-Type"), "text/html") {
 		t.Fatalf("unspecified literal reached a local service: %d %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "local service") {
+		t.Fatal("unspecified literal reached a local service")
 	}
 }
 

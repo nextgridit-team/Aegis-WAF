@@ -33,6 +33,9 @@ type Site struct {
 	UpstreamTLS       upstreamTLSSettings `json:"upstream_tls"`
 	TrafficProfile    string              `json:"traffic_profile"`
 	StreamWindowBytes int                 `json:"stream_window_bytes"`
+	BlockTitle        string              `json:"block_title"`
+	BlockContact      string              `json:"block_contact"`
+	BlockReference    string              `json:"block_reference"`
 	Policies          []sitePolicySummary `json:"policies,omitempty"`
 	Headers           *HeaderSettings     `json:"headers,omitempty"`
 	Protection        *ProtectionSettings `json:"protection,omitempty"`
@@ -331,7 +334,7 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	if e != nil {
 		return nil, e
 	}
-	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,s.traffic_profile,s.stream_window_bytes,s.upstream_tls,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
+	rows, e = tx.Query(ctx, "SELECT s.id,s.name,s.hostnames,s.upstream,s.certificate_id,s.redirect_https,s.preserve_host,s.enabled,s.traffic_profile,s.stream_window_bytes,s.block_title,s.block_contact,s.block_reference,s.upstream_tls,coalesce(h.settings,'{}'::jsonb) FROM sites s LEFT JOIN proxy_headers h ON h.site_id=s.id WHERE s.enabled")
 	if e != nil {
 		return nil, e
 	}
@@ -339,7 +342,7 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 	for rows.Next() {
 		var s Site
 		var rawHeaders, rawTLS []byte
-		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &s.TrafficProfile, &s.StreamWindowBytes, &rawTLS, &rawHeaders); e != nil {
+		if e = rows.Scan(&s.ID, &s.Name, &s.Hostnames, &s.Upstream, &s.CertificateID, &s.RedirectHTTPS, &s.PreserveHost, &s.Enabled, &s.TrafficProfile, &s.StreamWindowBytes, &s.BlockTitle, &s.BlockContact, &s.BlockReference, &rawTLS, &rawHeaders); e != nil {
 			rows.Close()
 			return nil, e
 		}
@@ -424,6 +427,10 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 		}
 	}, ModifyResponse: func(response *http.Response) error {
 		prepareLimitedResponse(response)
+		// The gateway owns the correlation ID: an upstream echoing or
+		// spoofing X-Request-ID must not override the value the WAF already
+		// stamped on the writer for this request.
+		response.Header.Del("X-Request-ID")
 		if err := inspectManagedResponse(response); err != nil {
 			return err
 		}
@@ -477,11 +484,16 @@ func (a *App) TLSConfig() *tls.Config {
 }
 func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	started := time.Now()
+	// The correlation ID is assigned before any enforcement decision so every
+	// response — allowed, denied or gateway error — carries the same ID that
+	// lands on the access row for the request.
+	requestID := token()
+	w.Header().Set("X-Request-ID", requestID)
 	if strings.HasPrefix(r.URL.Path, "/.well-known/acme-challenge/") {
 		rec := &statusWriter{ResponseWriter: w, status: 200}
 		defer func() {
 			a.prom.recordHTTP(rec.status, "acme", "allowed")
-			a.logEarlyRequest(r, started, rec.status, "acme", "")
+			a.logEarlyRequest(r, started, rec.status, "acme", "", requestID)
 		}()
 		a.challenge(rec, r)
 		return
@@ -489,21 +501,24 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	s := a.active.Load()
 	if s == nil {
 		a.prom.recordHTTP(503, "unrouted", "blocked")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "configuration unavailable", 503)
-		a.logEarlyRequest(r, started, 503, "gateway_error", "configuration_unavailable")
+		a.logEarlyRequest(r, started, 503, "gateway_error", "configuration_unavailable", requestID)
 		return
 	}
 	rt := s.routes[requestHost(r.Host)]
 	if rt == nil {
 		a.prom.recordHTTP(421, "unrouted", "blocked")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "unknown hostname", 421)
-		a.logEarlyRequest(r, started, 421, "gateway_error", "unknown_hostname")
+		a.logEarlyRequest(r, started, 421, "gateway_error", "unknown_hostname", requestID)
 		return
 	}
 	if r.TLS != nil && requestHost(r.TLS.ServerName) != requestHost(r.Host) {
 		a.prom.recordHTTP(421, "unrouted", "blocked")
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "SNI and Host must match", 421)
-		a.logEarlyRequest(r, started, 421, "gateway_error", "sni_host_mismatch")
+		a.logEarlyRequest(r, started, 421, "gateway_error", "sni_host_mismatch", requestID)
 		return
 	}
 	if s.rateState != nil && s.rateState.stored.Settings.Backend == "redis" {
@@ -711,7 +726,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		peer := clientIP.String()
-		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), upstreamUS: upstreamUS, peer: peer, pathClass: a.pathClasses.classify(rt.site.ID, path), results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), upstreamUS: upstreamUS, peer: peer, pathClass: a.pathClasses.classify(rt.site.ID, path), results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult, requestID: requestID}
 		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
@@ -741,20 +756,12 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}()
 	if network.Blocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		if rt.site.machineEndpoint() {
-			rt.site.rejectRequest(rec, http.StatusForbidden, "network_access_denied")
-		} else {
-			http.Error(rec, "request blocked by network access policy", http.StatusForbidden)
-		}
+		rt.site.rejectRequest(rec, r, http.StatusForbidden, "network_access_denied")
 		return
 	}
 	if managedBlocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		if rt.site.machineEndpoint() {
-			rt.site.rejectRequest(rec, managedStatus, "managed_signature_rejected")
-		} else {
-			http.Error(rec, "request rejected by managed signature protection", managedStatus)
-		}
+		rt.site.rejectRequest(rec, r, managedStatus, "managed_signature_rejected")
 		return
 	}
 	if protectionBlocked {
@@ -762,34 +769,22 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		if protectionStatus == 429 {
 			rec.Header().Set("Retry-After", "1")
 		}
-		if rt.site.machineEndpoint() {
-			rt.site.rejectRequest(rec, protectionStatus, "gateway_protection_denied")
-		} else {
-			http.Error(rec, "request blocked by gateway protection", protectionStatus)
-		}
+		rt.site.rejectRequest(rec, r, protectionStatus, "gateway_protection_denied")
 		return
 	}
 	if blocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		if rt.site.machineEndpoint() {
-			rt.site.rejectRequest(rec, http.StatusForbidden, "policy_denied")
-		} else {
-			http.Error(rec, "request blocked by gateway policy", http.StatusForbidden)
-		}
+		rt.site.rejectRequest(rec, r, http.StatusForbidden, "policy_denied")
 		return
 	}
 	if methodBlocked {
 		rec.Header().Set("Cache-Control", "no-store")
-		if rt.site.machineEndpoint() {
-			rt.site.rejectRequest(rec, methodStatus, "method_not_allowed")
-		} else {
-			http.Error(rec, "request method blocked by gateway policy", methodStatus)
-		}
+		rt.site.rejectRequest(rec, r, methodStatus, "method_not_allowed")
 		return
 	}
 	if botEndpoint {
 		if rt.site.machineEndpoint() {
-			rt.site.rejectRequest(rec, http.StatusNotFound, "browser_verification_unavailable")
+			rt.site.rejectRequest(rec, r, http.StatusNotFound, "browser_verification_unavailable")
 			return
 		}
 		if policy == nil {
@@ -828,7 +823,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			signals = append(signals, "connection_limit_exceeded")
 			protectionBlocked = true
 			rec.Header().Set("Retry-After", "1")
-			rt.site.rejectRequest(rec, http.StatusTooManyRequests, "connection_limit_reached")
+			rt.site.rejectRequest(rec, r, http.StatusTooManyRequests, "connection_limit_reached")
 			return
 		}
 		if connectionState != nil {

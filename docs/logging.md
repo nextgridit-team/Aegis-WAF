@@ -30,7 +30,7 @@ Request records use [security-events.schema.json](security-events.schema.json), 
 | --- | --- |
 | `schema_version` | Contract version, currently `1`. |
 | `timestamp` | Original event time in UTC; stdout `time` is emission time. Historical exports can have much older timestamps. |
-| `request_id` | Stable request correlation/deduplication ID. Also shown in request details. Legacy imported records use `access:<database ID>`. |
+| `request_id` | Stable request correlation/deduplication ID. Also shown in request details. Legacy imported records use `access:<database ID>`. Assigned at request start and returned to the visitor as the `X-Request-ID` response header on every public response — denials and gateway errors included — so the row can be located from what the visitor quotes. |
 | `event` / `action` | `http_access` / `allowed`, `waf_block` / `blocked`, `waf_observe` / `observed`, or `waf_allow` / `allowed`. Allowed means the gateway permitted forwarding, not that the upstream succeeded. |
 | `client_ip` | Resolved identity after configured trusted-proxy checks; an unrouted request has only the socket peer. |
 | `host`, `site_id`, `site_name` | Requested hostname and application context, when available. Historical records may lack names. |
