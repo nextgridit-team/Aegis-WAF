@@ -1,10 +1,12 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/netip"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -23,6 +25,44 @@ type signatureException struct {
 }
 
 var exceptionParameter = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
+
+// scopedExclusionKeys is the complete allowlist of JSON keys a scoped
+// exception accepts. Unknown keys are rejected by name so a misspelled scope
+// cannot silently widen an exclusion.
+var scopedExclusionKeys = map[string]bool{"rule_ids": true, "path_prefix": true, "parameters": true, "client_cidrs": true}
+
+// rejectUnknownScopedExclusionKeys scans a raw policy-save request body for
+// scoped exclusion objects carrying keys outside the allowlist. It runs before
+// the strict request decode because encoding/json drops unknown keys silently:
+// a misspelled scope such as "client_cidr" would leave the struct field empty
+// and broaden the exclusion to every client. The rejection names the offending
+// key and the exception's 1-based index. Malformed JSON is left to the strict
+// decode step, which reports it.
+func rejectUnknownScopedExclusionKeys(body []byte) error {
+	var probe struct {
+		Spec struct {
+			ManagedSignatures struct {
+				ScopedExclusions []map[string]json.RawMessage `json:"scoped_exclusions"`
+			} `json:"managed_signatures"`
+		} `json:"spec"`
+	}
+	if e := json.Unmarshal(body, &probe); e != nil {
+		return nil
+	}
+	for n, entry := range probe.Spec.ManagedSignatures.ScopedExclusions {
+		keys := make([]string, 0, len(entry))
+		for key := range entry {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			if !scopedExclusionKeys[key] {
+				return invalid(fmt.Sprintf("scoped exception %d has unknown key %q; allowed keys are rule_ids, path_prefix, parameters and client_cidrs", n+1, key))
+			}
+		}
+	}
+	return nil
+}
 
 func normalizeSignatureExceptions(values []signatureException) ([]signatureException, error) {
 	if len(values) > 32 {

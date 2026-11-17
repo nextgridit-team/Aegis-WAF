@@ -1,9 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/netip"
 	"strconv"
@@ -406,6 +408,14 @@ func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) error {
+	body, readErr := io.ReadAll(http.MaxBytesReader(w, r.Body, 2<<20))
+	if readErr != nil {
+		return invalid("the policy request body could not be read")
+	}
+	if e := rejectUnknownScopedExclusionKeys(body); e != nil {
+		return e
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
 	var input policyInput
 	if e := decode(w, r, &input); e != nil {
 		return e

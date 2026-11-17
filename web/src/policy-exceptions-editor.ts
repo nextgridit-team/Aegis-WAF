@@ -14,6 +14,15 @@ type Context = {
   esc: (value: unknown) => string;
 };
 const split = (value: string) => value.split(/[\s,]+/).filter(Boolean);
+// The complete key allowlist for a scoped exception. Unknown keys are
+// rejected by name: a misspelled scope such as "client_cidr" would otherwise
+// pass silently and broaden the exclusion to every client.
+const allowedExceptionKeys = new Set([
+  "rule_ids",
+  "path_prefix",
+  "parameters",
+  "client_cidrs",
+]);
 export function mountPolicyExceptions(form: HTMLFormElement, c: Context) {
   const raw = form.elements.namedItem(
     "signature_scoped_exclusions",
@@ -220,6 +229,14 @@ export function mountPolicyExceptions(form: HTMLFormElement, c: Context) {
         throw new Error(
           "Use an array of up to 32 exceptions with rule_ids and typed path/parameter/client scopes.",
         );
+      for (const [index, value] of values.entries()) {
+        for (const key of Object.keys(value)) {
+          if (!allowedExceptionKeys.has(key))
+            throw new Error(
+              `Exception ${index + 1} has unknown key "${key}". Allowed keys: rule_ids, path_prefix, parameters, client_cidrs.`,
+            );
+        }
+      }
       for (const host of rows.querySelectorAll<HTMLElement>(
         "[data-exception-browser]",
       ))
