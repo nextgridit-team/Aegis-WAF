@@ -570,7 +570,7 @@ async function siteForm(site?: Site, certificate?: Certificate) {
       )
       .join(
         "",
-      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${!site ? `<label class="field">Initial protection policy<select name="initial_policy_id" aria-label="Initial protection policy"><option value="">Local application settings · no policy assignment</option>${initialPolicies.map((p) => `<option value="${p.id}">${esc(p.spec.name)} · ${esc(p.spec.mode)}</option>`).join("")}</select></label><small>Choose Baseline protection for the included CRS policy, or keep local settings. Policy assignment replaces local bot/flood and standalone-rule activation. Manage later assignments in Policies.</small>` : ""}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}</details>${actions("Save application")}</form>`,
+      )}</select>${check("redirect_https", "Redirect HTTP to HTTPS", site?.redirect_https ?? Boolean(c), c ? "" : "disabled")}${!site ? `<label class="field">Initial protection policy<select name="initial_policy_id" aria-label="Initial protection policy"><option value="">Local application settings · no policy assignment</option>${initialPolicies.map((p) => `<option value="${p.id}">${esc(p.spec.name)} · ${esc(p.spec.mode)}</option>`).join("")}</select></label><small>Choose Baseline protection for the included CRS policy, or keep local settings. Policy assignment replaces local bot/flood and standalone-rule activation. Manage later assignments in Policies.</small>` : ""}${siteProtectionMarkup(site?.protection || defaultProtection, site?.policies || [])}${headerMarkup(site?.headers)}<details class="advanced"><summary>Advanced settings</summary>${check("preserve_host", "Preserve the original Host header", site?.preserve_host ?? true)}${check("enabled", "Enable routing", site?.enabled ?? true)}<div class="form-divider"></div><label class="field" for="site-block-title">Visitor block page</label><small>Website visitors denied by a security policy see a small page carrying a request ID they can quote for support. Add optional contact details in plain text.</small>${field("block_title", "Page title", site?.block_title || "", "text", 'maxlength="80" placeholder="Access denied — example service"')}${field("block_contact", "Contact line", site?.block_contact || "", "text", 'maxlength="200" placeholder="security@example.com"')}${field("block_reference", "Reference line", site?.block_reference || "", "text", 'maxlength="80" placeholder="Reference to quote when contacting support"')}</details>${actions("Save application")}</form>`,
   );
   const select = document.getElementById(
     "site-certificate",
@@ -604,6 +604,9 @@ async function siteForm(site?: Site, certificate?: Certificate) {
       upstream_tls: readUpstreamTLS(f),
       traffic_profile: f.get("traffic_profile"),
       stream_window_bytes: site?.stream_window_bytes || 8192,
+      block_title: String(f.get("block_title") || ""),
+      block_contact: String(f.get("block_contact") || ""),
+      block_reference: String(f.get("block_reference") || ""),
       certificate_id: f.get("certificate_id")
         ? Number(f.get("certificate_id"))
         : null,

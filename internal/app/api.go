@@ -542,11 +542,11 @@ func (a *App) saveSite(w http.ResponseWriter, r *http.Request, i identity) error
 			}
 		}
 		if s.ID == 0 {
-			if e := tx.QueryRow(r.Context(), "INSERT INTO sites(name,hostnames,upstream,certificate_id,redirect_https,preserve_host,enabled,traffic_profile,stream_window_bytes,upstream_tls) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id", s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes, marshalUpstreamTLS(s.UpstreamTLS)).Scan(&s.ID); e != nil {
+			if e := tx.QueryRow(r.Context(), "INSERT INTO sites(name,hostnames,upstream,certificate_id,redirect_https,preserve_host,enabled,traffic_profile,stream_window_bytes,upstream_tls,block_title,block_contact,block_reference) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id", s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes, marshalUpstreamTLS(s.UpstreamTLS), s.BlockTitle, s.BlockContact, s.BlockReference).Scan(&s.ID); e != nil {
 				return e
 			}
 		} else {
-			tag, e := tx.Exec(r.Context(), "UPDATE sites SET name=$2,hostnames=$3,upstream=$4,certificate_id=$5,redirect_https=$6,preserve_host=$7,enabled=$8,traffic_profile=$9,stream_window_bytes=$10,upstream_tls=CASE WHEN $12 THEN $11::jsonb ELSE upstream_tls END WHERE id=$1", s.ID, s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes, marshalUpstreamTLS(s.UpstreamTLS), input.UpstreamTLS != nil)
+			tag, e := tx.Exec(r.Context(), "UPDATE sites SET name=$2,hostnames=$3,upstream=$4,certificate_id=$5,redirect_https=$6,preserve_host=$7,enabled=$8,traffic_profile=$9,stream_window_bytes=$10,upstream_tls=CASE WHEN $12 THEN $11::jsonb ELSE upstream_tls END,block_title=$13,block_contact=$14,block_reference=$15 WHERE id=$1", s.ID, s.Name, s.Hostnames, s.Upstream, s.CertificateID, s.RedirectHTTPS, s.PreserveHost, s.Enabled, s.TrafficProfile, s.StreamWindowBytes, marshalUpstreamTLS(s.UpstreamTLS), input.UpstreamTLS != nil, s.BlockTitle, s.BlockContact, s.BlockReference)
 			if e != nil {
 				return e
 			}

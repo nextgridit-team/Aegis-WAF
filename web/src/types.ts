@@ -9,6 +9,9 @@ export type Site = {
   upstream_tls?: import("./upstream-check").UpstreamTLS;
   traffic_profile?: "web" | "api" | "streaming";
   stream_window_bytes?: number;
+  block_title?: string;
+  block_contact?: string;
+  block_reference?: string;
   policies?: PolicySummary[];
   headers?: HeaderSettings | null;
   protection?: Protection | null;
