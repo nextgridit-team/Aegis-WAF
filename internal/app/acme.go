@@ -273,6 +273,12 @@ func acmeFailure(stage string, e error) string {
 	if errors.Is(e, context.DeadlineExceeded) {
 		return stage + " timed out; will retry"
 	}
+	// Surface transport causes so a redirect refusal is distinguishable from
+	// an outage instead of flattening to generic connectivity advice.
+	var ue *url.Error
+	if errors.As(e, &ue) && ue.Err != nil {
+		return fmt.Sprintf("%s failed (%s); the gateway refuses outbound redirects — check the directory URL and CA reachability", stage, ue.Err)
+	}
 	return stage + " failed; check CA connectivity, DNS, and database health"
 }
 func (a *App) ACMEWorker(ctx context.Context) {
