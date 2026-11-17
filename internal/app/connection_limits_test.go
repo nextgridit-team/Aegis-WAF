@@ -82,7 +82,7 @@ func limitFixture(t *testing.T, upstream string, mode string, cfg connectionLimi
 	route := a.active.Load().routes["managed.test"]
 	route.site.TrafficProfile = "streaming"
 	target, _ := url.Parse(upstream)
-	route.proxy = newSiteProxy(target, route.site, HeaderSettings{})
+	route.proxy = newSiteProxy(target, route.site, HeaderSettings{}, nil)
 	p := a.active.Load().policyBindings[1][0].Protection
 	p.connectionMode = mode
 	p.connectionLimits = &cfg

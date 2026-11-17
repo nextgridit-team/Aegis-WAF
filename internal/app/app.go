@@ -118,6 +118,8 @@ type App struct {
 	cacheMu                       sync.Mutex
 	cacheAt                       time.Time
 	cacheVersion                  int64
+	forwardingAuditMu             sync.Mutex
+	forwardingAudit               map[string]bool
 	cacheAvailable, cacheRestored atomic.Bool
 	workerPanics                  atomic.Uint64
 	system                        systemSampler
@@ -366,7 +368,7 @@ func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*sna
 			return nil, e
 		}
 		r.site.Headers = &headers
-		r.proxy = newSiteProxy(target, s, headers)
+		r.proxy = newSiteProxy(target, s, headers, a)
 		for _, h := range s.Hostnames {
 			next.routes[h] = r
 		}
@@ -424,7 +426,7 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 		}
 		settings.applyResponseSecurity(response.Header, forwardingIdentity(response.Request).Proto == "https")
 		return nil
-	}, Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext, ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
+	}, Transport: &http.Transport{Proxy: forwardingProxySetting(), DialContext: forwardingGuardedDialContext(), ForceAttemptHTTP2: true, MaxIdleConns: 200, MaxIdleConnsPerHost: 20, IdleConnTimeout: 90 * time.Second, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second}, ErrorHandler: func(w http.ResponseWriter, r *http.Request, e error) {
 		var rejected managedResponseError
 		if errors.As(e, &rejected) {
 			if status, ok := w.(*statusWriter); ok {
@@ -436,6 +438,11 @@ func newProxyWithHeaders(target *url.URL, preserve bool, settings HeaderSettings
 		}
 		if status, ok := w.(*statusWriter); ok {
 			status.responseSource = "gateway_error"
+		}
+		var refused errForwardingAddressRefused
+		if errors.As(e, &refused) {
+			http.Error(w, "upstream destination refused", http.StatusBadGateway)
+			return
 		}
 		http.Error(w, "upstream unavailable", http.StatusBadGateway)
 	}}

@@ -22,7 +22,7 @@ func TestConnectionIdleTracksActiveUpload(t *testing.T) {
 	route := a.active.Load().routes["managed.test"]
 	route.site.TrafficProfile = "api"
 	target, _ := url.Parse(up.URL)
-	route.proxy = newSiteProxy(target, route.site, HeaderSettings{})
+	route.proxy = newSiteProxy(target, route.site, HeaderSettings{}, nil)
 	p := a.active.Load().policyBindings[1][0].Protection
 	p.connectionMode = "block"
 	p.connectionLimits = &connectionLimitSettings{Enabled: true, MaxConcurrent: 2, MaxPerClient: 1, MaxDurationSeconds: 5, IdleTimeoutSeconds: 1}

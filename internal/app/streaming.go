@@ -31,9 +31,14 @@ func normalizeSiteTraffic(site *Site) error {
 	}
 	return nil
 }
-func newSiteProxy(target *url.URL, site Site, headers HeaderSettings) *httputil.ReverseProxy {
+func newSiteProxy(target *url.URL, site Site, headers HeaderSettings, a *App) *httputil.ReverseProxy {
 	proxy := newProxyWithHeaders(target, site.PreserveHost, headers)
 	transport := proxy.Transport.(*http.Transport)
+	if a != nil {
+		// Refused forwarding destinations are audited with their class, like
+		// the upstream probe, deduplicated per site, host and class.
+		transport.DialContext = auditForwardingRefusals(transport.DialContext, a, site.ID)
+	}
 	config, err := upstreamTLSConfig(site.UpstreamTLS)
 	transport.TLSClientConfig = config
 	if err != nil {
@@ -53,6 +58,10 @@ func newSiteProxy(target *url.URL, site Site, headers HeaderSettings) *httputil.
 				return
 			}
 			source, code := "gateway_error", "upstream_unavailable"
+			var forwardingRefused errForwardingAddressRefused
+			if errors.As(err, &forwardingRefused) {
+				code = "upstream_refused"
+			}
 			var rejected managedResponseError
 			if errors.As(err, &rejected) {
 				source, code = "waf", "response_rejected"

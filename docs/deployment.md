@@ -126,6 +126,8 @@ The image runs as UID/GID 10001 by default and supports platform-assigned non-ro
 | `SSL_CERT_FILE`, `SSL_CERT_DIR`               | Optional operational CA trust settings                                     |
 | `SNAPSHOT_CACHE_FILE`                         | Unset; opt-in absolute path to encrypted recovery snapshot                 |
 | `SNAPSHOT_CACHE_MAX_AGE`                      | `24h`; positive and no more than `168h`                                    |
+| `FORWARD_ALLOW_LINK_LOCAL`                    | `false`; forward to link-local (metadata-range) upstreams when set         |
+| `FORWARD_USE_ENV_PROXY`                       | `false`; route forwarded traffic through `HTTP(S)_PROXY` when set          |
 
 Set these in the container environment through your deployment configuration. Defining both a secret variable and its `_FILE` variant is an error. Only bootstrap/operational configuration belongs here; application settings belong in PostgreSQL. Online encryption-key rotation is not implemented: changing the key or key identifier alone makes existing encrypted records unreadable.
 
