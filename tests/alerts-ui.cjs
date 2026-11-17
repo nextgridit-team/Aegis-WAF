@@ -71,6 +71,20 @@ const assert = require("node:assert/strict"),
           acknowledged_at: null,
           acknowledged_by: "",
         },
+        {
+          id: 8,
+          rule_id: 2,
+          at: "2026-11-16T12:05:00Z",
+          kind: "feed_stale",
+          site_id: 0,
+          title: "Stale rule feeds",
+          details: "Stale CRS feed: last success 2 hours ago",
+          count: 1,
+          window_start: "2026-11-16T12:00:00Z",
+          window_end: "2026-11-16T12:05:00Z",
+          acknowledged_at: null,
+          acknowledged_by: "",
+        },
       ];
     await page.route("**/api/**", async (route) => {
       const req = route.request(),
@@ -141,6 +155,55 @@ const assert = require("node:assert/strict"),
       .locator("tbody tr")
       .filter({ hasText: "Pool exhausted" })
       .getByText("Signature inspection saturation")
+      .waitFor();
+    // The feed-stale trigger is offered with hour-scale threshold semantics:
+    // inbox label, detail reason and the feeds named in the alert.
+    await page.getByRole("button", { name: /^Inbox ·/ }).click();
+    await page
+      .locator("tbody tr")
+      .filter({ hasText: "Stale rule feeds" })
+      .getByText("Rule feed staleness or sync failure")
+      .waitFor();
+    await page
+      .locator("tbody tr")
+      .filter({ hasText: "Stale rule feeds" })
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
+    const detail = page.getByRole("dialog");
+    await detail.waitFor();
+    await detail.getByText("Rule feed staleness or sync failure").waitFor();
+    await detail
+      .getByText("Stale CRS feed: last success 2 hours ago")
+      .waitFor();
+    await detail
+      .getByRole("button", { name: "Close dialog" })
+      .click();
+    await detail.waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Trigger rules", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Add alert rule", exact: true })
+      .click();
+    await dialog.waitFor();
+    await dialog
+      .getByLabel("Trigger", { exact: true })
+      .selectOption("feed_stale");
+    await dialog.getByLabel(/hours for feed staleness/).waitFor();
+    await dialog.getByText(/threshold hours \(1–2160\)/).waitFor();
+    await dialog.getByLabel("Name", { exact: true }).fill("Feeds stale");
+    await dialog.getByLabel(/hours for feed staleness/).fill("48");
+    await dialog.getByLabel("Fixture receiver", { exact: true }).check();
+    await dialog
+      .getByRole("button", { name: "Save alert rule", exact: true })
+      .click();
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(created.length, 2);
+    assert.equal(created[1].kind, "feed_stale");
+    assert.equal(created[1].threshold, 48);
+    // The rules table renders the threshold in hours for feed staleness.
+    await page
+      .locator("tbody tr")
+      .filter({ hasText: "Feeds stale" })
+      .getByText("48 hours")
       .waitFor();
     for (const width of [390, 1440]) {
       await page.setViewportSize({ width, height: 1000 });

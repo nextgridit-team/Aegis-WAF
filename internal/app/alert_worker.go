@@ -145,7 +145,17 @@ func staleFeedMatches(ctx context.Context, tx pgx.Tx, thresholdHours int) (int64
 		count++
 		reason := "never synced"
 		if last != nil {
-			reason = fmt.Sprintf("last success %d days ago", int(time.Since(*last).Hours()/24))
+			// Hours-accurate under a day: flooring hour-scale staleness to
+			// "0 days ago" hides it from the operator reading the alert.
+			elapsed := time.Since(*last)
+			switch {
+			case elapsed < time.Hour:
+				reason = "last success less than an hour ago"
+			case elapsed < 24*time.Hour:
+				reason = fmt.Sprintf("last success %d hours ago", int(elapsed.Hours()))
+			default:
+				reason = fmt.Sprintf("last success %d days ago", int(elapsed.Hours()/24))
+			}
 		}
 		if syncError != "" {
 			reason += " · " + syncError
