@@ -147,13 +147,13 @@ func TestCataloguePackageFetchAndConditional(t *testing.T) {
 		}
 		return &http.Response{StatusCode: status, Header: http.Header{"Etag": []string{"release7"}}, Body: io.NopCloser(bytes.NewReader(body))}, nil
 	})}
-	_, items, tag, same, e := a.fetchCatalogue(context.Background(), communityFeedURL, "")
+	_, items, tag, same, e := a.fetchCatalogue(context.Background(), "https://example.com/release.json", "")
 	if e != nil || same || tag != "release7" || len(items) != m.Package.RuleCount || count != 2 {
 		t.Fatal(len(items), tag, count, e)
 	}
 	unchanged = true
 	count = 0
-	_, _, _, same, e = a.fetchCatalogue(context.Background(), communityFeedURL, "release7")
+	_, _, _, same, e = a.fetchCatalogue(context.Background(), "https://example.com/release.json", "release7")
 	if e != nil || !same || count != 1 {
 		t.Fatal(count, same, e)
 	}

@@ -8,9 +8,37 @@ suite, including direct HTTPS management, before publishing.
 
 Image: `ghcr.io/nextgridit-team/aegis-waf:latest`. Each run also publishes a
 unique `sha-<commit>-<run-id>-<attempt>` tag. The commit alone is insufficient
-as an immutable nightly identifier because base images can change. Use the
-unique build tag or image digest for rollback. The workflow refreshes base
-images and uses official actions pinned to immutable commits.
+as an immutable nightly identifier because base images can change. The workflow
+refreshes base images and uses official actions pinned to immutable commits.
+
+## Version tags and signed releases
+
+Pushing a `v<major>.<minor>.<patch>` tag runs the same formatting, race and
+browser gates through the **Tagged release** workflow and publishes the image
+with that version tag in addition to the immutable build tag. Pin a version
+tag (or its digest) for production deployments; `latest` moves with every
+nightly build and is not a version. The release notes state the database
+schema version, the sealed recovery-cache format and the required upgrade
+order, and link [updates](updating.md).
+
+The release workflow signs with cosign keyless OIDC, so no signing key is
+stored as a repository secret. The image digest, the community rule package and
+the signed release descriptor are signed by the repository's GitHub Actions
+identity and verified inside the workflow right after signing. Verify a
+published image yourself:
+
+```sh
+cosign verify \
+  --certificate-identity-regexp '^https://github\.com/nextgridit-team/Aegis-WAF/\.github/workflows/release\.yml@refs/tags/' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  ghcr.io/nextgridit-team/aegis-waf:v0.1.0
+```
+
+Release assets carry the rule package, the signed descriptor and their cosign
+bundles; the [rule feed distribution guide](rule-feed-distribution.md) has the
+verification commands and the feed-client trust model. Each release also pushes
+a `release/vX.Y.Z` branch containing the signed community release descriptor;
+merge it into main so installed replicas can verify the official feed release.
 
 Publishing uses the repository's GITHUB_TOKEN with packages:write; no registry
 password needs to be stored as a repository secret. GitHub creates new GHCR

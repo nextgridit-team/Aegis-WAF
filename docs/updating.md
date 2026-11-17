@@ -13,6 +13,12 @@ For reproducible deployment or rollback, pin `AEGIS_IMAGE` to a unique build tag
 
 For database, encryption-key and storage recovery details, see [deployment and operations](deployment.md#backups-and-recovery) and [encryption at rest](encryption-at-rest.md).
 
+## Versioned releases and signed feeds
+
+Releases are cut by pushing a `v<major>.<minor>.<patch>` tag. The release workflow runs the full gate stack, publishes the image with that version tag, signs the image digest, the community rule package and the release descriptor with cosign keyless OIDC, verifies everything it just signed, and opens a GitHub Release with the artifacts and notes stating the schema version and sealed recovery-cache format. Pin the version tag or its digest for production; `latest` moves nightly and is not a version. [Image publishing](image-builds.md#version-tags-and-signed-releases).
+
+The official community feed now requires a valid release signature. Upgrade order: deploy an image with this verification first, then merge the `release/vX.Y.Z` branch the workflow publishes so main serves the signed descriptor — after that, official feed syncs verify it and custom sources keep working. Until the first signed descriptor is merged, official feed syncs report a signature error and keep the last synced catalogue; protection is unchanged. Older binaries cannot parse a signed descriptor, so do not merge a release branch before every replica runs a verifying image. Custom catalogue URLs are unaffected and are surfaced as untrusted sources. [Feed signing and source trust](rule-feed-distribution.md#release-signing-and-source-trust).
+
 ## Platform hardening upgrade notes
 
 The 2026-10-25 changes add selective self-hosted CAPTCHA, streaming profiles, optional shared counters, enforced MCP simulation and Prometheus metrics. Existing applications retain their saved profiles, an 8192-byte default stream window and local counters. Hosts without a profile default to Website (`web`). API/SSE profiles use JSON gateway errors and block high bot suspicion without browser CAPTCHA; review bot settings when updating existing streaming hosts. CAPTCHA and response inspection remain opt-in; existing policy definitions, assignments and loaded signature versions are preserved.

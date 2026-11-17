@@ -173,6 +173,9 @@ const path = require("node:path");
     // last-success detail, and the page notice pointing at feed-stale
     // alert rules instead of manual checking.
     await page.getByText("Needs attention", { exact: true }).waitFor();
+    await page
+      .getByText("Custom · untrusted source", { exact: true })
+      .waitFor();
     await page.getByText("Last success:").first().waitFor();
     const feedNotice = page
       .getByRole("alert")
@@ -220,9 +223,27 @@ const path = require("node:path");
     await page
       .getByRole("heading", { name: "No rule sources yet", exact: true })
       .waitFor();
+    await page
+      .getByRole("button", { name: "Use Aegis community feed", exact: true })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Add source", exact: true })
+      .click();
+    await dialog.waitFor({ state: "detached" });
+    // A freshly added source has not synced yet, so the official badge must
+    // not claim verification: the corrected trust badge asserts state, not
+    // URL equality. Only a successful sync (which for the official URL means
+    // a verified signature) upgrades the badge.
+    await page
+      .getByText("Official · not yet synced", { exact: true })
+      .waitFor();
+    await page.getByRole("button", { name: "Sync now", exact: true }).click();
+    await page
+      .getByText("Official · signature-verified", { exact: true })
+      .waitFor();
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: custom rule source form, legacy URL compatibility, sync failure/retry, escaped review JSON, draft imports, removal and 4 responsive layouts.",
+      "PASS: custom rule source form, trust badges, legacy URL compatibility, sync failure/retry, escaped review JSON, draft imports, removal and 4 responsive layouts.",
     );
   } finally {
     await browser.close();

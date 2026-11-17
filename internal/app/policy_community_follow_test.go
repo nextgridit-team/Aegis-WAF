@@ -23,7 +23,7 @@ type followRelease struct {
 	etag              string
 }
 
-func followFixture(t *testing.T, revision int, files map[string][]byte) *followRelease {
+func followFixture(t *testing.T, authority testReleaseAuthority, revision int, files map[string][]byte) *followRelease {
 	t.Helper()
 	names := []string{}
 	for name := range files {
@@ -38,6 +38,9 @@ func followFixture(t *testing.T, revision int, files map[string][]byte) *followR
 	archive := testArchive(t, paths, contents, false)
 	manifest := packageDescriptor(archive, len(files))
 	manifest.Revision = revision
+	// The official source only accepts signed releases, so fixtures emulate
+	// the release workflow with a local certificate authority.
+	manifest.Signature = authority.sign(t, archive, testOfficialSignerURI, time.Now())
 	raw, _ := json.Marshal(manifest)
 	return &followRelease{raw, archive, fmt.Sprintf("release-%d", revision)}
 }
@@ -59,6 +62,8 @@ func readFollowingPolicy(t *testing.T, a *App, id int64) (policySpec, int64) {
 func TestCommunityScheduledFollowEnforcement(t *testing.T) {
 	a, b, api, site, _ := captchaFixture(t)
 	ctx := context.Background()
+	authority := newTestReleaseAuthority(t)
+	useTestReleaseTrust(t, authority)
 	manifest, all := communityFixture(t)
 	legacyRaw, _ := community.Files.ReadFile("manifest.json")
 	var legacy ruleManifest
@@ -70,7 +75,7 @@ func TestCommunityScheduledFollowEnforcement(t *testing.T) {
 		old[item.ID+".json"] = all[item.ID+".json"]
 	}
 	var release atomic.Pointer[followRelease]
-	release.Store(followFixture(t, manifest.Revision+1, old))
+	release.Store(followFixture(t, authority, manifest.Revision+1, old))
 	a.feedHTTP = dnsTestTransport(func(r *http.Request) (*http.Response, error) {
 		current := release.Load()
 		raw := current.manifest
@@ -155,7 +160,7 @@ func TestCommunityScheduledFollowEnforcement(t *testing.T) {
 	revised.Description += " Fixture revision."
 	all["node-brotli-request-guard.json"], _ = json.Marshal(revised)
 	delete(all, "kev-gitlab-file-path-traversal.json")
-	release.Store(followFixture(t, manifest.Revision+2, all))
+	release.Store(followFixture(t, authority, manifest.Revision+2, all))
 	if _, e := a.db.Exec(ctx, "UPDATE rule_feeds SET next_sync=now() WHERE id=$1", feedID); e != nil {
 		t.Fatal(e)
 	}
@@ -253,7 +258,7 @@ func TestCommunityScheduledFollowEnforcement(t *testing.T) {
 		clone.Revision = 1
 		all[clone.ID+".json"], _ = json.Marshal(clone)
 	}
-	release.Store(followFixture(t, manifest.Revision+3, all))
+	release.Store(followFixture(t, authority, manifest.Revision+3, all))
 	if e := a.syncFeed(ctx, feedID, true, "test"); e == nil {
 		t.Fatal("oversized automatic policy accepted")
 	}

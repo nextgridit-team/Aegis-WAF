@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -125,5 +126,43 @@ func TestCatalogueMultiFileFetch(t *testing.T) {
 	_, items, tag, unchanged, e := a.fetchCatalogue(context.Background(), "https://api.github.com/repos/test/feed/contents/rules/manifest.json", "")
 	if e != nil || unchanged || len(items) != len(m.Rules) || tag != "fixture" || count != len(m.Rules)+1 {
 		t.Fatal("multi-file fetch failed", len(items), tag, count, e)
+	}
+}
+
+// A schema-2 manifest served from the official URL must be refused before the
+// legacy per-rule path: signature enforcement lives in the schema-3 branch, so
+// accepting an older schema from the official origin would let a compromised
+// origin skip verification entirely (the downgrade bypass).
+func TestOfficialCatalogueRejectsSchemaDowngrade(t *testing.T) {
+	// A well-formed legacy rule file (shape from rules/community/) with a
+	// self-consistent digest, so the manifest itself is fully valid.
+	rule, e := os.ReadFile("../../rules/community/contact-form-7-upload-directory-guard.json")
+	if e != nil {
+		t.Fatal(e)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(rule))
+	manifest := map[string]any{
+		"schema_version": 2,
+		"name":           "Aegis community mitigation rules",
+		"revision":       9,
+		"rules":          []map[string]any{{"id": "contact-form-7-upload-directory-guard", "path": "rules/community/contact-form-7-upload-directory-guard.json", "sha256": digest}},
+	}
+	raw, e := json.Marshal(manifest)
+	if e != nil {
+		t.Fatal(e)
+	}
+	app := &App{feedHTTP: dnsTestTransport(func(r *http.Request) (*http.Response, error) {
+		body := rule
+		if strings.HasSuffix(r.URL.Path, "release.json") {
+			body = raw
+		}
+		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(body))}, nil
+	})}
+	_, _, _, _, e = app.fetchCatalogue(context.Background(), communityFeedURL, "")
+	if e == nil {
+		t.Fatal("official catalogue accepted a schema-2 manifest (downgrade bypass)")
+	}
+	if !strings.Contains(e.Error(), "schema-3") {
+		t.Fatal("downgrade rejection must name the schema-3 requirement", e)
 	}
 }

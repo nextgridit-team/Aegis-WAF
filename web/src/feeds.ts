@@ -58,6 +58,12 @@ export function makeFeedsUI(c: Context) {
     `<button type="button" class="secondary compact" data-action="${action}" ${id ? `data-id="${id}"` : ""}>${label}</button>`;
   const date = (value: string | null) =>
     value ? new Date(value).toLocaleString() : "Not yet";
+  // Only the official release URL is signature-verified by the client;
+  // every other catalogue is surfaced as an explicitly untrusted source.
+  const trustBadge = (s: Source) =>
+    s.url === community
+      ? `<span class="badge ${s.error || !s.last_success ? "warning" : "success"}">${s.error ? "Official · sync needs attention" : s.last_success ? "Official · signature-verified" : "Official · not yet synced"}</span>`
+      : '<span class="badge warning">Custom · untrusted source</span>';
   async function render() {
     sources = await api<Source[]>("/rule-feeds");
     return (
@@ -67,12 +73,12 @@ export function makeFeedsUI(c: Context) {
         button("add-feed", "Add source"),
       ) +
       ruleTabs(true) +
-      `<div class="info-panel"><h3>Automatic and pinned protection</h3><p>Sync updates the shared catalogue. Policies following the official feed automatically adopt its new and revised rules; pinned selections need review in Policies. Legacy application feeds import disabled drafts. Disabled and Observe policy settings are preserved.</p></div>` +
+      `<div class="info-panel"><h3>Automatic and pinned protection</h3><p>Sync updates the shared catalogue. Policies following the official feed automatically adopt its new and revised rules; pinned selections need review in Policies. Legacy application feeds import disabled drafts. Disabled and Observe policy settings are preserved. Official releases are signature-verified by Aegis; custom sources are marked untrusted and never inherit official trust.</p></div>` +
       (sources.length
         ? c.table(
             ["Source", "Scope", "Sync status", "Rules", ""],
             sources.map((s) => [
-              `<strong>${esc(s.name)}</strong><small class="domain">${esc(s.url)}</small>`,
+              `<strong>${esc(s.name)}</strong><small class="domain">${esc(s.url)}</small>${trustBadge(s)}`,
               esc(
                 !s.site_id
                   ? "Workspace catalogue"
@@ -102,7 +108,7 @@ export function makeFeedsUI(c: Context) {
         )
         .join(
           "",
-        )}</select><p class="muted">Public HTTPS only. Workspace catalogues use a small version 3 release descriptor and one verified package of individual rule files. Legacy version 2 manifests remain supported. Application-bound sources retain legacy version 1 JSON imports. ModSecurity and vendor formats need conversion. Sync is coordinated across replicas and checks every 12 hours. The first check runs within 30 seconds, or use Sync now.</p><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Add source">Add source</button></div></form>`,
+        )}</select><p class="muted">Public HTTPS only. Workspace catalogues use a small version 3 release descriptor and one verified package of individual rule files. Legacy version 2 manifests remain supported. Application-bound sources retain legacy version 1 JSON imports. ModSecurity and vendor formats need conversion. Sync is coordinated across replicas and checks every 12 hours. The first check runs within 30 seconds, or use Sync now. Only the official community release is signature-verified; any other URL is marked as an untrusted source.</p><div class="form-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="submit" class="primary" data-label="Add source">Add source</button></div></form>`,
     );
     c.formHandler("feed-form", async (f) => {
       await api("/rule-feeds", "POST", {

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,6 +22,7 @@ type ruleManifest struct {
 	Revision      int               `json:"revision"`
 	Rules         []manifestEntry   `json:"rules"`
 	Package       *cataloguePackage `json:"package,omitempty"`
+	Signature     *releaseSignature `json:"signature,omitempty"`
 }
 type manifestEntry struct {
 	ID     string `json:"id"`
@@ -114,7 +116,7 @@ func parseRuleManifest(raw []byte, base *url.URL) (ruleManifest, error) {
 		}
 		return m, nil
 	}
-	if m.SchemaVersion != 2 || m.Package != nil || m.Rules == nil || len(m.Rules) > 100 {
+	if m.SchemaVersion != 2 || m.Package != nil || m.Signature != nil || m.Rules == nil || len(m.Rules) > 100 {
 		return m, invalid("use a version 3 release or a version 2 manifest with at most 100 entries")
 	}
 	seen, paths := map[string]bool{}, map[string]bool{}
@@ -265,10 +267,22 @@ func (a *App) fetchCatalogue(ctx context.Context, rawURL, etag string) (ruleMani
 	if e != nil {
 		return m, nil, "", false, e
 	}
+	// The official channel is release-driven: every manifest it serves must
+	// be a signed schema-3 release. Accepting an older schema from the
+	// official URL would let an origin compromise skip signature enforcement
+	// (which lives in the schema-3 branch below) by serving schema 2.
+	if rawURL == communityFeedURL && m.SchemaVersion != 3 {
+		return m, nil, "", false, fmt.Errorf("official catalogue must be a signed schema-3 release manifest (got schema %d)", m.SchemaVersion)
+	}
 	if m.SchemaVersion == 3 {
 		target, _ := resolveFeedFile(base, m.Package.Path, ".zip")
 		raw, _, _, e = a.fetchFeedBytes(ctx, target, "", maxCataloguePackageBytes)
 		if e != nil {
+			return m, nil, "", false, e
+		}
+		// Official releases must verify against the pinned release workflow;
+		// custom sources without a signature stay usable but explicitly untrusted.
+		if e := verifyReleaseSignature(raw, m.Signature, rawURL == communityFeedURL); e != nil {
 			return m, nil, "", false, e
 		}
 		items, e := parseCataloguePackage(ctx, m, raw)
