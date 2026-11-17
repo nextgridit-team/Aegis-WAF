@@ -52,10 +52,16 @@ func signer(b []byte) (crypto.Signer, error) {
 	}
 	return s, nil
 }
+
+// errACMERedirect is the ACME client's CheckRedirect sentinel: legitimate ACME
+// directories never redirect, and acmeFailure keys its redirect guidance off
+// this cause instead of flattening every transport failure to redirect advice.
+var errACMERedirect = errors.New("acme redirects are not accepted")
+
 func acmeClient(directory string, key crypto.Signer, kid string) *acme.Client {
 	// Legitimate ACME directories do not redirect; a directory URL that does
 	// must not steer signed ACME traffic (or probes) anywhere else.
-	return &acme.Client{Key: key, KID: acme.KeyID(kid), DirectoryURL: directory, HTTPClient: &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("acme redirects are not accepted") }}, UserAgent: "aegis-waf/0.1"}
+	return &acme.Client{Key: key, KID: acme.KeyID(kid), DirectoryURL: directory, HTTPClient: &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errACMERedirect }}, UserAgent: "aegis-waf/0.1"}
 }
 
 // Some authorities omit Location when finalization returns "processing".
@@ -274,10 +280,16 @@ func acmeFailure(stage string, e error) string {
 		return stage + " timed out; will retry"
 	}
 	// Surface transport causes so a redirect refusal is distinguishable from
-	// an outage instead of flattening to generic connectivity advice.
+	// an outage instead of flattening to generic connectivity advice. The
+	// redirect-refusal tail is keyed off the CheckRedirect sentinel: a
+	// genuine outage must read as a connectivity problem, not as the gateway
+	// refusing a redirect the CA never issued.
 	var ue *url.Error
 	if errors.As(e, &ue) && ue.Err != nil {
-		return fmt.Sprintf("%s failed (%s); the gateway refuses outbound redirects — check the directory URL and CA reachability", stage, ue.Err)
+		if errors.Is(ue.Err, errACMERedirect) {
+			return fmt.Sprintf("%s failed (%s); the gateway refuses outbound redirects — check the directory URL and CA reachability", stage, ue.Err)
+		}
+		return fmt.Sprintf("%s failed (%s); check the directory URL, CA reachability and network egress", stage, ue.Err)
 	}
 	return stage + " failed; check CA connectivity, DNS, and database health"
 }

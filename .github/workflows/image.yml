@@ -28,8 +28,10 @@ jobs:
     uses: ./.github/workflows/security-checks.yml
   community-rules:
     uses: ./.github/workflows/community-rules.yml
+  browser-suites:
+    uses: ./.github/workflows/browser-suites.yml
   build-publish:
-    needs: [security-regressions, community-rules]
+    needs: [security-regressions, community-rules, browser-suites]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -76,7 +78,7 @@ jobs:
           cmp docs/management-api.md internal/app/agent_management_contract.md
           go vet ./...
       - name: PostgreSQL integration and race checks
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -timeout=45m ./...
       - name: Check and build dashboard
         run: |
           npm --prefix web ci

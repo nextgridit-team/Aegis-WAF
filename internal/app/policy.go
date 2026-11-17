@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
@@ -403,7 +404,7 @@ func checkPolicyAssignments(ctx context.Context, tx pgx.Tx) error {
 		return e
 	}
 	if len(configurations) > managedConfigurationLimit {
-		return apiError{409, "at most eight distinct active managed signature configurations"}
+		return apiError{409, fmt.Sprintf("at most %d distinct active managed signature configurations", managedConfigurationLimit)}
 	}
 	return nil
 }

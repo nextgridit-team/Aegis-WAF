@@ -1,0 +1,37 @@
+name: Browser interface suites
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  browser-suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - name: Install suite dependencies and Playwright chromium
+        run: |
+          npm --prefix tests ci
+          tests/node_modules/.bin/playwright install --with-deps chromium
+      - name: Dashboard dev dependencies for the local-flow fixture
+        run: npm --prefix web ci --no-audit --no-fund
+      - name: Contextual help mirrors stay current
+        run: node web/scripts/build-help.mjs --check
+      - name: Fixture suites over the built dashboard bundle
+        run: |
+          set -eu
+          for suite in onboarding renewal feeds policies capacity help upstreams logging alerts applications exceptions dashboard-banner local-flow application-access; do
+            echo "::group::tests suite $suite"
+            npm --prefix tests run "test:$suite"
+            echo "::endgroup::"
+          done
