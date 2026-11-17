@@ -94,6 +94,7 @@ func agentOperations() []agentOperation {
 		"PUT /api/geolocation/local",
 		"POST /api/geolocation/local/detect",
 		"GET /api/live-traffic",
+		"GET /api/policy-capacity",
 		"GET /api/policies",
 		"GET /api/policies/{id}/history",
 		"GET /api/protection-settings",

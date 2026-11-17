@@ -407,7 +407,7 @@ func (a *App) loadManagedSignatures(ctx context.Context, tx pgx.Tx, next *snapsh
 				runtime = old.managedWAFs[key]
 			}
 			if runtime == nil {
-				if len(next.managedWAFs) >= 8 {
+				if len(next.managedWAFs) >= managedConfigurationLimit {
 					return errors.New("at most eight active managed signature configurations per replica")
 				}
 				var e error

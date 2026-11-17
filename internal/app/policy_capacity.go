@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"reflect"
 	"sort"
@@ -102,6 +103,24 @@ func activeManagedConfigurations(ctx context.Context, db sqlQuerier, replacement
 	return configurations, nil
 }
 
+// hasEnabledAssignment reports whether a policy is bound to at least one
+// enabled site — the only condition under which saving it compiles an engine.
+func hasEnabledAssignment(ctx context.Context, db sqlQuerier, policyID int64) (bool, error) {
+	rows, e := db.Query(ctx, "SELECT EXISTS(SELECT 1 FROM policy_assignments b JOIN sites s ON s.id=b.site_id WHERE s.enabled AND b.policy_id=$1)", policyID)
+	if e != nil {
+		return false, e
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return false, errors.New("assignment existence check returned no rows")
+	}
+	var exists bool
+	if e = rows.Scan(&exists); e != nil {
+		return false, e
+	}
+	return exists, rows.Err()
+}
+
 func (a *App) policyCapacityReport(w http.ResponseWriter, r *http.Request, _ identity) error {
 	configurations, e := activeManagedConfigurations(r.Context(), a.db, 0, nil)
 	if e != nil {
@@ -161,6 +180,20 @@ func (a *App) policyCapacityCheck(w http.ResponseWriter, r *http.Request, _ iden
 		return nil
 	}
 	result.WouldCreateNew = before[managedRuntimeKey(options)] == nil
+	// Model the policy's actual assignments: an existing policy only mints an
+	// engine when it is bound to at least one enabled site, so an unassigned
+	// edit that saves fine must not be counted against the budget. A new
+	// policy (id 0) stays conservative because its save typically carries the
+	// assignments that mint the engine.
+	occupiesEngine := in.PolicyID == 0
+	if !occupiesEngine {
+		assigned, e := hasEnabledAssignment(r.Context(), a.db, in.PolicyID)
+		if e != nil {
+			return e
+		}
+		occupiesEngine = assigned
+	}
+	result.WouldCreateNew = result.WouldCreateNew && occupiesEngine
 	replacement := &policySpec{Mode: in.Mode, ManagedSignatures: in.Options}
 	after, e := activeManagedConfigurations(r.Context(), a.db, in.PolicyID, replacement)
 	if e != nil {
@@ -168,7 +201,7 @@ func (a *App) policyCapacityCheck(w http.ResponseWriter, r *http.Request, _ iden
 	}
 	// The saved policy itself always carries the candidate configuration;
 	// count it when no surviving policy already produces it.
-	if after[managedRuntimeKey(options)] == nil {
+	if after[managedRuntimeKey(options)] == nil && occupiesEngine {
 		after[managedRuntimeKey(options)] = &managedConfiguration{}
 	}
 	result.DistinctAfter = len(after)
