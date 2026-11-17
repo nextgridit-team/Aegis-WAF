@@ -144,7 +144,19 @@ Set these in the container environment through your deployment configuration. De
 
 ## Administrator and certificate security
 
-Passwords use bcrypt cost 12. Sessions contain 256-bit random tokens; PostgreSQL stores their SHA-256 hashes, expiry and CSRF state. Sessions expire after 12 hours, and logout revokes them centrally. Cookies are HttpOnly and SameSite=Strict, with Secure required outside loopback. Management mutations require a same-origin request header and the current CSRF token; setup/sign-in have database-backed throttling. All administrators share full management authority. Password recovery, MFA and granular roles are not implemented.
+Passwords use bcrypt cost 12. Sessions contain 256-bit random tokens; PostgreSQL stores their SHA-256 hashes, expiry, CSRF state, source address and user agent. Sessions expire after 12 hours, and logout revokes them centrally. Cookies are HttpOnly and SameSite=Strict, with Secure required outside loopback. Management mutations require a same-origin request header and the current CSRF token; setup/sign-in have database-backed throttling, and second-factor attempts share it.
+
+Administrators carry one of three roles — owner, operator or read-only — enforced by the gateway on every request: read-only can read but not mutate, operators run the workspace, and only owners manage administrator accounts or mint MCP keys. The bootstrapped administrator is an owner. Password changes, MFA changes and password recovery revoke every session for the account. See [administrator accounts](security.md#administrator-accounts) for the MFA and recovery design.
+
+### Administrator password recovery
+
+Recovery is host-side by design; there is no email flow and no unauthenticated token creation. On the Docker host, with the deployment's `DATABASE_URL` available:
+
+```sh
+docker compose exec -T app aegis-waf reset-admin-password -username alice -minutes 15
+```
+
+The command prints a single-use token that expires within the chosen lifetime (1–60 minutes). Redeem it in the dashboard's recovery form or at `POST /api/reset-password` with a new 14–72 byte password. Redemption rotates the password, clears MFA enrollment (the escape hatch for a lost authenticator with no remaining recovery codes) and revokes every session; the event is audited as `administrator.password_reset`.
 
 PEM upload checks supported key format, key/certificate correspondence, certificate dates, adjacent chain signatures, server-auth usage and hostname coverage on assignment. Upload the leaf first, followed by intermediate certificates. PKCS#8, PKCS#1 RSA and SEC1 EC unencrypted private-key PEM formats are supported. Upload validation does not establish public trust or check revocation. Replacements commit transactionally and failed validation preserves the active certificate. Private keys are encrypted with AES-256-GCM before PostgreSQL storage and are never returned by normal read APIs. Public certificate chains and ordinary configuration/logs are not encrypted by this application layer.
 

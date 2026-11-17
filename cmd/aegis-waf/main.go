@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -15,6 +16,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/nextgridit-team/Aegis-WAF/internal/app"
 )
@@ -57,10 +60,51 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "reset-admin-password" {
+		if e := resetAdminPassword(os.Args[2:]); e != nil {
+			slog.Error(e.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if e := run(); e != nil {
 		slog.Error(e.Error())
 		os.Exit(1)
 	}
+}
+
+// resetAdminPassword mints a single-use, expiring recovery token for one
+// administrator. It runs host-side only: the caller already needs database
+// access, so recovery never becomes an unauthenticated network path. The
+// token is printed exactly once; redeeming it rotates the password, clears
+// MFA enrollment and revokes every session.
+func resetAdminPassword(args []string) error {
+	fs := flag.NewFlagSet("reset-admin-password", flag.ContinueOnError)
+	username := fs.String("username", "", "administrator username to recover (required)")
+	database := fs.String("database-url", os.Getenv("DATABASE_URL"), "PostgreSQL connection string (defaults to $DATABASE_URL)")
+	minutes := fs.Int("minutes", 15, "token lifetime in minutes (1-60)")
+	if e := fs.Parse(args); e != nil {
+		return e
+	}
+	if *username == "" || *database == "" || *minutes < 1 || *minutes > 60 {
+		return errors.New("usage: aegis-waf reset-admin-password -username <name> [-database-url <url>] [-minutes 15]")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool, e := pgxpool.New(ctx, *database)
+	if e != nil {
+		return fmt.Errorf("connect to database: %w", e)
+	}
+	defer pool.Close()
+	token, e := app.CreateAdminResetToken(ctx, pool, *username, time.Duration(*minutes)*time.Minute)
+	if e != nil {
+		return e
+	}
+	fmt.Printf("Password-reset token for %s (single use, expires in %d minutes):\n\n%s\n\n", *username, *minutes, token)
+	fmt.Println("Redeem it at POST /api/reset-password on the management listener, or in the")
+	fmt.Println("dashboard's account recovery form, together with a new 14-72 byte password.")
+	fmt.Println("Redemption revokes every session and clears MFA enrollment for that account.")
+	return nil
 }
 func healthcheckClient(insecureTLS bool) *http.Client {
 	// Redirects are refused: /readyz answers directly, and a 3xx must read

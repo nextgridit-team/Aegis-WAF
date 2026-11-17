@@ -264,3 +264,29 @@ CREATE INDEX IF NOT EXISTS access_logs_request_id ON access_logs(request_id);
 CREATE INDEX IF NOT EXISTS access_logs_rule_results ON access_logs USING gin(rule_results jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS audit_events_at_id ON audit_events(at DESC, id DESC);
 INSERT INTO schema_version VALUES (30) ON CONFLICT DO NOTHING;
+
+-- Version 31: administrator account hardening. Roles, sealed TOTP secrets
+-- (AAD binds each cipher to its administrator id), hashed single-use recovery
+-- codes, one-time password-reset tokens and the session inventory columns.
+-- The bootstrapped administrator keeps full authority: its role defaults to
+-- owner, so existing deployments change behavior only by adding accounts.
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'owner' CHECK(role IN ('owner','operator','read_only'));
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS totp_secret_cipher bytea;
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS totp_key_id text NOT NULL DEFAULT '';
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS totp_pending_cipher bytea;
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS totp_pending_key_id text NOT NULL DEFAULT '';
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS mfa_enrolled_at timestamptz;
+ALTER TABLE administrators ADD COLUMN IF NOT EXISTS totp_last_step bigint NOT NULL DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS id bigserial;
+CREATE UNIQUE INDEX IF NOT EXISTS sessions_id ON sessions(id);
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS ip text NOT NULL DEFAULT '';
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_agent text NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS sessions_admin ON sessions(admin_id);
+CREATE TABLE IF NOT EXISTS admin_recovery_codes(id bigserial PRIMARY KEY, admin_id bigint NOT NULL REFERENCES administrators ON DELETE CASCADE, code_hash text NOT NULL, used boolean NOT NULL DEFAULT false, used_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS admin_recovery_codes_admin ON admin_recovery_codes(admin_id) WHERE NOT used;
+CREATE TABLE IF NOT EXISTS admin_mfa_pending(token_hash text PRIMARY KEY, admin_id bigint NOT NULL REFERENCES administrators ON DELETE CASCADE, expires_at timestamptz NOT NULL, attempts int NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS admin_mfa_pending_expiry ON admin_mfa_pending(expires_at);
+CREATE TABLE IF NOT EXISTS admin_reset_tokens(token_hash text PRIMARY KEY, admin_id bigint NOT NULL REFERENCES administrators ON DELETE CASCADE, expires_at timestamptz NOT NULL, used boolean NOT NULL DEFAULT false, used_at timestamptz);
+INSERT INTO schema_version VALUES (31) ON CONFLICT DO NOTHING;

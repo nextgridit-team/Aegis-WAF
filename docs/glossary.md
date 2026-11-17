@@ -58,6 +58,10 @@ This file and the embedded glossary are generated from [the help catalogue](../w
 - [Streaming inspection window](#stream-window)
 - [Database log retention](#log-retention)
 - [Application sign-in and groups](#application-access)
+- [Administrator two-factor authentication](#admin-mfa)
+- [Recovery codes](#recovery-codes)
+- [Administrator roles](#admin-roles)
+- [Administrator sessions](#admin-sessions)
 
 <a id="policy"></a>
 
@@ -598,3 +602,43 @@ Require an external identity before visitors reach an application. OIDC redirect
 Choose allowed OIDC group or role values, or LDAP group DNs. Login remains required in every WAF mode and through network bypasses. Group membership is checked at sign-in; revoke sessions to require an earlier check. Provider tests verify connectivity, not a complete sign-in. Existing applications stay public until enabled.
 
 [Configuration guide](application-access.md)
+
+<a id="admin-mfa"></a>
+
+## Administrator two-factor authentication
+
+Require a time-based one-time password (TOTP) from an authenticator app at every administrator sign-in.
+
+Enrollment shows a QR code and a manual-entry key once, then ten single-use recovery codes. Confirming enrollment revokes every session so the next sign-in proves the authenticator works. Codes are RFC 6238, six digits, thirty-second step, one step of clock skew tolerated, and a used code is refused until a newer one appears. Disabling requires the current password plus a fresh code or an unused recovery code. The secret is encrypted with the workspace key, bound to the account, and never shown again.
+
+[Configuration guide](security.md)
+
+<a id="recovery-codes"></a>
+
+## Recovery codes
+
+Ten single-use codes that complete sign-in or disable MFA when the authenticator is lost.
+
+Recovery codes are shown exactly once, at enrollment. Each code works one time in place of a TOTP code at sign-in or when disabling MFA, and is stored only as a bcrypt hash. Losing both the authenticator and every recovery code requires the host-side password-reset command, which also clears MFA.
+
+[Configuration guide](security.md)
+
+<a id="admin-roles"></a>
+
+## Administrator roles
+
+Owners manage accounts and credential minting, operators run the workspace, read-only accounts can view everything but change nothing.
+
+The role is enforced by the gateway on every request, not by the dashboard: read-only is refused for every mutation, operators are refused administrator management and MCP key minting, and only owners manage accounts. Password, MFA and own-session management stay self-service for every administrator. The bootstrapped administrator is an owner; a workspace always keeps at least one.
+
+[Configuration guide](security.md)
+
+<a id="admin-sessions"></a>
+
+## Administrator sessions
+
+See every signed-in browser for your account, with address, user agent, created and last-seen times.
+
+Sessions live in PostgreSQL, so revoking one takes effect on the next request from any replica. Revoking all sessions happens automatically when a password or MFA changes and after password recovery. Each session lasts twelve hours and is bound to a hashed cookie token with CSRF double-check.
+
+[Configuration guide](security.md)

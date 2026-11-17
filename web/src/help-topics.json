@@ -733,5 +733,58 @@
       "User search base DN",
       "Group search base DN"
     ]
+  },
+  {
+    "id": "admin-mfa",
+    "title": "Administrator two-factor authentication",
+    "summary": "Require a time-based one-time password (TOTP) from an authenticator app at every administrator sign-in.",
+    "detail": "Enrollment shows a QR code and a manual-entry key once, then ten single-use recovery codes. Confirming enrollment revokes every session so the next sign-in proves the authenticator works. Codes are RFC 6238, six digits, thirty-second step, one step of clock skew tolerated, and a used code is refused until a newer one appears. Disabling requires the current password plus a fresh code or an unused recovery code. The secret is encrypted with the workspace key, bound to the account, and never shown again.",
+    "guide": "security.md",
+    "labels": [
+      "MFA",
+      "Two-factor authentication",
+      "TOTP",
+      "Authenticator",
+      "QR code"
+    ]
+  },
+  {
+    "id": "recovery-codes",
+    "title": "Recovery codes",
+    "summary": "Ten single-use codes that complete sign-in or disable MFA when the authenticator is lost.",
+    "detail": "Recovery codes are shown exactly once, at enrollment. Each code works one time in place of a TOTP code at sign-in or when disabling MFA, and is stored only as a bcrypt hash. Losing both the authenticator and every recovery code requires the host-side password-reset command, which also clears MFA.",
+    "guide": "security.md",
+    "labels": [
+      "Recovery codes",
+      "Lost authenticator",
+      "Backup codes"
+    ]
+  },
+  {
+    "id": "admin-roles",
+    "title": "Administrator roles",
+    "summary": "Owners manage accounts and credential minting, operators run the workspace, read-only accounts can view everything but change nothing.",
+    "detail": "The role is enforced by the gateway on every request, not by the dashboard: read-only is refused for every mutation, operators are refused administrator management and MCP key minting, and only owners manage accounts. Password, MFA and own-session management stay self-service for every administrator. The bootstrapped administrator is an owner; a workspace always keeps at least one.",
+    "guide": "security.md",
+    "labels": [
+      "Roles",
+      "Owner",
+      "Operator",
+      "Read-only",
+      "Administrator"
+    ]
+  },
+  {
+    "id": "admin-sessions",
+    "title": "Administrator sessions",
+    "summary": "See every signed-in browser for your account, with address, user agent, created and last-seen times.",
+    "detail": "Sessions live in PostgreSQL, so revoking one takes effect on the next request from any replica. Revoking all sessions happens automatically when a password or MFA changes and after password recovery. Each session lasts twelve hours and is bound to a hashed cookie token with CSRF double-check.",
+    "guide": "security.md",
+    "labels": [
+      "Sessions",
+      "Revoke session",
+      "Sign-in",
+      "Administrator sessions"
+    ]
   }
 ]

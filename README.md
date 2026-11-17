@@ -113,7 +113,7 @@ A small reference installation used under 1 GB of memory across both containers 
 
 **A good fit** if you already run Docker Compose, terminate TLS at your edge, and can give Aegis a reachable HTTP(S) upstream per application. It is aimed at self-hosters and small teams who want CRS signatures, custom rules, certificate automation and request history in one place.
 
-**A poor fit** if you need network-layer DDoS absorption, a global CDN or managed WAF service, multi-tenant WAF administration, or WebSocket and binary gRPC body inspection. Aegis also has no administrator MFA, role separation or semantic-version release series yet.
+**A poor fit** if you need network-layer DDoS absorption, a global CDN or managed WAF service, multi-tenant WAF administration, or WebSocket and binary gRPC body inspection.
 
 Adjacent references: [comparison with HAProxy, NGINX Proxy Manager and SafeLine](docs/proxy-comparison.md) · [full limitations](docs/limitations.md) · [security model](docs/security.md).
 
@@ -171,7 +171,7 @@ Start with the **[documentation index](docs/README.md)**, or go directly to:
 
 ## Current limits
 
-Aegis is under active development. Body inspection is bounded and response inspection is opt-in. Streaming detections occur after delivery; WebSocket frames, binary gRPC and unsupported types have no body inspection. Bot scoring remains heuristic even with CAPTCHA. Local budgets and connection limits are per replica; shared request-rate counters require optional Redis/Dragonfly. Access logs are asynchronous and best effort; administrative changes use transactional audits. Existing replicas retain loaded configuration during database outages; default cold starts and management authentication need PostgreSQL. Aegis runs no built-in AI traffic analysis. Administrator MFA and online encryption-key rotation remain open. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
+Aegis is under active development. Body inspection is bounded and response inspection is opt-in. Streaming detections occur after delivery; WebSocket frames, binary gRPC and unsupported types have no body inspection. Bot scoring remains heuristic even with CAPTCHA. Local budgets and connection limits are per replica; shared request-rate counters require optional Redis/Dragonfly. Access logs are asynchronous and best effort; administrative changes use transactional audits. Existing replicas retain loaded configuration during database outages; default cold starts and management authentication need PostgreSQL. Aegis runs no built-in AI traffic analysis. Online encryption-key rotation remains open. Read the [full limitations](docs/limitations.md) and [security model](docs/security.md) before deployment.
 
 ## Support, security and contributions
 

@@ -49,6 +49,7 @@ import {
 } from "./policy-page";
 import { makeAlertsPage } from "./alerts";
 import { makeSystemPage } from "./system";
+import { makeAccountPage } from "./account";
 import { makeAgentAccess } from "./agent-access";
 import {
   headerMarkup,
@@ -84,6 +85,7 @@ let state: State = {
 };
 let csrf = "",
   username = "",
+  role = "",
   page = "certificates",
   epoch = 0,
   polling = false,
@@ -91,6 +93,11 @@ let csrf = "",
   returnFocus: HTMLElement | null = null;
 const newestJob = (id: number) =>
   state.jobs.find((j) => j.certificate_id === id);
+const roleNames: Record<string, string> = {
+  owner: "Owner",
+  operator: "Operator",
+  read_only: "Read-only",
+};
 async function api<T>(
   path: string,
   method = "GET",
@@ -228,8 +235,9 @@ function shell() {
     ["activity", "activity", "Activity"],
     ["alerts", "activity", "Alerts"],
     ["system", "activity", "System"],
+    ["account", "key", "Account"],
   ];
-  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>Administrator</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", "application-access": "Application access", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" }[page]}</strong></span><div class="header-tools"><a class="header-help" href="/help.html" target="_blank" rel="noopener noreferrer">Help &amp; glossary</a>${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
+  root.innerHTML = `<div class="app-shell"><aside class="sidebar"><a class="brand" href="#certificates">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">${nav.map(([id, i, label]) => `<a href="#${id}" ${page === id || (id === "rules" && (page === "rule-feeds" || page === "signature-sets")) ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "certificates" && state.certs.length ? `<span class="nav-count" aria-hidden="true">${state.certs.length}</span>` : ""}</a>`).join("")}<div class="nav-divider"></div><a href="#authorities" ${page === "authorities" ? 'aria-current="page"' : ""}>${icon("key")}<span>Certificate authorities</span></a></nav><div class="sidebar-footer"><div class="avatar">${esc(username.slice(0, 1).toUpperCase())}</div><div><strong>${esc(username)}</strong><small>${esc(roleNames[role] ?? "Administrator")}</small></div><button class="icon-button" data-action="logout" aria-label="Sign out" title="Sign out">${icon("logout")}</button></div></aside><div class="workspace"><header class="topbar"><span>Workspace <span class="breadcrumb">/</span> <strong>${{ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", "application-access": "Application access", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic", account: "Account" }[page]}</strong></span><div class="header-tools"><a class="header-help" href="/help.html" target="_blank" rel="noopener noreferrer">Help &amp; glossary</a>${themeControl()}<div id="connection" class="connection"><span></span>Gateway connected</div></div></header><main id="content"><div id="message" aria-live="polite"></div><div id="view"><div class="loading">Loading workspace…</div></div></main><footer class="workspace-footer"><span>Aegis WAF · Self-hosted application gateway</span><span>Certificate management & reverse proxy</span></footer></div></div><dialog id="editor" aria-labelledby="editor-title"></dialog>`;
   document.getElementById("editor")!.addEventListener("close", () => {
     if (returnFocus?.isConnected) returnFocus.focus();
   });
@@ -292,7 +300,7 @@ async function render() {
   const view = document.getElementById("view");
   if (!view) return;
   view.classList.toggle("applications-view", page === "applications");
-  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", "application-access": "Application access", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic" } as Record<string, string>)[page]} · Aegis WAF`;
+  document.title = `${({ "live-map": "Live traffic map", "address-objects": "Address objects", "rule-feeds": "Rules", "signature-sets": "Rules", policies: "Policies", alerts: "Alerts", system: "System", ai: "Agent access", dashboard: "Dashboard", certificates: "Certificates", applications: "Applications", "application-access": "Application access", authorities: "Certificate authorities", activity: "Activity", rules: "Rules", traffic: "Traffic", account: "Account" } as Record<string, string>)[page]} · Aegis WAF`;
   if (page === "dashboard")
     await dashboardUI.mount(
       view,
@@ -315,6 +323,7 @@ async function render() {
   if (page === "application-access") await applicationAccessPage.render(view);
   if (page === "ai") await aiPage.render(view);
   if (page === "system") await systemPage.render(view);
+  if (page === "account") await accountPage.render(view);
   if (page === "alerts") await alertsPage.render(view);
   if (page === "address-objects") {
     const stamp = epoch;
@@ -770,6 +779,13 @@ const applicationAccessPage = makeApplicationAccess({
   closeEditor,
 });
 const systemPage = makeSystemPage({ api, formHandler, notice, handleError });
+const accountPage = makeAccountPage({
+  api,
+  formHandler,
+  notice,
+  handleError,
+  signOut: () => void start(),
+});
 const aiPage = makeAgentAccess({
   api,
   notice,
@@ -827,8 +843,13 @@ async function start() {
     const setup = await api<{ setup_required: boolean }>("/setup");
     if (!setup.setup_required) {
       try {
-        const me = await api<{ username: string; csrf: string }>("/me");
+        const me = await api<{
+          username: string;
+          csrf: string;
+          role: string;
+        }>("/me");
         username = me.username;
+        role = me.role;
         csrf = me.csrf;
         await refresh();
         return;
@@ -839,7 +860,7 @@ async function start() {
     document.title = setup.setup_required
       ? "Set up your gateway · Aegis WAF"
       : "Sign in · Aegis WAF";
-    root.innerHTML = `<div class="auth-shell"><aside class="auth-story"><a href="#certificates" class="brand">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div><div class="eyebrow">YOUR APPLICATIONS. YOUR EDGE.</div><h2>A secure home for<br>every application.</h2><p>Manage your certificates.<br>Connect your domains.<br>Keep your infrastructure yours.</p></div><small>Self-hosted · Certificate management & reverse proxy</small></aside><main class="auth-main" id="content"><div class="auth-theme">${themeControl()}</div><div class="auth-card"><span class="auth-symbol">${icon("shield")}</span><h1>${setup.setup_required ? "Set up your gateway" : "Welcome back"}</h1><p class="muted">${setup.setup_required ? "Create the administrator account for your Aegis workspace." : "Sign in to manage certificates and proxy hosts."}</p><div id="message" aria-live="polite"></div><form id="auth-form">${setup.setup_required ? field("secret", "Bootstrap secret", "", "text", 'required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"') : ""}${field("username", "Username", "", "text", 'required minlength="3" maxlength="64" autocomplete="username"')}${field("password", "Password", "", "password", `required ${setup.setup_required ? 'minlength="14" maxlength="72" autocomplete="new-password"' : 'autocomplete="current-password"'}`)}${setup.setup_required ? "<small>Use a unique password of 14–72 bytes. Your bootstrap secret comes from deployment setup.</small>" : ""}<button class="primary auth-submit" type="submit" data-label="${setup.setup_required ? "Create administrator" : "Sign in"}">${setup.setup_required ? "Create administrator" : "Sign in"}${icon("arrow")}</button></form><div class="auth-footnote">${icon("key")}Your workspace. Your infrastructure.</div></div></main></div>`;
+    root.innerHTML = `<div class="auth-shell"><aside class="auth-story"><a href="#certificates" class="brand">${icon("shield")}<span>Aegis<span class="brand-suffix">WAF</span></span></a><div><div class="eyebrow">YOUR APPLICATIONS. YOUR EDGE.</div><h2>A secure home for<br>every application.</h2><p>Manage your certificates.<br>Connect your domains.<br>Keep your infrastructure yours.</p></div><small>Self-hosted · Certificate management & reverse proxy</small></aside><main class="auth-main" id="content"><div class="auth-theme">${themeControl()}</div><div class="auth-card"><span class="auth-symbol">${icon("shield")}</span><h1>${setup.setup_required ? "Set up your gateway" : "Welcome back"}</h1><p class="muted">${setup.setup_required ? "Create the administrator account for your Aegis workspace." : "Sign in to manage certificates and proxy hosts."}</p><div id="message" aria-live="polite"></div><form id="auth-form">${setup.setup_required ? field("secret", "Bootstrap secret", "", "text", 'required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"') : ""}${field("username", "Username", "", "text", 'required minlength="3" maxlength="64" autocomplete="username"')}${field("password", "Password", "", "password", `required ${setup.setup_required ? 'minlength="14" maxlength="72" autocomplete="new-password"' : 'autocomplete="current-password"'}`)}${setup.setup_required ? "<small>Use a unique password of 14–72 bytes. Your bootstrap secret comes from deployment setup.</small>" : ""}<button class="primary auth-submit" type="submit" data-label="${setup.setup_required ? "Create administrator" : "Sign in"}">${setup.setup_required ? "Create administrator" : "Sign in"}${icon("arrow")}</button></form>${setup.setup_required ? "" : `<button type="button" class="text-button" id="recover-access">Recover access with a reset token</button>`}<div class="auth-footnote">${icon("key")}Your workspace. Your infrastructure.</div></div></main></div>`;
     formHandler("auth-form", async (f) => {
       if (setup.setup_required) {
         f.set("secret", String(f.get("secret") || "").trim());
@@ -847,20 +868,69 @@ async function start() {
         await start();
         notice("Administrator created. Sign in to get started.");
       } else {
-        const me = await api<{ username: string; csrf: string }>(
-          "/login",
-          "POST",
-          Object.fromEntries(f),
-        );
-        username = me.username;
-        csrf = me.csrf;
+        const out = await api<{
+          mfa_required?: boolean;
+          ticket?: string;
+          username?: string;
+          csrf?: string;
+          role?: string;
+        }>("/login", "POST", Object.fromEntries(f));
+        if (out.mfa_required && out.ticket) {
+          renderMFAStep(out.ticket);
+          return;
+        }
+        username = out.username ?? "";
+        role = out.role ?? "owner";
+        csrf = out.csrf ?? "";
         await refresh();
       }
     });
+    document
+      .getElementById("recover-access")
+      ?.addEventListener("click", renderRecover);
   } catch (error) {
     root.innerHTML = `<main id="content" class="auth-loading"><h1>Gateway unavailable</h1><div id="message"></div><p>Check the database connection, then try again.</p>${button("reconnect", "Retry connection", "secondary")}</main>`;
     notice(error instanceof Error ? error.message : "Connection failed.", true);
   }
+}
+// The second factor step of administrator sign-in: the password was accepted
+// but MFA is enrolled, so a ticket-bound code (or recovery code) completes it.
+function renderMFAStep(ticket: string) {
+  const card = document.querySelector<HTMLElement>(".auth-card");
+  if (!card) return;
+  card.innerHTML = `<span class="auth-symbol">${icon("shield")}</span><h1>Two-factor authentication</h1><p class="muted">Enter the current six-digit code from your authenticator app, or one of your unused recovery codes.</p><div id="message" aria-live="polite"></div><form id="mfa-form">${field("code", "Authenticator or recovery code", "", "text", 'required maxlength="16" autocomplete="one-time-code" inputmode="numeric" autofocus')}<button class="primary auth-submit" type="submit" data-label="Verify">Verify${icon("arrow")}</button></form><button type="button" class="text-button" id="mfa-cancel">Back to sign in</button>`;
+  formHandler("mfa-form", async (f) => {
+    const out = await api<{
+      username: string;
+      csrf: string;
+      role: string;
+    }>("/login/mfa", "POST", { ticket, code: f.get("code") });
+    username = out.username;
+    role = out.role;
+    csrf = out.csrf;
+    await refresh();
+  });
+  card
+    .querySelector("#mfa-cancel")
+    ?.addEventListener("click", () => void start());
+}
+// Password recovery with a host-minted reset token; there is no email or
+// unauthenticated token creation path.
+function renderRecover() {
+  const card = document.querySelector<HTMLElement>(".auth-card");
+  if (!card) return;
+  card.innerHTML = `<span class="auth-symbol">${icon("key")}</span><h1>Recover access</h1><p class="muted">Paste the single-use reset token generated host-side by <code>aegis-waf reset-admin-password</code>, then choose a new password. Redemption revokes every session and clears MFA for that account.</p><div id="message" aria-live="polite"></div><form id="recover-form">${field("token", "Reset token", "", "text", 'required maxlength="64" autocomplete="off" autocapitalize="none" spellcheck="false"')}${field("new_password", "New password", "", "password", 'required minlength="14" maxlength="72" autocomplete="new-password"')}<button class="primary auth-submit" type="submit" data-label="Reset password">Reset password${icon("arrow")}</button></form><button type="button" class="text-button" id="recover-cancel">Back to sign in</button>`;
+  formHandler("recover-form", async (f) => {
+    await api("/reset-password", "POST", {
+      token: f.get("token"),
+      new_password: f.get("new_password"),
+    });
+    await start();
+    notice("Password reset. Sign in with your new password.");
+  });
+  card
+    .querySelector("#recover-cancel")
+    ?.addEventListener("click", () => void start());
 }
 const policyUI = makePolicyUI({
   api,
