@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
@@ -116,15 +117,44 @@ type errUpstreamProbeAddress struct{}
 
 func (errUpstreamProbeAddress) Error() string { return "upstream probe address refused" }
 
+// The well-known NAT64 translation ranges: an IPv6-only deployment's
+// resolver can synthesize these for any IPv4 destination, so a translating
+// gateway reaches IPv4-only targets through their embedded forms.
+var nat64Prefixes = []netip.Prefix{netip.MustParsePrefix("64:ff9b::/96"), netip.MustParsePrefix("64:ff9b:1::/48")}
+
+// nat64Embedded extracts the IPv4 destination embedded in a NAT64-wrapped
+// address (the final 32 bits).
+func nat64Embedded(ip netip.Addr) (netip.Addr, bool) {
+	for _, prefix := range nat64Prefixes {
+		if prefix.Contains(ip) {
+			b := ip.As16()
+			return netip.AddrFromSlice(b[12:])
+		}
+	}
+	return netip.Addr{}, false
+}
+
 // probeAddressRefused reports destinations no legitimate upstream uses. The
 // probe is a diagnostic for configured upstreams, which are routinely private
 // backends, so RFC1918 and unique-local addresses stay reachable — matching
 // the forwarding path's own posture. Link-local addresses (which include
 // every cloud metadata endpoint), multicast and unspecified addresses are
-// refused: they are reconnaissance targets, never upstreams.
+// refused: they are reconnaissance targets, never upstreams. NAT64-wrapped
+// forms are refused when the embedded IPv4 destination is itself refused or
+// sits in reserved space no upstream uses — a translating NAT64 gateway can
+// otherwise reach cloud metadata through its embedded form, the same gap the
+// feed guard closes by blocking NAT64 ranges outright.
 func probeAddressRefused(ip netip.Addr) bool {
 	ip = ip.Unmap()
-	return !ip.IsValid() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+	if !ip.IsValid() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	if embedded, ok := nat64Embedded(ip); ok {
+		return probeAddressRefused(embedded) ||
+			netip.MustParsePrefix("240.0.0.0/4").Contains(embedded) ||
+			netip.MustParsePrefix("0.0.0.0/8").Contains(embedded)
+	}
+	return false
 }
 
 // The probe never honors HTTP(S)_PROXY — environment proxies would let an
@@ -138,7 +168,13 @@ func upstreamProbeTransport(cfg *tls.Config) *http.Transport {
 			return nil, e
 		}
 		ips, e := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
-		if e != nil || len(ips) == 0 {
+		if e != nil {
+			// Wrap the resolver error so the net.DNSError case in the probe's
+			// stage classification fires and unresolvable hosts report the
+			// dns stage instead of a generic connection failure.
+			return nil, fmt.Errorf("upstream host lookup failed: %w", e)
+		}
+		if len(ips) == 0 {
 			return nil, errors.New("upstream host lookup failed")
 		}
 		for _, ip := range ips {
@@ -147,6 +183,13 @@ func upstreamProbeTransport(cfg *tls.Config) *http.Transport {
 			}
 		}
 		dialer := net.Dialer{Timeout: 5 * time.Second}
+		// Sequential per-IP dialing is deliberate: addresses are pre-checked
+		// so ANY refused address fails the probe before a connection opens,
+		// and a control-hook design would hand refusal to the stdlib's
+		// per-attempt path, weakening that guarantee. The cost is 5 s per
+		// dead address (dual-stack upstreams with a blackholed first
+		// address); restoring parallel dialing needs a pre-filtered fan-out
+		// dialer to keep the any-bad-address-refuses semantics.
 		var last error
 		for _, ip := range ips {
 			var conn net.Conn
