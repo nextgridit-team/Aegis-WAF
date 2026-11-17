@@ -302,6 +302,12 @@ const path = require("node:path");
           json = { error: "Unavailable" };
         }
       }
+      if (p === "/api/endpoint-costs")
+        json = {
+          site_id: Number(url.searchParams.get("site_id")) || 0,
+          hours: 1,
+          endpoints: [],
+        };
       if (p === "/api/protection-settings")
         json = sites.map((s) => ({ site_id: s.id, settings: local }));
       if (p === "/api/access-logs/51")
