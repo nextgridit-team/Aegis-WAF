@@ -39,7 +39,7 @@ func TestUpstreamTLSProbeAndProxy(t *testing.T) {
 	}
 	settings.ServerName = ""
 	target, _ := url.Parse(up.URL)
-	proxy := newSiteProxy(target, Site{UpstreamTLS: settings}, HeaderSettings{})
+	proxy := newSiteProxy(target, Site{UpstreamTLS: settings}, HeaderSettings{}, nil)
 	rec := httptest.NewRecorder()
 	proxy.ServeHTTP(rec, httptest.NewRequest("GET", "http://public.test/", nil))
 	if rec.Code != 200 || rec.Body.String() != "private backend" {

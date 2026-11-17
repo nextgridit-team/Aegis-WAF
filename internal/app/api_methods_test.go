@@ -21,7 +21,7 @@ func TestEndpointMethodDefaultsAndExplicitPolicy(t *testing.T) {
 		route := app.active.Load().routes["managed.test"]
 		route.site.TrafficProfile = profile
 		target, _ := url.Parse(up.URL)
-		route.proxy = newSiteProxy(target, route.site, HeaderSettings{})
+		route.proxy = newSiteProxy(target, route.site, HeaderSettings{}, nil)
 		for _, method := range []string{"GET", "HEAD", "POST", "OPTIONS", "PUT", "PATCH", "DELETE", "TRACE", "CONNECT"} {
 			req := httptest.NewRequest(method, "http://managed.test/api/items", nil)
 			req.Host = "managed.test"

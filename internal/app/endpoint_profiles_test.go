@@ -110,7 +110,7 @@ func TestAPIProfileRetainsManagedInspection(t *testing.T) {
 	route := app.active.Load().routes["managed.test"]
 	route.site.TrafficProfile = "api"
 	target, _ := url.Parse(up.URL)
-	route.proxy = newSiteProxy(target, route.site, HeaderSettings{})
+	route.proxy = newSiteProxy(target, route.site, HeaderSettings{}, nil)
 	for _, test := range []struct {
 		body   string
 		status int

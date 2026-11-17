@@ -62,7 +62,7 @@ func TestConnectionGatewayTimeoutDeadlineGrace(t *testing.T) {
 			writer := &statusWriter{ResponseWriter: recorder, limits: state}
 			state.writer = recorder
 			target, _ := url.Parse("http://upstream.test")
-			proxy := newSiteProxy(target, Site{TrafficProfile: "api"}, HeaderSettings{})
+			proxy := newSiteProxy(target, Site{TrafficProfile: "api"}, HeaderSettings{}, nil)
 			before := time.Now()
 			proxy.ErrorHandler(writer, request, cause)
 			after := time.Now()

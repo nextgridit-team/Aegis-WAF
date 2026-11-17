@@ -214,7 +214,7 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 			return nil, e
 		}
 		site.Headers = &headers
-		r := &route{site: site, proxy: newSiteProxy(target, site, headers)}
+		r := &route{site: site, proxy: newSiteProxy(target, site, headers, a)}
 		if site.CertificateID != nil {
 			r.cert = s.certificates[*site.CertificateID]
 			if r.cert == nil {
