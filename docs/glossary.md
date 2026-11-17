@@ -17,6 +17,7 @@ This file and the embedded glossary are generated from [the help catalogue](../w
 - [HTTP flood protection](#flood)
 - [Requests per second](#request-rate)
 - [Burst allowance](#burst)
+- [Endpoint rate overrides](#endpoint-rates)
 - [Bot detection and CAPTCHA](#bot)
 - [Bot suspicion threshold](#bot-score)
 - [Bot clearance duration](#clearance)
@@ -187,6 +188,16 @@ A burst lets a client send a short spike above its usual request rate. After tha
 Set burst at least as high as the requests-per-second value. Bigger bursts accommodate page loads and short API spikes, but allow more traffic through at once. The bot-frequency burst is a suspicion signal; flood bursts are enforcement budgets.
 
 [Configuration guide](shared-rate-state.md)
+
+<a id="endpoint-rates"></a>
+
+## Endpoint rate overrides
+
+An endpoint override gives one path a tighter budget than the policy default, for example a login endpoint that only tolerates a few requests per second.
+
+Each override sets a path pattern (prefix or exact), a requests-per-second value, a burst allowance and a scope. Rows are evaluated in order and the first matching pattern applies; requests matching no row keep the normal client and application budgets. The matched budget applies underneath both, so an override can only tighten a limit. Per-client scope gives each client IP its own budget; site-wide scope makes all clients share one budget for that path. Overrides follow scoped-exclusion path semantics without normalization, so a prefix pattern does not cover case or encoding variants. The list is capped at 32 rows and unknown fields are rejected by name.
+
+[Configuration guide](policies.md)
 
 <a id="bot"></a>
 

@@ -173,6 +173,20 @@
     ]
   },
   {
+    "id": "endpoint-rates",
+    "title": "Endpoint rate overrides",
+    "summary": "An endpoint override gives one path a tighter budget than the policy default, for example a login endpoint that only tolerates a few requests per second.",
+    "detail": "Each override sets a path pattern (prefix or exact), a requests-per-second value, a burst allowance and a scope. Rows are evaluated in order and the first matching pattern applies; requests matching no row keep the normal client and application budgets. The matched budget applies underneath both, so an override can only tighten a limit. Per-client scope gives each client IP its own budget; site-wide scope makes all clients share one budget for that path. Overrides follow scoped-exclusion path semantics without normalization, so a prefix pattern does not cover case or encoding variants. The list is capped at 32 rows and unknown fields are rejected by name.",
+    "guide": "policies.md",
+    "labels": [
+      "Endpoint rate overrides",
+      "Endpoint requests / second",
+      "Endpoint burst allowance",
+      "Add endpoint override",
+      "Endpoint override"
+    ]
+  },
+  {
     "id": "bot",
     "title": "Bot detection and CAPTCHA",
     "summary": "Bot checks look for signs that traffic is automated. Aegis can ask suspicious clients to complete a self-hosted CAPTCHA instead of challenging every visitor.",

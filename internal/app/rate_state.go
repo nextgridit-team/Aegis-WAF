@@ -30,35 +30,42 @@ type rateLimit struct {
 	Rate, Burst int
 }
 type rateState interface {
-	Take(context.Context, []rateLimit, time.Time) ([2]bool, bool, error)
-}
-type localRateState struct{ limiter *floodLimiter }
-
-func (s localRateState) Take(_ context.Context, limits []rateLimit, now time.Time) ([2]bool, bool, error) {
-	var out [2]bool
-	saturated := false
-	for i, l := range limits {
-		allowed, full := s.limiter.allow(l.Key, l.Rate, l.Burst, now)
-		out[i] = allowed
-		saturated = saturated || full
-	}
-	return out, saturated, nil
+	Take(context.Context, []rateLimit, time.Time) ([]bool, bool, error)
 }
 
 type rateStateKey struct{}
 
-// Concrete dispatch keeps local limits and result bits on the stack; both
-// backends implement the same bounded state contract for future extensions.
-var _ rateState = localRateState{}
-var _ rateState = (*sharedRateState)(nil)
-
-func takeRateState(ctx context.Context, local *floodLimiter, limits []rateLimit, now time.Time) ([2]bool, bool, error) {
+// takeRateState evaluates every limit against the configured backend and
+// writes one decision bit per limit into the caller-owned out buffer
+// (len(out) must be at least len(limits)). The local fast path loops over the
+// limiter directly so limits and result bits stay on the caller's stack: a
+// result slice crossing the rateState interface forces a heap allocation on
+// every protected request, so only the shared backend produces one and it is
+// copied back into out here.
+func takeRateState(ctx context.Context, local *floodLimiter, limits []rateLimit, out []bool, now time.Time) (bool, error) {
+	if len(out) < len(limits) {
+		return false, errors.New("rate-state destination too small")
+	}
 	if shared, _ := ctx.Value(rateStateKey{}).(*sharedRateState); shared != nil && shared.stored.Settings.Backend == "redis" {
 		decisions, _, err := shared.Take(ctx, limits, now)
-		return decisions, false, err
+		if err != nil {
+			return false, err
+		}
+		copy(out, decisions)
+		return false, nil
 	}
-	return (localRateState{local}).Take(ctx, limits, now)
+	saturated := false
+	for n, l := range limits {
+		allowed, full := local.allow(l.Key, l.Rate, l.Burst, now)
+		out[n] = allowed
+		saturated = saturated || full
+	}
+	return saturated, nil
 }
+
+// Both backends implement the same bounded state contract; the shared state is
+// injected through the request context.
+var _ rateState = (*sharedRateState)(nil)
 
 type rateStateSettings struct {
 	Backend   string `json:"backend"`
@@ -202,18 +209,18 @@ func (s *sharedRateState) retire() {
 		s.client = nil
 	}
 }
-func (s *sharedRateState) Take(parent context.Context, limits []rateLimit, _ time.Time) ([2]bool, bool, error) {
-	if len(limits) < 1 || len(limits) > 2 {
-		return [2]bool{}, false, errors.New("invalid rate-state operation")
+func (s *sharedRateState) Take(parent context.Context, limits []rateLimit, _ time.Time) ([]bool, bool, error) {
+	if len(limits) < 1 || len(limits) > 8 {
+		return nil, false, errors.New("invalid rate-state operation")
 	}
 	if time.Now().UnixMilli() < s.retryAfter.Load() {
-		return [2]bool{}, false, errors.New("shared rate-state unavailable")
+		return nil, false, errors.New("shared rate-state unavailable")
 	}
 	select {
 	case s.work <- struct{}{}:
 		defer func() { <-s.work }()
 	default:
-		return [2]bool{}, false, errors.New("shared rate-state busy")
+		return nil, false, errors.New("shared rate-state busy")
 	}
 	ctx, cancel := context.WithTimeout(parent, time.Duration(s.stored.Settings.TimeoutMS)*time.Millisecond)
 	defer cancel()
@@ -230,9 +237,9 @@ func (s *sharedRateState) Take(parent context.Context, limits []rateLimit, _ tim
 	if e != nil || len(values) != len(limits) {
 		s.failures.Add(1)
 		s.retryAfter.Store(time.Now().Add(250 * time.Millisecond).UnixMilli())
-		return [2]bool{}, false, errors.New("shared rate-state unavailable")
+		return nil, false, errors.New("shared rate-state unavailable")
 	}
-	var out [2]bool
+	out := make([]bool, len(limits))
 	for i, value := range values {
 		out[i] = value == 1
 	}

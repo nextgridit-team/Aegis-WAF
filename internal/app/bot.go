@@ -84,7 +84,8 @@ func (a *App) botScore(p *protectionPolicy, site int64, r *http.Request, ip neti
 		}
 	}
 	key := rateKey{site, "bot:" + strconv.FormatInt(p.budgetScope, 10) + ":" + ip.String()}
-	decisions, saturated, err := takeRateState(r.Context(), &a.botRates, []rateLimit{{key, p.BotChallenge.RequestsPerSecond, p.BotChallenge.Burst}}, now)
+	var decisions [1]bool
+	saturated, err := takeRateState(r.Context(), &a.botRates, []rateLimit{{key, p.BotChallenge.RequestsPerSecond, p.BotChallenge.Burst}}, decisions[:], now)
 	if err != nil {
 		result.StateUnavailable = true
 		result.Reasons = append(result.Reasons, "rate_state_unavailable")

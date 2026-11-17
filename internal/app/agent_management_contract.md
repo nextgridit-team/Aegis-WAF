@@ -123,6 +123,8 @@ Policy `spec.managed_signatures` accepts optional `allowed_methods` (up to16 upp
 
 Policy `spec.connection_limits` optionally accepts `{enabled:true,max_concurrent:100,max_per_client:10,max_duration_seconds:900,idle_timeout_seconds:60}`. Omitted is disabled; maximum concurrent1–10000, client1–application cap, duration1–86400s, idle1–3600s. Scope is application+selectedpolicy+replica, independently of shared rate counters. Block enforces, Observe records, Off disables; full WAF bypass skips. Active counts survive reload; configuration changes affect new requests. Streaming timeouts after headers cut the stream with its original status; before headers timeout504, capacity429. Live connection/time behavior is not reconstructed by offline simulation; inspect its warnings. These policy changes require the normal exact simulation receipt for agents.
 
+Policy `spec.endpoint_rates` optionally accepts an ordered list of up to 32 path-pattern budget overrides: `[{"path_pattern":"/login","match":"prefix","requests_per_second":1,"burst":1,"scope":"per-client"}]`. `match` is `prefix` (default) or `exact` and follows scoped-exclusion path semantics (raw comparison, no normalization); `scope` is `per-client` (default) or `site-wide`. The first matching pattern wins, a request matching no override uses the policy's client and application defaults, and the client, application and matched-endpoint budgets all apply underneath each other, so an override can only tighten a budget. `requests_per_second` is 1–100000; `burst` must be at least the sustained rate and at most 1000000. Endpoint denials carry the `endpoint_rate` access-log signal, distinct from `client_rate` and `application_rate`; Observe records without refusing. Endpoint counters join the flood limiter's bucket space (and the shared Redis/Dragonfly operation) under the same failure semantics. Unknown keys in an override are rejected by name. Offline simulation evaluates endpoint budgets against its own fresh limiter, proving the configuration without reading or spending live counters.
+
 The upstream probe can return public `certificate:{pem,sha256,subject,issuer,not_after,dns_names,ip_addresses,expected_name,can_trust}` metadata. `dns_names` and `ip_addresses` contain the certificate's subject alternative names; `expected_name` is the TLS server name override or upstream URL hostname being checked, independently of the HTTP Host header. These peer-supplied names are diagnostic data, not verified backend identity. `can_trust` is offered for an unknown issuer only when hostname and validity checks pass; no private key or verification bypass is provided. Import an independently verified CA when possible; pinning the shown server certificate requires updating the pin on rotation.
 
 ## Global log retention
@@ -135,31 +137,60 @@ The upstream probe can return public `certificate:{pem,sha256,subject,issuer,not
 
 These providers authenticate visitors to proxied applications. They do not change administrator or MCP authentication. Every setup step is available through `management_operation` using the paths below; no dashboard-only state is required. Provider reads are `{id,revision,settings,has_secret}`; inventory also includes `applications`. Send **flat settings fields**, not the read wrapper, on writes. Secrets are write-only and encrypted. Empty/omitted `secret` preserves the saved secret; `clear_secret:true` removes an OIDC secret. Changing issuer/client ID, directory URL/bind DN or CA requires resupplying an existing secret. LDAP requires a nonempty service password.
 
-| Operation | MCP scope | Input / result |
-| --- | --- | --- |
-| `GET /identity-providers`, `GET /identity-providers/{id}` | Read | Redacted settings and revision |
-| `GET /identity-providers/presets` | Read | Templates for custom OIDC, Authentik, Entra ID, Google, OpenLDAP and Active Directory |
-| `POST /identity-providers` | Configuration | Provider fields below; returns `{id}` |
-| `PUT /identity-providers/{id}` | Enforce | Complete provider fields and current `revision`; invalidates sessions |
-| `DELETE /identity-providers/{id}` | Enforce | Remove an unassigned provider; assigned providers return 409 |
-| `POST /identity-providers/{id}/test` | Configuration | `{}`; returns `{ok,stage,message}` for discovery/TLS or directory service bind; does not establish that interactive login or group claims work |
-| `POST /identity-providers/{id}/groups` | Configuration | `{search:"finance"}`; LDAP returns `{supported:true,groups:[{id:<DN>,name}],truncated}` (at most 100); OIDC returns `supported:false` with instructions for token claims |
-| `GET /application-access`, `GET /application-access/{id}` | Read | `{site_id,revision,settings}`; inventory includes application name and hostnames |
-| `PUT /application-access/{id}` | Enforce + simulation | Complete access settings below and current revision; absent settings start at revision 0 |
-| `GET /application-sessions?site_id=123` | Read | Newest 200 active sessions: `id,site_id,provider_id,identity,created_at,expires_at`; no usable session token |
-| `DELETE /application-sessions/{id}` | Enforce | Revoke an opaque session ID |
-| `POST /application-access/{id}/revoke` | Enforce | `{}`; revoke all sessions for an application |
+| Operation                                                 | MCP scope            | Input / result                                                                                                                                                           |
+| --------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /identity-providers`, `GET /identity-providers/{id}` | Read                 | Redacted settings and revision                                                                                                                                           |
+| `GET /identity-providers/presets`                         | Read                 | Templates for custom OIDC, Authentik, Entra ID, Google, OpenLDAP and Active Directory                                                                                    |
+| `POST /identity-providers`                                | Configuration        | Provider fields below; returns `{id}`                                                                                                                                    |
+| `PUT /identity-providers/{id}`                            | Enforce              | Complete provider fields and current `revision`; invalidates sessions                                                                                                    |
+| `DELETE /identity-providers/{id}`                         | Enforce              | Remove an unassigned provider; assigned providers return 409                                                                                                             |
+| `POST /identity-providers/{id}/test`                      | Configuration        | `{}`; returns `{ok,stage,message}` for discovery/TLS or directory service bind; does not establish that interactive login or group claims work                           |
+| `POST /identity-providers/{id}/groups`                    | Configuration        | `{search:"finance"}`; LDAP returns `{supported:true,groups:[{id:<DN>,name}],truncated}` (at most 100); OIDC returns `supported:false` with instructions for token claims |
+| `GET /application-access`, `GET /application-access/{id}` | Read                 | `{site_id,revision,settings}`; inventory includes application name and hostnames                                                                                         |
+| `PUT /application-access/{id}`                            | Enforce + simulation | Complete access settings below and current revision; absent settings start at revision 0                                                                                 |
+| `GET /application-sessions?site_id=123`                   | Read                 | Newest 200 active sessions: `id,site_id,provider_id,identity,created_at,expires_at`; no usable session token                                                             |
+| `DELETE /application-sessions/{id}`                       | Enforce              | Revoke an opaque session ID                                                                                                                                              |
+| `POST /application-access/{id}/revoke`                    | Enforce              | `{}`; revoke all sessions for an application                                                                                                                             |
 
 OIDC creation example (use the actual tenant issuer, client ID and approved secret):
 
 ```json
-{"name":"Company Entra","type":"oidc","enabled":true,"secret":"<client secret>","oidc":{"issuer":"https://login.microsoftonline.com/<tenant-id>/v2.0","client_id":"<client-id>","scopes":["openid","profile","email"],"groups_claim":"roles"}}
+{
+  "name": "Company Entra",
+  "type": "oidc",
+  "enabled": true,
+  "secret": "<client secret>",
+  "oidc": {
+    "issuer": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+    "client_id": "<client-id>",
+    "scopes": ["openid", "profile", "email"],
+    "groups_claim": "roles"
+  }
+}
 ```
 
 LDAP creation example:
 
 ```json
-{"name":"Company directory","type":"ldap","enabled":true,"secret":"<service bind password>","ca_pem":"<optional PEM CA>","ldap":{"url":"ldaps://directory.example.com:636","bind_dn":"cn=aegis,ou=service,dc=example,dc=com","user_base_dn":"ou=people,dc=example,dc=com","user_filter":"(uid={username})","username_attribute":"uid","email_attribute":"mail","groups_attribute":"memberOf","group_base_dn":"ou=groups,dc=example,dc=com","group_filter":"(member={dn})","group_name_attribute":"cn"}}
+{
+  "name": "Company directory",
+  "type": "ldap",
+  "enabled": true,
+  "secret": "<service bind password>",
+  "ca_pem": "<optional PEM CA>",
+  "ldap": {
+    "url": "ldaps://directory.example.com:636",
+    "bind_dn": "cn=aegis,ou=service,dc=example,dc=com",
+    "user_base_dn": "ou=people,dc=example,dc=com",
+    "user_filter": "(uid={username})",
+    "username_attribute": "uid",
+    "email_attribute": "mail",
+    "groups_attribute": "memberOf",
+    "group_base_dn": "ou=groups,dc=example,dc=com",
+    "group_filter": "(member={dn})",
+    "group_name_attribute": "cn"
+  }
+}
 ```
 
 Use the Active Directory preset for `sAMAccountName` and its disabled-account filter. `ldap://` requires StartTLS; cleartext binds and certificate-verification bypass are unavailable. User input is filter-escaped. User search must resolve exactly one DN; an empty user password is rejected before binding. A configured group base searches additional membership using `{dn}` and/or `{username}`; without it, membership comes from the user group attribute. Nested groups are not expanded automatically. Only explicitly configured group searches can add them.
@@ -167,7 +198,15 @@ Use the Active Directory preset for `sAMAccountName` and its disabled-account fi
 Access assignment example for application 123 and provider 7:
 
 ```json
-{"revision":0,"enabled":true,"provider_id":7,"public_origin":"https://finance.example.com","allowed_groups":["Finance.Reader"],"allow_any_authenticated":false,"session_minutes":30}
+{
+  "revision": 0,
+  "enabled": true,
+  "provider_id": 7,
+  "public_origin": "https://finance.example.com",
+  "allowed_groups": ["Finance.Reader"],
+  "allow_any_authenticated": false,
+  "session_minutes": 30
+}
 ```
 
 `public_origin` must be HTTPS and use an application hostname. Register `https://finance.example.com/__aegis/auth/callback` as the OIDC redirect URI. Entra app roles use exact values from `roles`; token `groups` normally uses group object IDs. LDAP uses full group DNs, compared with LDAP DN case folding. At most 100 allowed values; matching any one grants access. Missing OIDC claims, including group-overage tokens without group values, deny restricted access. Google ID tokens do not include Workspace group membership. `allow_any_authenticated:true` requires empty `allowed_groups` and explicitly permits every identity accepted by the provider; for Google this can mean any Google account. Configure tenant/account restrictions at the provider.

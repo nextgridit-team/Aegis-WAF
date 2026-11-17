@@ -51,6 +51,16 @@ const path = require("node:path");
       burst: 111,
       site_requests_per_second: 12345,
       site_burst: 54321,
+      endpoint_rates: [
+        { path_pattern: "/login", requests_per_second: 5, burst: 9 },
+        {
+          path_pattern: "/api/",
+          match: "exact",
+          requests_per_second: 40,
+          burst: 80,
+          scope: "site-wide",
+        },
+      ],
       bot_challenge: {
         enabled: false,
         score_threshold: 73,
@@ -228,6 +238,11 @@ const path = require("node:path");
       update_mode: "pinned",
       rule_ids: [],
     };
+    expected.endpoint_rates = original.endpoint_rates.map((rate) => ({
+      match: "prefix",
+      scope: "per-client",
+      ...rate,
+    }));
     expected.groups = original.groups.map(({ rules, ...g }) => ({
       ...g,
       rule_ids: [],
@@ -273,6 +288,52 @@ const path = require("node:path");
         .evaluate((e) => e.validity.valid),
       true,
     );
+    assert.equal(await form().locator(".policy-endpoint-rate-row").count(), 2);
+    await form()
+      .getByRole("button", { name: "Add endpoint override", exact: true })
+      .click();
+    const endpoint = form().locator(".policy-endpoint-rate-row").last();
+    assert.equal(
+      await endpoint
+        .getByLabel("Path pattern", { exact: true })
+        .evaluate((e) => e.validity.valid),
+      false,
+    );
+    await endpoint.getByLabel("Path pattern", { exact: true }).fill("login");
+    assert.equal(
+      await endpoint
+        .getByLabel("Path pattern", { exact: true })
+        .evaluate((e) => e.validity.valid),
+      false,
+    );
+    await endpoint.getByLabel("Path pattern", { exact: true }).fill("/search");
+    await endpoint
+      .getByLabel("Endpoint requests / second", { exact: true })
+      .fill("12");
+    await endpoint.getByLabel("Endpoint burst allowance", { exact: true }).fill("6");
+    assert.equal(
+      await endpoint
+        .getByLabel("Endpoint burst allowance", { exact: true })
+        .evaluate((e) => e.validity.valid),
+      false,
+    );
+    await endpoint.getByLabel("Endpoint burst allowance", { exact: true }).fill("30");
+    await endpoint.getByLabel("Match", { exact: true }).selectOption("exact");
+    await endpoint.getByLabel("Scope", { exact: true }).selectOption("site-wide");
+    const ratesJSON = form().locator("[name=endpoint_rates]");
+    assert.deepEqual(JSON.parse(await ratesJSON.inputValue()).at(-1), {
+      path_pattern: "/search",
+      match: "exact",
+      requests_per_second: 12,
+      burst: 30,
+      scope: "site-wide",
+    });
+    const remove = endpoint.getByRole("button", {
+      name: /Remove endpoint override/,
+    });
+    assert.equal(await remove.isEnabled(), true);
+    await remove.click();
+    assert.equal(await form().locator(".policy-endpoint-rate-row").count(), 2);
     await page.screenshot({ path: path.join(artifacts, "traffic.png") });
     await section("Signature protection");
     assert.match(
@@ -568,7 +629,7 @@ const path = require("node:path");
     assert.deepEqual(saved.spec, savedAPI);
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: exact edit round trip; mode keyboard; scales; validation; scoped exceptions; country/method selection; failed save; responsive layouts; creation defaults",
+      "PASS: exact edit round trip; mode keyboard; scales; validation; scoped exceptions; endpoint rate overrides; country/method selection; failed save; responsive layouts; creation defaults",
     );
   } finally {
     await browser.close();

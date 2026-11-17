@@ -12,20 +12,22 @@ Click the **?** beside a technical setting for a short explanation. **Read detai
 
 The editor has six sections, with navigation on the left on desktop and a scrollable section bar on smaller screens:
 
-| Section | What to configure |
-| --- | --- |
-| Policy basics | Name, description and Off / Observe / Block mode cards |
-| Signature protection | Managed set, sensitivity, body/response inspection and rule exceptions |
-| Bot & flood protection | Feature switches, client/application budgets and selective CAPTCHA settings |
-| Access & location | Searchable address objects/groups, CIDR lists, allow behavior and countries |
-| Targeted rules | Community mitigations and application-specific native groups |
-| Application assignments | Default or client-scoped assignments and matching priority |
+| Section                 | What to configure                                                           |
+| ----------------------- | --------------------------------------------------------------------------- |
+| Policy basics           | Name, description and Off / Observe / Block mode cards                      |
+| Signature protection    | Managed set, sensitivity, body/response inspection and rule exceptions      |
+| Bot & flood protection  | Feature switches, client/application budgets and selective CAPTCHA settings |
+| Access & location       | Searchable address objects/groups, CIDR lists, allow behavior and countries |
+| Targeted rules          | Community mitigations and application-specific native groups                |
+| Application assignments | Default or client-scoped assignments and matching priority                  |
 
 **API starting settings** provides an explicit Observe-mode starting point for REST/AI services. Allowed methods and streaming inspection windows are policy settings under Signature protection; an explicitly configured method list is enforced natively by the gateway (block mode rejects disallowed methods with `method_not_allowed`, observe mode signals `method_would_block`) — it does not depend on CRS rule 911100 staying in the selected set. Host-profile method defaults remain managed-signature behavior. Connection, duration and idle limits are under Bot & flood protection. Routing, endpoint type and upstream certificate trust stay on the proxy host. [API and stream behavior](body-inspection.md).
 
 The preview explains the overall mode, including when Observe caps signature enforcement. Changes apply only after **Save policy** succeeds. A failed save keeps the editor and entered settings available for correction or retry.
 
 Use the sliders for rates, burst allowances, suspicion scores, clearance duration, inspection limits and assignment priority. The adjacent exact-value field remains available for precise settings. Rate/burst scales are logarithmic to make both small and large budgets practical; other scales use ordinary numeric steps. Burst must be at least the sustained rate. Turning flood protection off preserves its configured limits. Opening a policy never rounds its values to the nearest slider position; custom sensitivity and exact byte limits remain intact until deliberately changed.
+
+Under **Shared protection**, **Endpoint rate overrides** adds tighter budgets for specific paths: each row sets a path pattern (prefix or exact, following scoped-exclusion path semantics), a requests-per-second value, a burst allowance and a scope of per-client or site-wide. Rows are evaluated in order with the first matching pattern winning; a request matching no row uses the policy's normal client and application budgets, and the matched endpoint budget applies underneath both, so an override can only tighten a limit. The advanced JSON editor remains available; the server rejects unknown keys by name and caps the list at 32 rows.
 
 In **Access & location**, select objects/groups with searchable checkboxes and countries by name or two-letter code. Selected countries appear as removable chips; **Enter country codes directly** remains available. CIDR allow behavior explicitly chooses Geo-only bypass or all WAF protections. Blocking and allow-list order is unchanged.
 
@@ -61,7 +63,7 @@ Assigned policies replace local bot/flood and standalone rule activation for tha
 
 Configuration and frozen signatures live in PostgreSQL and propagate through the normal two-second snapshot refresh. Requests select cached policies without database or model calls. Metadata logs identify the selected policy and version. Policy saves, default reassignment, deletion and rollback produce administrative audit events.
 
-Native rules use deterministic matching and blocking; managed CRS uses its own anomaly scoring. Native weighted scoring, endpoint-specific rate budgets and built-in AI policy generation are not implemented. External agents can propose and apply scoped, simulated changes through MCP.
+Native rules use deterministic matching and blocking; managed CRS uses its own anomaly scoring. Native weighted scoring and built-in AI policy generation are not implemented. External agents can propose and apply scoped, simulated changes through MCP.
 
 ## Configure the recent controls
 
