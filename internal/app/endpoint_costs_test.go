@@ -8,10 +8,12 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // The forwarding leg must be measured, not estimated: a slow upstream has to
@@ -166,5 +168,36 @@ func TestEndpointCostsAPI(t *testing.T) {
 	json.Unmarshal(data, &report)
 	if len(report.Endpoints) != 0 {
 		t.Fatalf("rows outside the lookback still reported: %+v", report.Endpoints)
+	}
+}
+
+// A percent-decoded path carrying invalid UTF-8 must not poison the access-log
+// batch: one invalid path_class fails the whole CopyFrom (SQLSTATE 22021),
+// dropping every event in the batch — including valid sibling rows.
+func TestGarbagePathClassStoresThroughBatch(t *testing.T) {
+	cfg := testDB(t)
+	cfg.SnapshotCacheFile = filepath.Join(t.TempDir(), "snapshot")
+	aDB := newTestReplica(t, cfg)
+	ctx := context.Background()
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }))
+	defer up.Close()
+	u, _ := url.Parse(up.URL)
+	aPub := &App{access: make(chan accessEvent, 10)}
+	aPub.active.Store(&snapshot{version: 1, routes: map[string]*route{"app.example.com": {site: Site{ID: 1}, proxy: newProxy(u, true)}}})
+	r := httptest.NewRequest("GET", "http://app.example.com/api/items/%ff%fe", nil)
+	r.RemoteAddr = "192.0.2.10:1234"
+	w := httptest.NewRecorder()
+	aPub.Public(w, r)
+	if w.Code != 200 {
+		t.Fatalf("status %d", w.Code)
+	}
+	event := <-aPub.access
+	if !utf8.ValidString(event.pathClass) {
+		t.Fatalf("path class %q is not valid UTF-8", event.pathClass)
+	}
+	// The sanitized garbage-path event stores, and a valid sibling in the same
+	// batch persists alongside it.
+	if err := aDB.storeAccessBatch(ctx, []accessEvent{event}); err != nil {
+		t.Fatalf("batch store failed: %v", err)
 	}
 }

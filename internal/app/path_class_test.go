@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestNormalizePathClass(t *testing.T) {
@@ -36,6 +37,35 @@ func TestNormalizePathClassBoundedLength(t *testing.T) {
 	long := "/" + strings.Repeat("a", 300)
 	if got := normalizePathClass(long); len(got) > pathClassMaxBytes {
 		t.Fatalf("class length %d exceeds bound %d", len(got), pathClassMaxBytes)
+	}
+}
+
+func TestNormalizePathClassValidUTF8(t *testing.T) {
+	// net/http percent-decodes /%ff%fe into raw invalid bytes in r.URL.Path;
+	// one invalid path class would fail the whole access-log CopyFrom batch
+	// (SQLSTATE 22021), dropping every event in the batch.
+	cases := []string{
+		"/api/items/\xff\xfe",
+		"/\xff",
+		"/api/" + strings.Repeat("\xc3", 70), // dangling multibyte prefix, over segment bound
+		"/" + strings.Repeat("a", 70) + "\xff" + strings.Repeat("b", 70), // invalid inside over-bound segment
+	}
+	for _, in := range cases {
+		got := normalizePathClass(in)
+		if !utf8.ValidString(got) {
+			t.Fatalf("normalizePathClass(%q) = %q is not valid UTF-8", in, got)
+		}
+		// Byte 0xff never appears in valid UTF-8, so this cannot confuse the
+		// U+FFFD replacement rune (which IS valid UTF-8) with raw garbage.
+		if strings.IndexByte(got, 0xff) >= 0 || strings.IndexByte(got, 0xfe) >= 0 {
+			t.Fatalf("normalizePathClass(%q) = %q still carries raw invalid bytes", in, got)
+		}
+	}
+	// A long multibyte segment truncated at the byte bound must not slice
+	// mid-rune: the truncation is rune-safe even after sanitization.
+	cjk := "/" + strings.Repeat("世", 40)
+	if got := normalizePathClass(cjk); !utf8.ValidString(got) {
+		t.Fatalf("multibyte truncation produced invalid UTF-8: %q", got)
 	}
 }
 

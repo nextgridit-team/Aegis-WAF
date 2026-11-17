@@ -41,7 +41,7 @@ The official Go client also exposes process/Go-runtime metrics such as CPU consu
 
 ## Per-endpoint cost of protection
 
-Every access row records `upstream_us`, the measured wall time of the forwarding leg (the proxy call to the upstream application), alongside the existing total `duration_ms`. WAF-added time falls out as the difference — total minus upstream, computed over forwarded requests only. Requests the gateway answers itself (blocks, challenges, HTTPS redirects) never reach the forwarding leg and record zero upstream time.
+Every access row records `upstream_us`, the measured wall time of the forwarding leg (the proxy call to the upstream application) with the WAF's own buffered response-inspection time subtracted, so that time is attributed to WAF-added rather than to the upstream, alongside the existing total `duration_ms`. WAF-added time falls out as the difference — total minus upstream, computed over forwarded requests only. Streaming inspection windows are sampled separately (`aegis_inspection_duration_seconds`, phase `stream_window`) and are not part of either figure. Requests the gateway answers itself (blocks, challenges, HTTPS redirects) never reach the forwarding leg and record zero upstream time. The endpoint-cost lookback is capped by the configured log retention (six hours by default): a larger `hours` request returns only the retained range.
 
 The dashboard shows a "Cost of protection" panel per application: request count, blocked count, p50/p95 total milliseconds and p50/p95 WAF-added milliseconds per endpoint, plus the most frequently matched rules. The same aggregates are available as `GET /api/endpoint-costs` (see the management API reference).
 

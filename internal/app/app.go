@@ -841,6 +841,15 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	forwarded := time.Now()
 	rt.proxy.ServeHTTP(rec, r)
 	upstreamUS = time.Since(forwarded).Microseconds()
+	// Attribute the WAF's own buffered response inspection to WAF-added time,
+	// not to the upstream: WAF-added = duration - upstream must not count the
+	// WAF's inspection work as upstream service time. Streaming windows run
+	// (and are sampled) separately after this span.
+	if s, _ := r.Context().Value(managedResponseKey{}).(*managedResponseState); s != nil {
+		if v := s.inspectionUS.Load(); v > 0 && upstreamUS > v {
+			upstreamUS -= v
+		}
+	}
 }
 
 type statusWriter struct {

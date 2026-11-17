@@ -47,7 +47,7 @@ func normalizePathClass(path string) string {
 	}
 	class := strings.Join(parts, "/")
 	if len(class) > pathClassMaxBytes {
-		class = class[:pathClassMaxBytes]
+		class = truncateUTF8(class, pathClassMaxBytes)
 	}
 	return class
 }
@@ -55,8 +55,12 @@ func normalizePathClass(path string) string {
 // classifySegment buckets one path segment; static segments are kept (bounded
 // in length) so readable routes stay readable in reports.
 func classifySegment(segment string) string {
+	// Paths arrive percent-decoded by net/http and can carry invalid UTF-8
+	// (e.g. /%ff%fe); one invalid path class would fail the whole access-log
+	// CopyFrom batch, so sanitize before any byte-level handling.
+	segment = strings.ToValidUTF8(segment, "�")
 	if len(segment) > pathClassSegmentMax {
-		segment = segment[:pathClassSegmentMax]
+		segment = truncateUTF8(segment, pathClassSegmentMax)
 	}
 	if segment == "" {
 		return segment

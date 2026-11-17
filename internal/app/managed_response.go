@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/corazawaf/coraza/v3/types"
@@ -31,6 +32,11 @@ type managedResponseState struct {
 	release  func()
 	cancel   context.CancelFunc
 	once     sync.Once
+	// inspectionUS accumulates the WAF's own buffered response-inspection
+	// time so the forwarding path can subtract it from the measured upstream
+	// span (WAF-added = duration - upstream must not count WAF work as
+	// upstream time). Streaming windows stay separate samples.
+	inspectionUS atomic.Int64
 }
 
 func (s *managedResponseState) Close() {
@@ -89,7 +95,11 @@ func inspectManagedResponse(response *http.Response) error {
 func (s *managedResponseState) inspect(response *http.Response) (err error) {
 	started := time.Now()
 	if s.app != nil {
-		defer func() { s.app.prom.observeInspection("response", time.Since(started)) }()
+		defer func() {
+			d := time.Since(started)
+			s.inspectionUS.Add(d.Microseconds())
+			s.app.prom.observeInspection("response", d)
+		}()
 	}
 	tx := s.tx
 	buffered := false

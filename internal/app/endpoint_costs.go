@@ -59,8 +59,8 @@ count(*) FILTER (WHERE blocked),
 count(*) FILTER (WHERE response_source='upstream'),
 coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY duration_ms), 0),
 coalesce(percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms), 0),
-coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY greatest(0, duration_ms*1000-upstream_us)) FILTER (WHERE response_source='upstream'), 0),
-coalesce(percentile_disc(0.95) WITHIN GROUP (ORDER BY greatest(0, duration_ms*1000-upstream_us)) FILTER (WHERE response_source='upstream'), 0)
+coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY greatest(0, duration_ms*1000-upstream_us)) FILTER (WHERE response_source='upstream' AND upstream_us>0), 0),
+coalesce(percentile_disc(0.95) WITHIN GROUP (ORDER BY greatest(0, duration_ms*1000-upstream_us)) FILTER (WHERE response_source='upstream' AND upstream_us>0), 0)
 FROM access_logs
 WHERE site_id=$1 AND at>now()-($2::int*interval '1 hour') AND path_class<>''
 GROUP BY path_class
