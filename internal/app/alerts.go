@@ -249,9 +249,9 @@ func normalizeAlertRule(in *alertRule) error {
 		return invalid("provide name, threshold 1–1000000, window 1–60 minutes and cooldown 1–10080 minutes")
 	}
 	switch in.Kind {
-	case "blocked_volume", "upstream_errors", "certificate_expiry", "acme_failure", "inspection_saturation", "feed_stale":
+	case "blocked_volume", "upstream_errors", "certificate_expiry", "acme_failure", "inspection_saturation", "feed_stale", "flood_capacity_exceeded", "management_plaintext_non_loopback":
 	default:
-		return invalid("unsupported alert trigger; use blocked_volume, upstream_errors, certificate_expiry, acme_failure, inspection_saturation or feed_stale")
+		return invalid("unsupported alert trigger; use blocked_volume, upstream_errors, certificate_expiry, acme_failure, inspection_saturation, feed_stale, flood_capacity_exceeded or management_plaintext_non_loopback")
 	}
 	if in.Kind == "certificate_expiry" && in.Threshold > 90 {
 		return invalid("certificate expiry threshold is days (1–90)")
@@ -263,6 +263,9 @@ func normalizeAlertRule(in *alertRule) error {
 		if in.SiteID != 0 {
 			return invalid("feed staleness applies to every rule feed; do not scope it to an application")
 		}
+	}
+	if in.Kind == "management_plaintext_non_loopback" && in.SiteID != 0 {
+		return invalid("management plaintext applies to this replica's management listener; do not scope it to an application")
 	}
 	seen := map[int64]bool{}
 	for _, id := range in.ChannelIDs {

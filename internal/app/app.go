@@ -563,6 +563,9 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 		if botDecision.StateUnavailable {
 			signals = append(signals, "bot_rate_state_unavailable")
 		}
+		if botDecision.RateCapacityExceeded {
+			signals = append(signals, "bot_rate_capacity_exceeded")
+		}
 		if botDecision.StateUnavailable && policy.BotMode == "block" {
 			protectionBlocked = true
 			protectionStatus = 503

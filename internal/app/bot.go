@@ -37,11 +37,12 @@ func normalizeBotChallenge(s botChallengeSettings) (botChallengeSettings, error)
 }
 
 type botResult struct {
-	StateUnavailable bool     `json:"state_unavailable,omitempty"`
-	Score            int      `json:"score"`
-	Threshold        int      `json:"threshold"`
-	Reasons          []string `json:"reasons,omitempty"`
-	Decision         string   `json:"decision,omitempty"`
+	StateUnavailable     bool     `json:"state_unavailable,omitempty"`
+	RateCapacityExceeded bool     `json:"rate_capacity_exceeded,omitempty"`
+	Score                int      `json:"score"`
+	Threshold            int      `json:"threshold"`
+	Reasons              []string `json:"reasons,omitempty"`
+	Decision             string   `json:"decision,omitempty"`
 }
 type botRequest struct {
 	site                   int64
@@ -83,12 +84,22 @@ func (a *App) botScore(p *protectionPolicy, site int64, r *http.Request, ip neti
 		}
 	}
 	key := rateKey{site, "bot:" + strconv.FormatInt(p.budgetScope, 10) + ":" + ip.String()}
-	decisions, _, err := takeRateState(r.Context(), &a.botRates, []rateLimit{{key, p.BotChallenge.RequestsPerSecond, p.BotChallenge.Burst}}, now)
+	decisions, saturated, err := takeRateState(r.Context(), &a.botRates, []rateLimit{{key, p.BotChallenge.RequestsPerSecond, p.BotChallenge.Burst}}, now)
 	if err != nil {
 		result.StateUnavailable = true
 		result.Reasons = append(result.Reasons, "rate_state_unavailable")
-	} else if !decisions[0] {
-		add(40, "request_frequency")
+	} else {
+		if saturated {
+			// The bot map shares the flood limiter's 100k-bucket cap: while it
+			// is pinned, new clients score unmetered. Surface the condition
+			// instead of letting it stay invisible (no score bump — saturation
+			// means the rate is unknown, not suspicious).
+			result.RateCapacityExceeded = true
+			result.Reasons = append(result.Reasons, "bot_rate_capacity_exceeded")
+		}
+		if !decisions[0] {
+			add(40, "request_frequency")
+		}
 	}
 	result.Score = min(result.Score, 100)
 	return result
