@@ -23,6 +23,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -738,6 +739,15 @@ func importAddresses(ctx context.Context, tx pgx.Tx, bundle *configBundle, repor
 			}
 			report.record("address_objects", "update", name, "")
 		case errors.Is(e, pgx.ErrNoRows):
+			// The dashboard API caps the address inventory at 1024 objects
+			// (128 groups); a crafted bundle cannot exceed those caps either.
+			var count int
+			if e = tx.QueryRow(ctx, "SELECT count(*) FROM address_objects").Scan(&count); e != nil {
+				return nil, nil, e
+			}
+			if count >= 1024 {
+				return nil, nil, invalid("address inventory capacity reached")
+			}
 			if e = tx.QueryRow(ctx, "INSERT INTO address_objects(name,description,value,is_local) VALUES($1,$2,$3,$4) RETURNING id", name, item.Description, value, item.IsLocal).Scan(&id); e != nil {
 				return nil, nil, e
 			}
@@ -780,6 +790,13 @@ func importAddresses(ctx context.Context, tx pgx.Tx, bundle *configBundle, repor
 			}
 			report.record("address_groups", "update", name, "")
 		case errors.Is(e, pgx.ErrNoRows):
+			var groupCount int
+			if e = tx.QueryRow(ctx, "SELECT count(*) FROM address_groups").Scan(&groupCount); e != nil {
+				return nil, nil, e
+			}
+			if groupCount >= 128 {
+				return nil, nil, invalid("address inventory capacity reached")
+			}
 			if e = tx.QueryRow(ctx, "INSERT INTO address_groups(name,description,object_ids) VALUES($1,$2,$3) RETURNING id", name, item.Description, ids).Scan(&groupID); e != nil {
 				return nil, nil, e
 			}
@@ -862,6 +879,7 @@ func importSignatureSets(ctx context.Context, tx pgx.Tx, bundle *configBundle, r
 
 func importSites(ctx context.Context, tx pgx.Tx, bundle *configBundle, report *importReport, certs map[string]int64, objects, groups map[int64]int64) (map[string]int64, error) {
 	sites := map[string]int64{}
+	forcedPlain := []string{}
 	for _, item := range bundle.Sites {
 		if len(strings.TrimSpace(item.Name)) == 0 || len(item.Name) > 120 {
 			return nil, invalid("site name must be 1–120 characters")
@@ -936,6 +954,24 @@ func importSites(ctx context.Context, tx pgx.Tx, bundle *configBundle, report *i
 		if site.RedirectHTTPS && site.CertificateID == nil {
 			return nil, invalid("attach a valid certificate before enabling HTTPS redirect")
 		}
+		// An imported certificate carries only its public chain; without the
+		// sealed key material its SNI cannot complete a handshake, so a site
+		// that keeps redirect_https would 308 visitors into a dead TLS
+		// endpoint. Force the redirect off and say so in the import report —
+		// the site serves plain HTTP until the cert is re-keyed or renewed.
+		if site.RedirectHTTPS && site.CertificateID != nil {
+			// Mirror buildSnapshot's skip condition (key_cipher OR key_id
+			// missing): either missing means the SNI cannot handshake.
+			var keyCipher sql.NullString
+			var keyID sql.NullString
+			if e = tx.QueryRow(ctx, "SELECT key_cipher,key_id FROM certificates WHERE id=$1", *site.CertificateID).Scan(&keyCipher, &keyID); e != nil {
+				return nil, e
+			}
+			if !keyCipher.Valid || keyCipher.String == "" || !keyID.Valid || keyID.String == "" {
+				site.RedirectHTTPS = false
+				forcedPlain = append(forcedPlain, site.Name)
+			}
+		}
 		if site.CertificateID != nil {
 			var chain string
 			if e = tx.QueryRow(ctx, "SELECT chain_pem FROM certificates WHERE id=$1", *site.CertificateID).Scan(&chain); e != nil {
@@ -1006,10 +1042,16 @@ func importSites(ctx context.Context, tx pgx.Tx, bundle *configBundle, report *i
 			if e = validateTrafficSettings(settings); e != nil {
 				return nil, invalid(e.Error())
 			}
-			if _, e = tx.Exec(ctx, "INSERT INTO traffic_settings(site_id,settings) VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET settings=excluded.settings", id, item.Traffic); e != nil {
+			// Store the re-marshaled validated struct so the import cannot
+			// persist keys the dashboard API itself refuses to write.
+			stored, _ := json.Marshal(settings)
+			if _, e = tx.Exec(ctx, "INSERT INTO traffic_settings(site_id,settings) VALUES($1,$2) ON CONFLICT(site_id) DO UPDATE SET settings=excluded.settings", id, stored); e != nil {
 				return nil, e
 			}
 		}
+	}
+	for _, name := range forcedPlain {
+		report.record("sites", "update", name, "HTTPS redirect disabled: the imported certificate carries no key material; re-key or renew it before enabling the redirect")
 	}
 	return sites, nil
 }
@@ -1390,6 +1432,12 @@ func importRuleFeeds(ctx context.Context, tx pgx.Tx, bundle *configBundle, repor
 }
 
 func importAlertRules(ctx context.Context, tx pgx.Tx, bundle *configBundle, report *importReport, sites map[string]int64) error {
+	// Dashboard alert writes serialize on the same advisory lock the
+	// alertChange path takes; an import must not interleave with a
+	// concurrent dashboard save (cap races, last-writer-wins overwrites).
+	if _, e := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", int64(0x4145474953414c52)); e != nil {
+		return e
+	}
 	for _, item := range bundle.AlertRules {
 		rule := alertRule{
 			Name: item.Name, Enabled: item.Enabled, Kind: item.Kind,
@@ -1469,6 +1517,11 @@ func importSettings(ctx context.Context, tx pgx.Tx, bundle *configBundle, report
 				return e
 			}
 		}
+		// The audit window is a forensic floor and may never fall below the
+		// traffic-log window — the same rule PUT /api/log-settings enforces.
+		if auditHours < retention {
+			return invalid("audit_retention_hours must be at least the traffic-log retention window")
+		}
 		if _, e := tx.Exec(ctx, "UPDATE log_settings SET retention_hours=$1,audit_retention_hours=$2,revision=revision+1 WHERE id", retention, auditHours); e != nil {
 			return e
 		}
@@ -1500,7 +1553,11 @@ func importSettings(ctx context.Context, tx pgx.Tx, bundle *configBundle, report
 			return invalid("AI provider model must be 1–200 bytes")
 		}
 		models, _ := json.Marshal(provider.Models)
-		if _, e := tx.Exec(ctx, "UPDATE ai_provider SET base_url=$1,model=$2,models=$3,revision=revision+1 WHERE id", provider.BaseURL, provider.Model, models); e != nil {
+		// Mirror saveAIProvider's upsert: a fresh deployment has no seeded
+		// ai_provider row, and a bare UPDATE would silently affect 0 rows while
+		// the report claims success. The key never travels in the bundle; the
+		// restored row is Configured without an API key until re-entered.
+		if _, e := tx.Exec(ctx, "INSERT INTO ai_provider(id,base_url,key_cipher,key_id,model,models,checked_at,revision) VALUES(true,$1,NULL,'',$2,$3,NULL,1) ON CONFLICT(id) DO UPDATE SET base_url=excluded.base_url,model=excluded.model,models=excluded.models,revision=ai_provider.revision+1", provider.BaseURL, provider.Model, models); e != nil {
 			return e
 		}
 		report.record("settings", "update", "ai_provider", "API key is never exported; re-enter it after restore")

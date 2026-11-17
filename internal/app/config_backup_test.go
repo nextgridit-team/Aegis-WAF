@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -364,4 +365,167 @@ func TestConfigExportRequiresSession(t *testing.T) {
 			t.Fatalf("bundle route exposed to agent keys: %s", op.Pattern)
 		}
 	}
+}
+
+// A restored site whose certificate carries no key material must not keep
+// HTTPS redirect: it would 308 visitors into an SNI that cannot complete a
+// handshake. The import forces the redirect off and says so in the report.
+func TestConfigImportForcesPlainHTTPForKeylessCerts(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	server := httptest.NewServer(a.Management())
+	defer server.Close()
+	jar, _ := cookiejar.New(nil)
+	c := testAPI{t, &http.Client{Jar: jar, Timeout: 10 * time.Second}, server.URL, ""}
+	drillLogin(t, &c, cfg, "admin", "keyless redirect password")
+	now := time.Now()
+	chain, _ := testCertificate(t, []string{"keyless.example.com"}, 300, now.Add(-time.Hour), now.Add(90*24*time.Hour))
+	audit := 720
+	retention := 336
+	bundle := configBundle{
+		BundleVersion: configBundleVersion, Secrets: "excluded", SchemaVersion: 1,
+		Certificates: []exportCertificate{{Name: "Keyless TLS", Origin: "upload", Domains: []string{"keyless.example.com"}, ChainPEM: chain, ChallengeType: "http-01"}},
+		Sites:        []exportSite{{Name: "Keyless app", Hostnames: []string{"keyless.example.com"}, Upstream: "http://127.0.0.1:8080", Certificate: "Keyless TLS", RedirectHTTPS: true, Enabled: true}},
+		Settings:     &exportSettings{LogRetentionHours: &retention, AuditRetentionHours: &audit},
+	}
+	data := c.call("POST", "/api/config-import", map[string]any{"bundle": bundle, "dry_run": false}, 200)
+	if !bytes.Contains(data, []byte("HTTPS redirect disabled")) {
+		t.Fatalf("import report missing the forced-plain warning: %s", data)
+	}
+	var redirect bool
+	if e := a.db.QueryRow(context.Background(), "SELECT redirect_https FROM sites WHERE name='Keyless app'").Scan(&redirect); e != nil || redirect {
+		t.Fatalf("keyless cert site kept redirect_https=%v (%v)", redirect, e)
+	}
+}
+
+// Import enforces the same log-settings floor the dashboard API enforces:
+// the audit window may never fall below the traffic-log window.
+func TestConfigImportEnforcesAuditFloor(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	server := httptest.NewServer(a.Management())
+	defer server.Close()
+	jar, _ := cookiejar.New(nil)
+	c := testAPI{t, &http.Client{Jar: jar, Timeout: 10 * time.Second}, server.URL, ""}
+	drillLogin(t, &c, cfg, "admin", "audit floor password")
+	retention, audit := 200, 1
+	bundle := configBundle{BundleVersion: configBundleVersion, Secrets: "excluded", SchemaVersion: 1, Settings: &exportSettings{LogRetentionHours: &retention, AuditRetentionHours: &audit}}
+	data := c.call("POST", "/api/config-import", map[string]any{"bundle": bundle, "dry_run": false}, 400)
+	if !bytes.Contains(data, []byte("audit_retention_hours must be at least")) {
+		t.Fatalf("audit floor not enforced: %s", data)
+	}
+}
+
+// The AI provider import must upsert like the dashboard API: a fresh
+// deployment has no seeded row, and a bare UPDATE would silently lose the
+// restored endpoint and model while the report claims success.
+func TestConfigImportUpsertsAIProvider(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	server := httptest.NewServer(a.Management())
+	defer server.Close()
+	jar, _ := cookiejar.New(nil)
+	c := testAPI{t, &http.Client{Jar: jar, Timeout: 10 * time.Second}, server.URL, ""}
+	drillLogin(t, &c, cfg, "admin", "ai upsert password")
+	bundle := configBundle{BundleVersion: configBundleVersion, Secrets: "excluded", SchemaVersion: 1, Settings: &exportSettings{AIProvider: &exportAIProvider{BaseURL: "https://api.example.com/v1", Model: "test-model"}}}
+	c.call("POST", "/api/config-import", map[string]any{"bundle": bundle, "dry_run": false}, 200)
+	var baseURL, model string
+	var keyCipher []byte
+	if e := a.db.QueryRow(context.Background(), "SELECT base_url,model,key_cipher FROM ai_provider WHERE id").Scan(&baseURL, &model, &keyCipher); e != nil {
+		t.Fatalf("ai_provider not restored: %v", e)
+	}
+	if baseURL != "https://api.example.com/v1" || model != "test-model" {
+		t.Fatalf("ai_provider restored wrong values: %s %s", baseURL, model)
+	}
+	if len(keyCipher) != 0 {
+		t.Fatal("ai_provider must restore without a key")
+	}
+}
+
+// The import persists re-marshaled validated traffic settings, so a crafted
+// bundle cannot smuggle keys the dashboard API itself refuses to write.
+func TestConfigImportReMarshalsTrafficSettings(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	server := httptest.NewServer(a.Management())
+	defer server.Close()
+	jar, _ := cookiejar.New(nil)
+	c := testAPI{t, &http.Client{Jar: jar, Timeout: 10 * time.Second}, server.URL, ""}
+	drillLogin(t, &c, cfg, "admin", "traffic re-marshal password")
+	smuggled := json.RawMessage(`{"query_keys":[],"header_keys":[],"json_body_keys":[],"sample_every":1,"max_per_minute":60,"retention_hours":24,"pr66_smuggled_key":true}`)
+	bundle := configBundle{
+		BundleVersion: configBundleVersion, Secrets: "excluded", SchemaVersion: 1,
+		Sites: []exportSite{{Name: "Smuggle app", Hostnames: []string{"smuggle.example.com"}, Upstream: "http://127.0.0.1:8080", Enabled: true, Traffic: smuggled}},
+	}
+	c.call("POST", "/api/config-import", map[string]any{"bundle": bundle, "dry_run": false}, 200)
+	var settings []byte
+	if e := a.db.QueryRow(context.Background(), "SELECT settings FROM traffic_settings ts JOIN sites s ON s.id=ts.site_id WHERE s.name='Smuggle app'").Scan(&settings); e != nil {
+		t.Fatalf("traffic settings not stored: %v", e)
+	}
+	if bytes.Contains(settings, []byte("pr66_smuggled_key")) {
+		t.Fatalf("smuggled traffic key persisted: %s", settings)
+	}
+}
+
+// A crafted bundle cannot exceed the address inventory caps the dashboard
+// API enforces (1024 objects, 128 groups).
+func TestConfigImportEnforcesAddressCaps(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	server := httptest.NewServer(a.Management())
+	defer server.Close()
+	jar, _ := cookiejar.New(nil)
+	c := testAPI{t, &http.Client{Jar: jar, Timeout: 10 * time.Second}, server.URL, ""}
+	drillLogin(t, &c, cfg, "admin", "address caps password")
+	objects := make([]exportAddressObject, 1026)
+	for i := range objects {
+		objects[i] = exportAddressObject{Name: fmt.Sprintf("obj-%d", i), Value: "203.0.113.1"}
+	}
+	bundle := configBundle{BundleVersion: configBundleVersion, Secrets: "excluded", SchemaVersion: 1, AddressObjects: objects}
+	data := c.call("POST", "/api/config-import", map[string]any{"bundle": bundle, "dry_run": false}, 400)
+	if !bytes.Contains(data, []byte("address inventory capacity reached")) {
+		t.Fatalf("address cap not enforced: %s", data)
+	}
+	if n := countRows(t, a, "address_objects"); n != 0 {
+		t.Fatalf("over-cap import left %d objects behind", n)
+	}
+}
+
+// A certificate that loses its sealed key material must not be skipped
+// silently: config load logs a warning naming the count. This guards the
+// ordering bug the re-review caught (a count issued between tx.Query and
+// the rows drain fails with "conn busy" and the warning never fires).
+func TestConfigLoadWarnsOnKeylessCertificates(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	ctx := context.Background()
+	captured := []string{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&sliceWriter{&captured}, nil)))
+	defer slog.SetDefault(previous)
+	// Seed a certificate with key material, then corrupt its seal, bump the
+	// version, and refresh — the warning must fire.
+	if _, e := a.db.Exec(ctx, "INSERT INTO certificates(name,origin,domains,chain_pem,key_cipher,key_id) VALUES('Corrupted seal','upload',ARRAY['corrupt.test'],'chain',decode('00','hex'),'key')"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := a.db.Exec(ctx, "UPDATE certificates SET key_cipher=NULL,key_id=NULL WHERE name='Corrupted seal'"); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := a.db.Exec(ctx, "UPDATE config_version SET version=version+1 WHERE id"); e != nil {
+		t.Fatal(e)
+	}
+	if e := a.refresh(ctx); e != nil {
+		t.Fatalf("refresh with keyless cert: %v", e)
+	}
+	joined := strings.Join(captured, "\n")
+	if !strings.Contains(joined, "skipping certificate(s) without sealed key material") {
+		t.Fatalf("config load did not warn about the keyless certificate; captured: %q", joined)
+	}
+}
+
+type sliceWriter struct{ lines *[]string }
+
+func (w *sliceWriter) Write(p []byte) (int, error) {
+	*w.lines = append(*w.lines, string(p))
+	return len(p), nil
 }
