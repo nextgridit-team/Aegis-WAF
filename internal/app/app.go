@@ -97,7 +97,9 @@ type accessEvent struct {
 	method                                               string
 	status                                               int
 	duration                                             int64
+	upstreamUS                                           int64
 	peer                                                 string
+	pathClass                                            string
 	results                                              []RuleResult
 	evidence                                             *evidenceEvent
 	country                                              string
@@ -132,6 +134,7 @@ type App struct {
 	simulationWork                chan struct{}
 	botClearances                 botClearanceCache
 	metrics                       liveMetrics
+	pathClasses                   pathClassTracker
 	replicaID                     string
 	feedHTTP                      http.RoundTripper
 	dnsFactory                    func(context.Context, string, *http.Client) (*cloudflareChallenge, error)
@@ -617,6 +620,12 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	done := a.metrics.begin(r, rt.site.ID)
 	defer done()
+	// Upstream service time is measured on the forwarding path: the wall time
+	// of the proxy call itself, so WAF-added time falls out as
+	// duration - upstream. It stays zero for requests the WAF answers itself
+	// (blocks, redirects, challenges), which never reach this leg.
+	var upstreamUS int64
+	path := r.URL.Path
 	facts := newRequestFacts(r)
 	facts.facts[factKey("client_ip", "")] = Fact{State: "present", Values: []string{clientIP.String()}}
 	results := []RuleResult{}
@@ -702,7 +711,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		peer := clientIP.String()
-		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), peer: peer, results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
+		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), upstreamUS: upstreamUS, peer: peer, pathClass: a.pathClasses.classify(rt.site.ID, path), results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult}
 		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
@@ -829,7 +838,18 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	}
 	r = r.WithContext(context.WithValue(r.Context(), proxyIdentityKey{}, proxyIdentity{clientIP, policy.forwardedProto(r)}))
 	rec.responseSource = "upstream"
+	forwarded := time.Now()
 	rt.proxy.ServeHTTP(rec, r)
+	upstreamUS = time.Since(forwarded).Microseconds()
+	// Attribute the WAF's own buffered response inspection to WAF-added time,
+	// not to the upstream: WAF-added = duration - upstream must not count the
+	// WAF's inspection work as upstream service time. Streaming windows run
+	// (and are sampled) separately after this span.
+	if s, _ := r.Context().Value(managedResponseKey{}).(*managedResponseState); s != nil {
+		if v := s.inspectionUS.Load(); v > 0 && upstreamUS > v {
+			upstreamUS -= v
+		}
+	}
 }
 
 type statusWriter struct {

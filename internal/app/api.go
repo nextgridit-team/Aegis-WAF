@@ -188,6 +188,7 @@ func (a *App) Management() http.Handler {
 	m.HandleFunc("GET /api/audit", a.wrap(true, a.listAudit))
 	m.HandleFunc("GET /api/access-logs", a.wrap(true, a.listAccess))
 	m.HandleFunc("GET /api/access-logs/{id}", a.wrap(true, a.requestDetails))
+	m.HandleFunc("GET /api/endpoint-costs", a.wrap(true, a.endpointCosts))
 	addressAPI(a, m)
 	ruleAPI(a, m)
 	dnsAPI(a, m)

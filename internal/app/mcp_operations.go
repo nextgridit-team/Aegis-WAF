@@ -76,6 +76,7 @@ func agentOperations() []agentOperation {
 		"DELETE /api/sites/{id}",
 		"GET /api/access-logs",
 		"GET /api/access-logs/{id}",
+		"GET /api/endpoint-costs",
 		"GET /api/acme/accounts",
 		"GET /api/acme/directory",
 		"GET /api/acme/jobs",

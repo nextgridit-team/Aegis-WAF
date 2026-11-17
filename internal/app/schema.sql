@@ -235,4 +235,12 @@ INSERT INTO schema_version VALUES(26) ON CONFLICT DO NOTHING;
 
 -- Pin advertised issuer-response requirements to the initiating login flow.
 ALTER TABLE application_auth_flows ADD COLUMN IF NOT EXISTS issuer_parameter_required boolean NOT NULL DEFAULT false;
-INSERT INTO schema_version VALUES(27) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version VALUES (27) ON CONFLICT DO NOTHING;
+
+-- Version 28: per-endpoint cost-of-protection visibility. path_class is the
+-- bounded normalized endpoint class; upstream_us is the measured forwarding
+-- leg in microseconds (0 when the WAF answered without forwarding).
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS path_class text NOT NULL DEFAULT '';
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS upstream_us bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS access_logs_site_class ON access_logs(site_id, path_class);
+INSERT INTO schema_version VALUES (28) ON CONFLICT DO NOTHING;
