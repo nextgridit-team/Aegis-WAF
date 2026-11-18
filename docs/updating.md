@@ -64,3 +64,13 @@ Use a compatible backup/image for rollback once curated sets are in use. Older e
 The policy action-ceiling fix honors native rules saved as Observe inside Block policies. Existing community selections gain an explicit Follow policy setting and retain their enforcement. The migration records a new revision for each affected policy; reload any open policy editors before saving. Historical revisions remain intact.
 
 Recovery snapshot format 1 is rejected because it contains overwritten rule actions. The first startup after this upgrade requires PostgreSQL; it rebuilds and writes a format 2 cache when disk caching is configured. Subsequent restarts can use the new cache normally.
+
+## Feed growth caps and budget
+
+Two environment bounds cap what rule feeds can grow a deployment by; both default to 2,000 and fail closed at load when set outside their bounds (`RULE_FEED_SOURCE_LIMIT` 1–2,000 per source; `COMMUNITY_RULE_BUDGET` 1–20,000 workspace total). Enforcement happens inside the sync transaction: an over-cap import is refused with the counts named, the error is recorded on the source (the existing feed-stale alert carries it), and the last-good catalogue is retained. Caps are growth bounds, not incumbent bounds — same-size replacements and shrinks always apply, so tightening a cap never wedges a source at its current size. Lowering a source limit below the official feed's current size pins that source to its last synced release; the recorded error says so. The build-bundled baseline seeds with the caps exempt so tight values cannot brick first boot. [Growth policy](rule-feed-distribution.md) and the capacity surface (`GET /api/policy-capacity`).
+
+## Policy stacking and client fingerprinting (schema 32–33)
+
+Schema 32 removes the per-site assignment uniqueness constraint: policies assigned to the same client scope now stack and compose at compile time, so a second default assignment joins the scope instead of displacing the first. Existing single-assignment deployments are unaffected — the scope composes identically with one member. Stacked scopes recompose on the next save or refresh; no data migration runs. Sealed recovery caches move to format 5 (per-binding contributors with restore re-validation): the first startup after upgrade requires PostgreSQL to rebuild the cache, and format-4 cache files are rejected. Do not downgrade past this point with adopted stacks; use a configuration/database backup for rollback.
+
+Schema 33 adds `access_logs.client_fingerprint` for the opt-in client TLS fingerprinting identity. The column defaults empty and requires no operator action; applications record a value only after Client TLS fingerprinting is enabled per application.
