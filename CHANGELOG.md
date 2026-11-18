@@ -1,6 +1,31 @@
 # Change history
 
-This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases.
+This records shipped behavior rather than proposed features. Container builds use `latest` plus unique build tags/digests; these dated entries are not semantic-version releases. Starting with `v0.1.0-rc1`, tags cut signed semantic-version releases through the release workflow (cosign-keyless image and rule-feed artifacts; see [release engineering](docs/image-builds.md)).
+
+## v0.1.0-rc1 — first signed release candidate
+
+First tagged release candidate. Everything below shipped on `main` behind CI-gated, independently reviewed pull requests; the pre-rc1 hardening fixes are folded in.
+
+Protection and detection:
+
+- **Policy stacking (schema 32).** Policies assigned to the same client scope (identical CIDR sets, or the default) now compose by union-at-compile into one engine binding — a second default assignment joins the scope instead of displacing it. Modes compose most-protective; allow lists, methods and set-membership intersect; block lists, exclusions and budgets union/most-restrictive; rules dedupe by ID. Per-request cost stays a single evaluation pass regardless of contributor count. [Composition semantics](docs/policies.md).
+- **Endpoint rate limits.** Per-endpoint pattern limits (≤32 per policy) ride the shared rate-state backend beneath site aggregates; first-match precedence; `snapshotCacheFormat` 4. Denials carry `endpoint_rate`. [Endpoint limits](docs/shared-rate-state.md).
+- **Client TLS fingerprinting, phase 1 (schema 33).** Opt-in per application: a JA4 fingerprint computed from the ClientHello keys one additional shared flood budget and surfaces as a site-scoped keyed HMAC on access rows, exports and evidence — never a raw JA4, never cross-site comparable, never client-supplied. Redis-outage fail-closed semantics unchanged. [Client fingerprinting](docs/headers-and-cidrs.md).
+- **Visitor block page with correlation.** Accessible HTML block pages on WAF denials (per-site title/contact/reference), an `X-Request-ID` stamped on every public response including application-auth flows, and an access row whose `request_id` always matches the header a visitor quotes.
+- **Feed growth caps.** `RULE_FEED_SOURCE_LIMIT` (default 2,000) bounds rules per source and `COMMUNITY_RULE_BUDGET` (default 2,000) bounds the workspace total; enforcement is transactional with last-good retention, growth-bounds-not-incumbent-bounds, and every surface (chips, policy-capacity, feed-stale alerts) shows the counts.
+- **Cost-of-protection panel.** Per-application WAF-added latency and engine counts, measured and visible.
+
+Operations and platform:
+
+- **Investigation history.** Full filter set on access and audit logs (time, site, IP/CIDR, decision, status, rule, request ID, host, policy, path class) with strict 400s on unknown parameters, stable `(at,id)` cursor pagination, and a bounded 10,000-row CSV/JSON export that rejects over-cap windows and neutralizes spreadsheet-formula cells.
+- **Configuration export/import with a tested restore drill.** Versioned secret-free bundles (sites, policies, assignments, rules, address inventory, alert rules, non-secret settings), single-transaction import reusing the dashboard APIs' own validation, dry-run diffs, and a drill proving a restored deployment proxies and blocks identically.
+- **Signed releases.** Tag-triggered workflow: full gate stack, image published with `vX.Y.Z` + digest tags, cosign keyless signing of the image, the community rule package and the release descriptor, in-workflow verification, and a stdlib feed-client verifier that fails closed on unsigned official feeds and surfaces custom sources as untrusted.
+- **Administrator hardening (schema 31).** `owner`/`operator`/`read_only` roles enforced before every management route; TOTP MFA with sealed secrets, recovery codes and replay refusal; password reset via audited host-side token; session inventory with cross-replica revocation.
+- **Managed engine budget.** `MANAGED_ENGINE_LIMIT` (default 8) caps compiled engine sets with the cost visible on the policy-capacity surface.
+
+Pre-rc1 hardening:
+
+- Strip NUL from path classes before the access-log batch (#75) and from captured evidence facts before the traffic-evidence jsonb batch (#81) — closing the audit-suppression class where one poisoned value rolled back the whole stored batch; burn the MFA confirmation code, advisory-lock role changes and enforce ticket single-use (#70); intersect composed country allow lists so stacking only ever tightens (#74); committed regression test for the key-id side of the keyless-cert import check (#71).
 
 ## Unreleased — OIDC and LDAP application access
 
