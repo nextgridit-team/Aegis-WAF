@@ -257,8 +257,15 @@ func (a *App) loginMFA(w http.ResponseWriter, r *http.Request, _ identity) error
 		}
 		return apiError{401, "invalid code"}
 	}
-	if _, e = tx.Exec(r.Context(), "DELETE FROM admin_mfa_pending WHERE token_hash=$1", hash(b.Ticket)); e != nil {
+	tag, e := tx.Exec(r.Context(), "DELETE FROM admin_mfa_pending WHERE token_hash=$1", hash(b.Ticket))
+	if e != nil {
 		return e
+	}
+	if tag.RowsAffected() == 0 {
+		// A concurrent redemption already consumed this ticket, so no
+		// second session may be minted from it. The deferred rollback also
+		// undoes this attempt's recovery-code consumption, if any.
+		return apiError{401, "invalid or expired login ticket"}
 	}
 	if !recovery {
 		if e = persistTOTPStep(r.Context(), tx, adminID, step); e != nil {
@@ -369,8 +376,16 @@ func (a *App) mfaConfirm(w http.ResponseWriter, r *http.Request, i identity) err
 	if e != nil {
 		return e
 	}
-	if _, ok := verifyTOTP(secret, b.Code, time.Now(), 0); !ok {
+	step, ok := verifyTOTP(secret, b.Code, time.Now(), 0)
+	if !ok {
 		return apiError{400, "invalid verification code"}
+	}
+	// Burn the confirmation code with its step: without persisting here the
+	// same code could immediately complete the first second-factor login
+	// inside its ±1-step window. loginMFA and mfaDisable persist for the
+	// same reason.
+	if e = persistTOTPStep(r.Context(), tx, i.ID, step); e != nil {
+		return e
 	}
 	// Re-seal under the active-state AAD: the pending and enrolled ciphers
 	// are deliberately not interchangeable.
@@ -768,6 +783,14 @@ func (a *App) changeAdministratorRole(w http.ResponseWriter, r *http.Request, i 
 		return e
 	}
 	defer tx.Rollback(r.Context())
+	// Serialize role changes workspace-wide, mirroring the setup flow: the
+	// last-owner guard below counts owners in READ COMMITTED while locking
+	// only the target row, so two owners demoting each other in the same
+	// instant could both pass the count and leave the workspace ownerless.
+	// The advisory transaction lock makes every role change linear.
+	if _, e = tx.Exec(r.Context(), "SELECT pg_advisory_xact_lock(700012)"); e != nil {
+		return e
+	}
 	if id == i.ID {
 		return invalid("an administrator cannot change their own role")
 	}
