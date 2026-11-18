@@ -77,14 +77,15 @@ Composition happens **at compile time**: the snapshot build merges the stacked p
 | Streaming window | Smallest non-zero member value |
 | Flood budgets, bot thresholds and risk budgets, connection limits | Most restrictive (minimum) among members enabling the control |
 | Bot, flood and empty-UA switches | Any member enabling the control enables it |
-| Network block lists and countries | Union |
+| Network block lists and block-selected countries | Union — block if any member blocks |
+| Allow-selected countries | Intersection, matching CIDR allow lists — stacking only tightens the country allow surface |
 | Network allow lists and CIDR allow scope | Intersection; the most protective allow scope (Geo-only bypass) among members that allow anyone wins |
 | Custom rules and community mitigations | Union, de-duplicated by rule id — the first member selecting a rule owns its compiled group context and action |
 | Endpoint rate overrides | Concatenated in member order; first matching pattern wins |
 
 Two consequences deserve attention. **Exclusions union**: a stacked scope excludes every rule any member excludes, so stacking can widen the bypass surface beyond any single policy — the exclusions-union semantic is deliberately visible (the dashboard's signature browser and the simulation report show which policies compose a scope) rather than silent. **Mode composition**: an Observe member's rules keep their Observe action, but a Block member anywhere in the scope raises the scope's shared controls (flood, bots, signatures, methods) to Block.
 
-A scope that fails to compose — mixed signature sets, an exclusion union over the 100-rule cap, or endpoint overrides past 32 rows — is rejected at save time with the offending contributor named; the previous configuration keeps protecting traffic. `GET /api/policy-capacity` reports every application's scopes, the policies composing each, and the configuration each scope compiles to. Simulations through MCP report the same composition for candidate changes.
+A scope that fails to compose — mixed signature sets, an exclusion union over the 100-rule cap, or endpoint overrides past 32 rows — is rejected at save time naming the conflict (mixed signature sets name the contributing policies); the previous configuration keeps protecting traffic. `GET /api/policy-capacity` reports every application's scopes, the policies composing each, and the configuration each scope compiles to. Simulations through MCP report the same composition for candidate changes.
 
 Assigned policies replace local bot/flood and standalone rule activation for that application. Applications without assignments keep existing local behavior. Headers, trusted proxies and component CIDR exemptions remain application settings. Flood budgets are per application and composed scope; trusted-policy traffic does not consume an external scope's budget. Local mode is per replica; optional Redis/Dragonfly mode coordinates counters across replicas. See [shared rate state](shared-rate-state.md).
 

@@ -8,6 +8,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/netip"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -413,5 +414,89 @@ func TestSnapshotCacheRejectsPreviousFormat(t *testing.T) {
 	}
 	if _, e = a.decodeSnapshot(sealed, now); e == nil {
 		t.Fatal("a cache from the previous format must be rejected")
+	}
+}
+
+// Networks inside testdata/geolocation/GeoIP2-City-Test.mmdb: the fixture
+// database resolves them to US and CN, so composition tests can exercise real
+// geo decisions without a downloaded country database.
+const (
+	geoFixtureUSIP = "216.160.83.56"
+	geoFixtureCNIP = "175.16.199.1"
+)
+
+// seedGeoFixture installs the vendored test MMDB as the workspace country
+// database: enabling Geo on a policy requires a database at save time, and the
+// request path resolves client countries from the loaded snapshot.
+func seedGeoFixture(t *testing.T, a *App) {
+	t.Helper()
+	data, e := os.ReadFile("testdata/geolocation/GeoIP2-City-Test.mmdb")
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = a.db.Exec(context.Background(), "INSERT INTO geo_database(id,data) VALUES(true,$1) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=now()", data); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func compositionGeoPolicy(name string, site int64, priority int, geoMode, strategy string, countries []string) policyInput {
+	input := compositionPolicy(name, "block", nil, site, nil, priority)
+	input.Spec.NetworkAccess = networkAccessSettings{GeoMode: geoMode, GeoStrategy: strategy, Countries: countries, UnknownCountry: "allow"}
+	return input
+}
+
+// Country allow lists compose like CIDR allow lists: stacking an allow [US]
+// member with an allow [US, CN] member must not admit a CN client the narrow
+// member alone would block. Main unioned the composed country list, so the CN
+// client was admitted through the stack.
+func TestPolicyStackIntersectsAllowSelectedCountries(t *testing.T) {
+	a, api, site := compositionFixture(t)
+	seedGeoFixture(t, a)
+	mustID(t, api.call("POST", "/api/policies", compositionGeoPolicy("Geo narrow", site, 10, "block", "allow_selected", []string{"US"}), 200))
+	mustID(t, api.call("POST", "/api/policies", compositionGeoPolicy("Geo wide", site, 20, "block", "allow_selected", []string{"US", "CN"}), 200))
+	if e := a.refresh(context.Background()); e != nil {
+		t.Fatal(e)
+	}
+	binding := selectPolicy(a.active.Load().policyBindings[site], netip.MustParseAddr(geoFixtureCNIP), true)
+	if binding == nil || binding.Protection == nil || binding.Protection.network == nil {
+		t.Fatal("missing composed geo binding")
+	}
+	composed := binding.Protection.network.Settings.Countries
+	if len(composed) != 1 || composed[0] != "US" {
+		t.Fatal("stacked allow-selected countries must intersect to the narrowest member's list, got", composed)
+	}
+	if code := compositionRequest(a, "/", geoFixtureCNIP+":4000"); code != 403 {
+		t.Fatal("a CN client must not be admitted by a stack whose narrow member allows only the US, got", code)
+	}
+	if code := compositionRequest(a, "/", geoFixtureUSIP+":4000"); code != 202 {
+		t.Fatal("a US client must stay admitted by the stacked allow list, got", code)
+	}
+}
+
+// A member that is not enforcing Geo contributes no countries to the composed
+// allow list: its stale allow-selected settings are inert, so the stack keeps
+// exactly the enforcing member's list instead of unioning stale residue in.
+func TestPolicyStackIgnoresNonEnforcingMemberCountries(t *testing.T) {
+	a, api, site := compositionFixture(t)
+	seedGeoFixture(t, a)
+	mustID(t, api.call("POST", "/api/policies", compositionGeoPolicy("Geo enforcing", site, 10, "block", "allow_selected", []string{"US"}), 200))
+	inert := compositionGeoPolicy("Geo off", site, 20, "off", "allow_selected", []string{"CN"})
+	mustID(t, api.call("POST", "/api/policies", inert, 200))
+	if e := a.refresh(context.Background()); e != nil {
+		t.Fatal(e)
+	}
+	binding := selectPolicy(a.active.Load().policyBindings[site], netip.MustParseAddr(geoFixtureCNIP), true)
+	if binding == nil || binding.Protection == nil || binding.Protection.network == nil {
+		t.Fatal("missing composed geo binding")
+	}
+	composed := binding.Protection.network.Settings.Countries
+	if len(composed) != 1 || composed[0] != "US" {
+		t.Fatal("a member not enforcing Geo must contribute no countries, got", composed)
+	}
+	if code := compositionRequest(a, "/", geoFixtureCNIP+":4000"); code != 403 {
+		t.Fatal("a CN client must stay blocked when only the non-enforcing member would admit it, got", code)
+	}
+	if code := compositionRequest(a, "/", geoFixtureUSIP+":4000"); code != 202 {
+		t.Fatal("a US client must stay admitted by the enforcing member's list, got", code)
 	}
 }
