@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -498,5 +499,30 @@ func TestPolicyStackIgnoresNonEnforcingMemberCountries(t *testing.T) {
 	}
 	if code := compositionRequest(a, "/", geoFixtureUSIP+":4000"); code != 202 {
 		t.Fatal("a US client must stay admitted by the enforcing member's list, got", code)
+	}
+}
+
+// Disjoint allow-selected country lists intersect to nothing, so the composed
+// scope would admit no client at all: saving the second policy is rejected
+// with 409 (the fourth composition rejection class) instead of silently
+// composing a scope that blocks every country.
+func TestPolicyStackDisjointAllowSelectedCountriesRejected(t *testing.T) {
+	a, api, site := compositionFixture(t)
+	seedGeoFixture(t, a)
+	mustID(t, api.call("POST", "/api/policies", compositionGeoPolicy("Geo US", site, 10, "block", "allow_selected", []string{"US"}), 200))
+	body := api.call("POST", "/api/policies", compositionGeoPolicy("Geo CN", site, 20, "block", "allow_selected", []string{"CN"}), 409)
+	if !strings.Contains(string(body), "select at least one country") {
+		t.Fatalf("disjoint allow-selected lists must be rejected naming the empty intersection, got %s", body)
+	}
+	// The rejection leaves the first policy protecting traffic untouched.
+	if e := a.refresh(context.Background()); e != nil {
+		t.Fatal(e)
+	}
+	binding := selectPolicy(a.active.Load().policyBindings[site], netip.MustParseAddr(geoFixtureUSIP), true)
+	if binding == nil || binding.Protection == nil || binding.Protection.network == nil {
+		t.Fatal("missing binding after the rejected save")
+	}
+	if composed := binding.Protection.network.Settings.Countries; len(composed) != 1 || composed[0] != "US" {
+		t.Fatal("the rejected policy must not widen or narrow the live scope, got", composed)
 	}
 }
