@@ -429,9 +429,9 @@ func (a *App) listAudit(w http.ResponseWriter, r *http.Request, _ identity) erro
 
 // accessLogExportColumns is the explicit export column set: the same metadata
 // the listing shows, and nothing from retained request evidence.
-const accessLogExportColumns = "id,at,site_id,site_name,host,method,path_class,status,blocked,response_source,peer,request_id,policy_id,policy_revision,policy_name,duration_ms,upstream_us,observed_country,region_code,rule_results,signals"
+const accessLogExportColumns = "id,at,site_id,site_name,host,method,path_class,status,blocked,response_source,peer,request_id,policy_id,policy_revision,policy_name,duration_ms,upstream_us,observed_country,region_code,rule_results,signals,client_fingerprint"
 
-const accessExportHeader = "id,at,site_id,site_name,host,method,path_class,status,blocked,response_source,client_ip,request_id,policy_id,policy_revision,policy_name,duration_ms,upstream_us,observed_country,region_code,rule_ids,signals"
+const accessExportHeader = "id,at,site_id,site_name,host,method,path_class,status,blocked,response_source,client_ip,request_id,policy_id,policy_revision,policy_name,duration_ms,upstream_us,observed_country,region_code,rule_ids,signals,client_fingerprint"
 
 // csvNeutralize prefixes a cell that spreadsheet applications would otherwise
 // interpret as a live formula. Request-derived text (host, method, path_class,
@@ -516,12 +516,13 @@ func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identit
 		status                                                                                  int
 		blocked                                                                                 bool
 		siteName, host, method, pathClass, source, peer, requestID, policyName, country, region string
+		fingerprint                                                                             string
 		ruleResults, signalsJSON                                                                []byte
 	}
 	window := []exportRow{}
 	for rows.Next() {
 		var row exportRow
-		if e := rows.Scan(&row.id, &row.at, &row.siteID, &row.siteName, &row.host, &row.method, &row.pathClass, &row.status, &row.blocked, &row.source, &row.peer, &row.requestID, &row.policyID, &row.policyRevision, &row.policyName, &row.duration, &row.upstream, &row.country, &row.region, &row.ruleResults, &row.signalsJSON); e != nil {
+		if e := rows.Scan(&row.id, &row.at, &row.siteID, &row.siteName, &row.host, &row.method, &row.pathClass, &row.status, &row.blocked, &row.source, &row.peer, &row.requestID, &row.policyID, &row.policyRevision, &row.policyName, &row.duration, &row.upstream, &row.country, &row.region, &row.ruleResults, &row.signalsJSON, &row.fingerprint); e != nil {
 			return e
 		}
 		window = append(window, row)
@@ -555,7 +556,7 @@ func (a *App) exportAccessLogs(w http.ResponseWriter, r *http.Request, _ identit
 		record := []string{
 			strconv.FormatInt(row.id, 10), row.at.UTC().Format(time.RFC3339Nano), strconv.FormatInt(row.siteID, 10), csvNeutralize(row.siteName), csvNeutralize(row.host), csvNeutralize(row.method), csvNeutralize(row.pathClass),
 			strconv.Itoa(row.status), strconv.FormatBool(row.blocked), csvNeutralize(row.source), csvNeutralize(row.peer), csvNeutralize(row.requestID), strconv.FormatInt(row.policyID, 10), strconv.FormatInt(row.policyRevision, 10), csvNeutralize(row.policyName),
-			strconv.FormatInt(row.duration, 10), strconv.FormatInt(row.upstream, 10), csvNeutralize(row.country), csvNeutralize(row.region), csvNeutralize(strings.Join(ruleIDs, ";")), csvNeutralize(strings.Join(signals, ";")),
+			strconv.FormatInt(row.duration, 10), strconv.FormatInt(row.upstream, 10), csvNeutralize(row.country), csvNeutralize(row.region), csvNeutralize(strings.Join(ruleIDs, ";")), csvNeutralize(strings.Join(signals, ";")), csvNeutralize(row.fingerprint),
 		}
 		if e := csvOut.Write(record); e != nil {
 			return e

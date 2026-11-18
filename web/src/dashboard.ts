@@ -42,6 +42,7 @@ export type Protection = {
   site_burst: number;
   bot_mode: string;
   block_empty_user_agent: boolean;
+  client_fingerprinting?: boolean;
   trusted_proxies: string[];
   client_ip_header?: string;
   flood_exempt_cidrs?: string[];
@@ -142,6 +143,7 @@ export const defaultProtection: Protection = {
 const signalNames: Record<string, string> = {
   client_rate: "Client request rate",
   application_rate: "Application request rate",
+  fingerprint_rate: "Client fingerprint rate",
   flood_capacity_exceeded: "Flood limiter capacity exceeded",
   bot_rate_capacity_exceeded: "Bot limiter capacity exceeded",
   automation_user_agent: "Automation user agent",

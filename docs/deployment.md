@@ -33,6 +33,8 @@ Open `http://localhost:9090` on the Docker host, read `secrets/bootstrap_secret`
 
 ## Listener mappings
 
+Aegis terminates TLS itself on the public HTTPS listener. The public HTTP listener redirects to HTTPS per application; the management listener is separate and can use its own TLS. Client TLS fingerprinting (`client_fingerprinting`, off by default) is computed from the ClientHello Aegis itself terminates: any TLS terminator in front of Aegis — Cloudflare, a tunnel, a load balancer — replaces every client fingerprint with the proxy's, so enable it only for direct-to-origin applications. Plain HTTP carries no fingerprint. [Client identity](headers-and-cidrs.md#client-tls-fingerprinting-opt-in).
+
 | Listener          | Inside app container | Default published address |
 | ----------------- | -------------------- | ------------------------- |
 | Application HTTP  | `8080`               | `0.0.0.0:80`              |

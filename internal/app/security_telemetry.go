@@ -93,6 +93,9 @@ func emitSecurityEvent(logger *slog.Logger, e accessEvent) error {
 	if e.evidence != nil {
 		attrs = append(attrs, slog.String("evidence_id", e.evidence.id))
 	}
+	if e.fingerprint != "" {
+		attrs = append(attrs, slog.String("client_fingerprint", e.fingerprint))
+	}
 	if payload != nil {
 		attrs = append(attrs, slog.String("request_sample", *payload))
 	}
