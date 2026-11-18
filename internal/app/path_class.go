@@ -46,6 +46,11 @@ func normalizePathClass(path string) string {
 		parts[n] = classifySegment(segment)
 	}
 	class := strings.Join(parts, "/")
+	// Defensive: NUL is valid UTF-8 but PostgreSQL text rejects it, so a NUL
+	// anywhere in the class would fail the whole access-log CopyFrom batch
+	// (SQLSTATE 22021). classifySegment already strips it; this backstop
+	// keeps the invariant true no matter which branch built the class.
+	class = strings.ReplaceAll(class, "\x00", "")
 	if len(class) > pathClassMaxBytes {
 		class = truncateUTF8(class, pathClassMaxBytes)
 	}
@@ -59,6 +64,10 @@ func classifySegment(segment string) string {
 	// (e.g. /%ff%fe); one invalid path class would fail the whole access-log
 	// CopyFrom batch, so sanitize before any byte-level handling.
 	segment = strings.ToValidUTF8(segment, "�")
+	// NUL is valid UTF-8, so ToValidUTF8 leaves it in place — but PostgreSQL
+	// text rejects it (SQLSTATE 22021) and one bad class drops the whole
+	// access-log batch (#75). Strip it before bucketing.
+	segment = strings.ReplaceAll(segment, "\x00", "")
 	if len(segment) > pathClassSegmentMax {
 		segment = truncateUTF8(segment, pathClassSegmentMax)
 	}
