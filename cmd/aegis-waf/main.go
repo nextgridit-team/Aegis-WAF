@@ -156,6 +156,10 @@ func run() error {
 			s.ConnState = a.ConnectionState
 		}
 		if i == 1 {
+			// The public HTTPS listener is wrapped for TLS client
+			// fingerprinting: the ClientHello is captured below the TLS
+			// server so sites that opt in can key shared budgets by it.
+			listeners[i] = app.NewFingerprintListener(l)
 			s.TLSConfig = a.TLSConfig()
 			s.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
 		}

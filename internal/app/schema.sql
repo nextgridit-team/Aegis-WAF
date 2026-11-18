@@ -300,3 +300,8 @@ INSERT INTO schema_version VALUES (31) ON CONFLICT DO NOTHING;
 -- time. Existing databases drop the now-obsolete uniqueness constraint.
 ALTER TABLE policy_assignments DROP CONSTRAINT IF EXISTS policy_assignments_site_id_priority_key;
 INSERT INTO schema_version VALUES (32) ON CONFLICT DO NOTHING;
+
+-- Version 33: opt-in per-site client TLS fingerprint identity (phase 1).
+-- Rows store the site-scoped install-key HMAC, never a raw JA4 value.
+ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS client_fingerprint text NOT NULL DEFAULT '';
+INSERT INTO schema_version VALUES (33) ON CONFLICT DO NOTHING;

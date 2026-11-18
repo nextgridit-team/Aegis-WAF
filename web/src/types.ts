@@ -77,6 +77,7 @@ export type Access = {
   observed_country?: string;
   response_source?: string;
   client_objects?: string[];
+  client_fingerprint?: string;
   network_access?: NetworkDecision;
   region_code?: string;
   region_name?: string;

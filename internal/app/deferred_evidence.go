@@ -105,6 +105,9 @@ func (w *deferredEvidence) finish() func() *evidenceEvent {
 	snapshot.Header.Set("Content-Type", truncateUTF8(request.Header.Get("Content-Type"), 128))
 	facts := newRequestFacts(snapshot)
 	facts.facts[factKey("client_ip", "")] = original.get("client_ip", "")
+	if fingerprint := original.get("client_fingerprint", ""); fingerprint.State == "present" {
+		facts.facts[factKey("client_fingerprint", "")] = fingerprint
+	}
 	if len(request.URL.Path) <= 1024 {
 		snapshot.URL.Path = strings.Clone(request.URL.Path)
 	} else {

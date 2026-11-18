@@ -27,10 +27,15 @@ type ProtectionSettings struct {
 	SiteBurst             int                  `json:"site_burst"`
 	BotMode               string               `json:"bot_mode"`
 	BlockEmptyUA          bool                 `json:"block_empty_user_agent"`
-	TrustedProxies        []string             `json:"trusted_proxies"`
-	ClientIPHeader        string               `json:"client_ip_header"`
-	FloodExemptCIDRs      []string             `json:"flood_exempt_cidrs"`
-	BotExemptCIDRs        []string             `json:"bot_exempt_cidrs"`
+	// ClientFingerprinting opts this application into TLS client
+	// fingerprinting (phase 1: identity only, no reputation). It is a
+	// site-level privacy decision: policies inherit it and cannot enable or
+	// disable it.
+	ClientFingerprinting bool     `json:"client_fingerprinting"`
+	TrustedProxies       []string `json:"trusted_proxies"`
+	ClientIPHeader       string   `json:"client_ip_header"`
+	FloodExemptCIDRs     []string `json:"flood_exempt_cidrs"`
+	BotExemptCIDRs       []string `json:"bot_exempt_cidrs"`
 }
 type protectionPolicy struct {
 	connectionLimits *connectionLimitSettings
@@ -275,16 +280,33 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		// client and site budgets: first matching pattern wins, keyed by
 		// client for per-client scope or by site for site-wide scope. The
 		// override can only tighten enforcement, never widen it.
+		endpointIndex := -1
 		if rule, ok := p.matchEndpoint(r.URL.Path); ok {
 			subject := ip.String()
 			if rule.SiteWide {
 				subject = "*"
 			}
 			limits = append(limits, rateLimit{rateKey{site, budgetPrefix + subject + "|ep" + strconv.Itoa(rule.Index)}, rule.Rate, rule.Burst})
+			endpointIndex = len(limits) - 1
 		}
-		var decisions [3]bool
+		// A site that opted into client fingerprinting adds one more shared
+		// budget keyed by the install-key HMAC of the connection's JA4 TLS
+		// fingerprint (injected into the request context by Public): the same
+		// client stack consumes one bucket regardless of source IP, catching
+		// IP-rotating floods. It uses the same rate and burst as the
+		// per-client budget, so it can never tighten beyond what the operator
+		// already chose per client. Absent fingerprints (plain HTTP, or a
+		// handshake that could not be parsed) degrade to the IP-keyed budgets
+		// alone.
+		fingerprint, _ := r.Context().Value(clientFingerprintKey{}).(string)
+		fingerprintIndex := -1
+		if fingerprint != "" {
+			limits = append(limits, rateLimit{rateKey{site, budgetPrefix + "fp:" + fingerprint}, p.RequestsPerSecond, p.Burst})
+			fingerprintIndex = len(limits) - 1
+		}
+		var decisions [4]bool
 		saturated, err := takeRateState(r.Context(), &a.flood, limits, decisions[:], now)
-		client, total, endpoint := true, true, true
+		client, total, endpoint, identified := true, true, true, true
 		if err != nil {
 			signals = append(signals, "rate_state_unavailable")
 			if p.Mode == "block" {
@@ -292,7 +314,12 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 			}
 		} else {
 			client, total = decisions[0], decisions[1]
-			endpoint = len(limits) < 3 || decisions[2]
+			if endpointIndex >= 0 {
+				endpoint = decisions[endpointIndex]
+			}
+			if fingerprintIndex >= 0 {
+				identified = decisions[fingerprintIndex]
+			}
 		}
 		if saturated {
 			// The local limiter's bucket map is full: new clients are admitted
@@ -309,7 +336,10 @@ func (a *App) protectResolved(p *protectionPolicy, site int64, r *http.Request, 
 		if !endpoint {
 			signals = append(signals, "endpoint_rate")
 		}
-		if (!client || !total || !endpoint) && p.Mode == "block" {
+		if !identified {
+			signals = append(signals, "fingerprint_rate")
+		}
+		if (!client || !total || !endpoint || !identified) && p.Mode == "block" {
 			blocked = true
 			status = http.StatusTooManyRequests
 		}

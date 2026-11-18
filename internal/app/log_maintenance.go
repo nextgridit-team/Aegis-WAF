@@ -121,6 +121,7 @@ type storedAccessRecord struct {
 	Network        networkAccessResult    `json:"network_access"`
 	Bot            botResult              `json:"bot"`
 	ResponseSource string                 `json:"response_source"`
+	Fingerprint    string                 `json:"client_fingerprint"`
 }
 
 func (a *App) exportAccessBatch(ctx context.Context, logger *slog.Logger) (int, error) {
@@ -161,7 +162,7 @@ func (a *App) exportAccessBatch(ctx context.Context, logger *slog.Logger) (int, 
 		if requestID == "" {
 			requestID = "access:" + strconv.FormatInt(e.ID, 10)
 		}
-		event := accessEvent{requestID: requestID, host: e.Host, siteName: e.SiteName, at: e.At, site: e.SiteID, method: e.Method, status: e.Status, duration: e.Duration, peer: e.Peer, results: e.Results, country: e.Country, regionCode: e.RegionCode, regionName: e.RegionName, blocked: e.Blocked, signals: e.Signals, policyID: e.PolicyID, policyRevision: e.PolicyRevision, policyName: e.PolicyName, managed: e.Managed, network: e.Network, bot: e.Bot, responseSource: e.ResponseSource}
+		event := accessEvent{requestID: requestID, host: e.Host, siteName: e.SiteName, at: e.At, site: e.SiteID, method: e.Method, status: e.Status, duration: e.Duration, peer: e.Peer, results: e.Results, country: e.Country, regionCode: e.RegionCode, regionName: e.RegionName, blocked: e.Blocked, signals: e.Signals, policyID: e.PolicyID, policyRevision: e.PolicyRevision, policyName: e.PolicyName, managed: e.Managed, network: e.Network, bot: e.Bot, responseSource: e.ResponseSource, fingerprint: e.Fingerprint}
 		// Historical exports are metadata only. Never infer past sample consent.
 		if err = emitSecurityEvent(logger, event); err != nil {
 			return 0, err

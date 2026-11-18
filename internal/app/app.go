@@ -95,6 +95,7 @@ type accessEvent struct {
 	clientIP                                             netip.Addr
 	policyID, policyRevision                             int64
 	policyName                                           string
+	fingerprint                                          string
 	at                                                   time.Time
 	site                                                 int64
 	method                                               string
@@ -595,6 +596,16 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	var botReq botRequest
 	signals := []string{}
 	protectionBlocked, protectionStatus := false, 0
+	// Client fingerprinting is a per-site privacy opt-in. The stored and keyed
+	// form is the site-scoped install-key HMAC; absent fingerprints (plain
+	// HTTP, unparseable handshakes) leave the identity dimension off.
+	fingerprint := ""
+	if policy != nil && policy.ClientFingerprinting {
+		fingerprint = a.connectionFingerprint(rt.site.ID, r)
+		if fingerprint != "" {
+			r = r.WithContext(context.WithValue(r.Context(), clientFingerprintKey{}, fingerprint))
+		}
+	}
 	if !network.Blocked && !network.BypassWAF {
 		signals, protectionBlocked, protectionStatus = a.protectResolved(policy, rt.site.ID, r, clientIP, start, reliableIdentity)
 	}
@@ -656,6 +667,9 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	facts := newRequestFacts(r)
 	facts.facts[factKey("client_ip", "")] = Fact{State: "present", Values: []string{clientIP.String()}}
+	if fingerprint != "" {
+		facts.facts[factKey("client_fingerprint", "")] = Fact{State: "present", Values: []string{fingerprint}}
+	}
 	results := []RuleResult{}
 	blocked := false
 	if !botEndpoint && !network.Blocked && !network.BypassWAF {
@@ -739,7 +753,7 @@ func (a *App) Public(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		peer := clientIP.String()
-		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), upstreamUS: upstreamUS, peer: peer, pathClass: a.pathClasses.classify(rt.site.ID, path), results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult, requestID: requestID}
+		event := accessEvent{host: truncateUTF8(requestHost(r.Host), 253), siteName: rt.site.Name, localGeo: s.localGeo, responseSource: rec.responseSource, regions: a.regions.Load(), network: network, at: time.Now(), site: rt.site.ID, method: r.Method, status: rec.status, duration: time.Since(start).Milliseconds(), upstreamUS: upstreamUS, peer: peer, pathClass: a.pathClasses.classify(rt.site.ID, path), results: results, geo: s.geo, clientIP: clientIP, blocked: network.Blocked || blocked || protectionBlocked || managedBlocked || botBlocked || methodBlocked, bot: botDecision, signals: signals, exemptions: exemptions, policyID: policyID, policyRevision: policyRevision, policyName: policyName, managed: managedResult, requestID: requestID, fingerprint: fingerprint}
 		a.prom.observeEvent(event)
 		if capture := s.capture[rt.site.ID]; capture != nil {
 			event.securityDisabled = capture.Settings.SecurityEventsDisabled
