@@ -257,8 +257,9 @@ func TestAdministratorMFAEnrollmentAndLogin(t *testing.T) {
 	// Wrong codes are rejected without burning the ticket.
 	c2.call("POST", "/api/login/mfa", map[string]string{"ticket": ticket, "code": "000000"}, 401)
 
-	// The correct code completes login.
-	fresh := adminTestTOTP(secret, time.Now().Unix()/30)
+	// The correct code completes login. Confirming burned the current step,
+	// so the first sign-in needs the next step's code.
+	fresh := adminTestTOTP(secret, time.Now().Unix()/30+1)
 	var login map[string]any
 	if e := json.Unmarshal(c2.call("POST", "/api/login/mfa", map[string]string{"ticket": ticket, "code": fresh}, 200), &login); e != nil {
 		t.Fatal(e)
