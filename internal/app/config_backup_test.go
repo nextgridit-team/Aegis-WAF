@@ -529,3 +529,43 @@ func (w *sliceWriter) Write(p []byte) (int, error) {
 	*w.lines = append(*w.lines, string(p))
 	return len(p), nil
 }
+
+// The key_id side of the keyless-cert import check: a deployment may already
+// hold a certificate whose sealed key_cipher survived while its key_id did
+// not (a partial restore or column-level corruption). buildSnapshot refuses
+// to load such a certificate — its seal names a workspace key that is not
+// there — so an imported site referencing it must not keep HTTPS redirect
+// either; the import forces the redirect off and says so in the report.
+func TestConfigImportForcesPlainHTTPWhenSealKeyIDMissing(t *testing.T) {
+	cfg := testDB(t)
+	a := newTestReplica(t, cfg)
+	server := httptest.NewServer(a.Management())
+	defer server.Close()
+	jar, _ := cookiejar.New(nil)
+	c := testAPI{t, &http.Client{Jar: jar, Timeout: 10 * time.Second}, server.URL, ""}
+	drillLogin(t, &c, cfg, "admin", "keyless key id password")
+	now := time.Now()
+	chain, _ := testCertificate(t, []string{"keyid.example.com"}, 301, now.Add(-time.Hour), now.Add(90*24*time.Hour))
+	// Seed the half-keyed row the bundle's site references: the import keeps
+	// certificates the deployment already holds, so this row — key_cipher
+	// set, key_id NULL — is exactly what the site import must inspect.
+	if _, e := a.db.Exec(context.Background(), "INSERT INTO certificates(name,origin,domains,chain_pem,key_cipher) VALUES('Half-keyed TLS','upload',ARRAY['keyid.example.com'],$1,decode('00','hex'))", chain); e != nil {
+		t.Fatal(e)
+	}
+	audit := 720
+	retention := 336
+	bundle := configBundle{
+		BundleVersion: configBundleVersion, Secrets: "excluded", SchemaVersion: 1,
+		Certificates: []exportCertificate{{Name: "Half-keyed TLS", Origin: "upload", Domains: []string{"keyid.example.com"}, ChainPEM: chain, ChallengeType: "http-01"}},
+		Sites:        []exportSite{{Name: "Key id app", Hostnames: []string{"keyid.example.com"}, Upstream: "http://127.0.0.1:8080", Certificate: "Half-keyed TLS", RedirectHTTPS: true, Enabled: true}},
+		Settings:     &exportSettings{LogRetentionHours: &retention, AuditRetentionHours: &audit},
+	}
+	data := c.call("POST", "/api/config-import", map[string]any{"bundle": bundle, "dry_run": false}, 200)
+	if !bytes.Contains(data, []byte("HTTPS redirect disabled")) {
+		t.Fatalf("import report missing the forced-plain warning: %s", data)
+	}
+	var redirect bool
+	if e := a.db.QueryRow(context.Background(), "SELECT redirect_https FROM sites WHERE name='Key id app'").Scan(&redirect); e != nil || redirect {
+		t.Fatalf("site referencing a key_id-less certificate kept redirect_https=%v (%v)", redirect, e)
+	}
+}
