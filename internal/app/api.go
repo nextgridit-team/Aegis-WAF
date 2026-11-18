@@ -183,6 +183,8 @@ func (a *App) Management() http.Handler {
 		return nil
 	}))
 	m.HandleFunc("GET /api/sites", a.wrap(true, a.listSites))
+	m.HandleFunc("GET /api/config-export", a.wrap(true, a.exportConfig))
+	m.HandleFunc("POST /api/config-import", a.wrap(true, a.importConfig))
 	m.HandleFunc("POST /api/upstreams/test", a.wrap(true, a.testUpstream))
 	m.HandleFunc("POST /api/sites", a.wrap(true, a.saveSite))
 	m.HandleFunc("PUT /api/sites/{id}", a.wrap(true, a.saveSite))

@@ -295,7 +295,20 @@ func (a *App) refresh(ctx context.Context) error {
 // buildSnapshot compiles a complete candidate without committing database state
 // or changing the active pointer. Refresh and offline simulation share it.
 func (a *App) buildSnapshot(ctx context.Context, tx pgx.Tx, version int64) (*snapshot, error) {
-	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>''")
+	// Certificates restored from a configuration bundle carry the public
+	// chain only (private keys are never exported), so rows without sealed
+	// key material provide no TLS here; their sites keep serving plain HTTP
+	// until the key is re-uploaded or ACME renews. See config_backup.go.
+	// A certificate that loses its sealed key material any other way (database
+	// corruption, a partial restore) is silently losing TLS here — say so,
+	// loudly, rather than letting the skip mask the damage. The count must run
+	// BEFORE the rows query: a query issued between tx.Query and the rows
+	// drain is refused with "conn busy", and the warning would never fire.
+	var skippedCerts int64
+	if e := tx.QueryRow(ctx, "SELECT count(*) FROM certificates WHERE chain_pem<>'' AND (key_cipher IS NULL OR key_id IS NULL)").Scan(&skippedCerts); e == nil && skippedCerts > 0 {
+		slog.Warn("config load: skipping certificate(s) without sealed key material; their sites serve plain HTTP until re-keyed", "count", skippedCerts)
+	}
+	rows, e := tx.Query(ctx, "SELECT id,chain_pem,key_cipher,key_id FROM certificates WHERE chain_pem<>'' AND key_cipher IS NOT NULL AND key_id IS NOT NULL")
 	if e != nil {
 		return nil, e
 	}
