@@ -61,7 +61,7 @@ INSERT INTO schema_version VALUES(6) ON CONFLICT DO NOTHING;
 -- Version 7: provider connection settings and reusable source-scoped policies.
 CREATE TABLE IF NOT EXISTS ai_provider(id boolean PRIMARY KEY DEFAULT true CHECK(id),base_url text NOT NULL,key_cipher bytea,key_id text NOT NULL,model text NOT NULL,models jsonb NOT NULL,checked_at timestamptz,revision bigint NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS policies(id bigserial PRIMARY KEY,spec jsonb NOT NULL,revision bigint NOT NULL DEFAULT 1);
-CREATE TABLE IF NOT EXISTS policy_assignments(policy_id bigint NOT NULL REFERENCES policies ON DELETE CASCADE,site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,source_cidrs text[] NOT NULL,priority int NOT NULL,PRIMARY KEY(policy_id,site_id),UNIQUE(site_id,priority),CHECK((cardinality(source_cidrs)=0 AND priority=10000) OR(cardinality(source_cidrs)>0 AND priority>=0 AND priority<10000)));
+CREATE TABLE IF NOT EXISTS policy_assignments(policy_id bigint NOT NULL REFERENCES policies ON DELETE CASCADE,site_id bigint NOT NULL REFERENCES sites ON DELETE CASCADE,source_cidrs text[] NOT NULL,priority int NOT NULL,PRIMARY KEY(policy_id,site_id),CHECK((cardinality(source_cidrs)=0 AND priority=10000) OR(cardinality(source_cidrs)>0 AND priority>=0 AND priority<10000)));
 CREATE TABLE IF NOT EXISTS policy_revisions(policy_id bigint NOT NULL REFERENCES policies ON DELETE CASCADE,revision bigint NOT NULL,spec jsonb NOT NULL,actor text NOT NULL,at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(policy_id,revision));
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS policy_id bigint NOT NULL DEFAULT 0;
 ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS policy_revision bigint NOT NULL DEFAULT 0;
@@ -290,3 +290,13 @@ CREATE TABLE IF NOT EXISTS admin_mfa_pending(token_hash text PRIMARY KEY, admin_
 CREATE INDEX IF NOT EXISTS admin_mfa_pending_expiry ON admin_mfa_pending(expires_at);
 CREATE TABLE IF NOT EXISTS admin_reset_tokens(token_hash text PRIMARY KEY, admin_id bigint NOT NULL REFERENCES administrators ON DELETE CASCADE, expires_at timestamptz NOT NULL, used boolean NOT NULL DEFAULT false, used_at timestamptz);
 INSERT INTO schema_version VALUES (31) ON CONFLICT DO NOTHING;
+
+-- Version 32: policy composition (stacking). Assignments sharing one client
+-- scope (identical source CIDR sets, or the default) now STACK: the snapshot
+-- compiler merges them into one binding, so a second default joins the scope
+-- instead of displacing it and same-scope CIDR policies compose instead of
+-- competing by unique priority. Priority keeps ordering scopes and members
+-- (ties break by policy id); per-scope composition caps are enforced at save
+-- time. Existing databases drop the now-obsolete uniqueness constraint.
+ALTER TABLE policy_assignments DROP CONSTRAINT IF EXISTS policy_assignments_site_id_priority_key;
+INSERT INTO schema_version VALUES (32) ON CONFLICT DO NOTHING;

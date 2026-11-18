@@ -1295,8 +1295,11 @@ func importPolicies(ctx context.Context, tx pgx.Tx, bundle *configBundle, report
 			}
 		}
 		report.record("policies", action, spec.Name, "")
-		// Assignments follow savePolicy's semantics, including displacing a
-		// previous default assignment on the same site.
+		// Assignments follow savePolicy's semantics: stacked scopes compose
+		// at compile time, so a default assignment joins the site's default
+		// scope instead of displacing the previous default, and same-scope
+		// priorities no longer conflict (order is priority then policy id).
+		// The final checkPolicyAssignments enforces the composition caps.
 		if _, e = tx.Exec(ctx, "DELETE FROM policy_assignments WHERE policy_id=$1", id); e != nil {
 			return e
 		}
@@ -1304,46 +1307,6 @@ func importPolicies(ctx context.Context, tx pgx.Tx, bundle *configBundle, report
 			site, ok := sites[assignment.Site]
 			if !ok {
 				return invalid("policy assignment references application '" + assignment.Site + "' that the bundle does not contain")
-			}
-			if len(assignment.SourceCIDRs) == 0 {
-				displaced, e := tx.Query(ctx, "DELETE FROM policy_assignments WHERE site_id=$1 AND cardinality(source_cidrs)=0 AND policy_id<>$2 RETURNING policy_id", site, id)
-				if e != nil {
-					return e
-				}
-				previous := []int64{}
-				for displaced.Next() {
-					var pid int64
-					if e = displaced.Scan(&pid); e != nil {
-						displaced.Close()
-						return e
-					}
-					previous = append(previous, pid)
-				}
-				displaced.Close()
-				if e = displaced.Err(); e != nil {
-					return e
-				}
-				// Writes happen only after the result set is drained: pgx
-				// streams rows, so an Exec during iteration would fail.
-				for _, pid := range previous {
-					if _, e = tx.Exec(ctx, "UPDATE policies SET revision=revision+1 WHERE id=$1", pid); e != nil {
-						return e
-					}
-					if _, e = tx.Exec(ctx, "INSERT INTO policy_revisions(policy_id,revision,spec,actor) SELECT id,revision,spec,$2 FROM policies WHERE id=$1", pid, actor); e != nil {
-						return e
-					}
-				}
-				if _, e = tx.Exec(ctx, "INSERT INTO policy_assignments(policy_id,site_id,source_cidrs,priority) VALUES($1,$2,'{}',10000)", id, site); e != nil {
-					return e
-				}
-				continue
-			}
-			var conflict bool
-			if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM policy_assignments WHERE site_id=$1 AND priority=$2 AND policy_id<>$3)", site, assignment.Priority, id).Scan(&conflict); e != nil {
-				return e
-			}
-			if conflict {
-				return apiError{409, "another CIDR policy has this priority on an application; choose a unique priority"}
 			}
 			if _, e = tx.Exec(ctx, "INSERT INTO policy_assignments(policy_id,site_id,source_cidrs,priority) VALUES($1,$2,$3,$4)", id, site, assignment.SourceCIDRs, assignment.Priority); e != nil {
 				return e

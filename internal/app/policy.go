@@ -91,12 +91,16 @@ type policyView struct {
 type compiledPolicyBinding struct {
 	ManagedOptions managedSignatureOptions
 	Managed        *managedSignatureRuntime
-	ID, Revision   int64
-	Name           string
-	Priority       int
-	CIDRs          []netip.Prefix
-	Rules          []compiledRule
-	Protection     *protectionPolicy
+	// Contributors lists every policy stacked in this binding's scope, in
+	// composition order; ID, Revision and Name mirror the lead (first)
+	// contributor. Single-policy scopes carry one contributor.
+	Contributors []composedPolicyRef
+	ID, Revision int64
+	Name         string
+	Priority     int
+	CIDRs        []netip.Prefix
+	Rules        []compiledRule
+	Protection   *protectionPolicy
 }
 
 func selectPolicy(bindings []compiledPolicyBinding, ip netip.Addr, reliable bool) *compiledPolicyBinding {
@@ -375,43 +379,49 @@ func checkAssignedRuleCapacity(ctx context.Context, tx pgx.Tx, replacementID int
 	return nil
 }
 func checkPolicyAssignments(ctx context.Context, tx pgx.Tx, managedLimit int) error {
-	var invalidSite bool
-	if e := tx.QueryRow(ctx, "SELECT EXISTS(SELECT site_id FROM policy_assignments GROUP BY site_id HAVING count(*) FILTER(WHERE cardinality(source_cidrs)=0)<>1 OR count(*)>10)").Scan(&invalidSite); e != nil {
-		return e
-	}
-	if invalidSite {
-		return apiError{409, "each application with scoped policies needs one default policy; at most 10 policies per application"}
-	}
 	if e := checkAssignedRuleCapacity(ctx, tx, 0, nil); e != nil {
 		return e
 	}
-	rows, e := tx.Query(ctx, "SELECT DISTINCT p.id,p.spec FROM policy_assignments b JOIN policies p ON p.id=b.policy_id JOIN sites s ON s.id=b.site_id WHERE s.enabled")
+	scopes, e := loadPolicyScopes(ctx, tx, 0, nil)
 	if e != nil {
 		return e
 	}
-	defer rows.Close()
 	configurations := map[string]bool{}
-	for rows.Next() {
-		var id int64
-		var raw []byte
-		if e = rows.Scan(&id, &raw); e != nil {
-			return e
+	for site, siteScopes := range scopes {
+		assignments, defaults, scoped := 0, 0, 0
+		for n := range siteScopes {
+			scope := &siteScopes[n]
+			assignments += len(scope.Members)
+			if len(scope.CIDRs) == 0 {
+				defaults++
+			} else {
+				scoped++
+			}
+			if len(scope.Members) > policyCompositionLimit {
+				lead := scope.Members[0]
+				return apiError{409, fmt.Sprintf("application %d already stacks %d policies in this client scope (led by %q); at most %d policies may compose per scope", site, len(scope.Members), lead.Name, policyCompositionLimit)}
+			}
+			options := scope.Members[0].managed
+			if len(scope.Members) > 1 {
+				composed, e := composePolicySpecs(scope.Members)
+				if e != nil {
+					return apiError{409, "stacked policies do not compose: " + e.Error()}
+				}
+				if _, e = policyProtection(nil, composed, 0); e != nil {
+					return apiError{409, "stacked policies do not compose: " + e.Error()}
+				}
+				options = composed.ManagedSignatures
+			}
+			if options.Mode != "off" {
+				configurations[managedRuntimeKey(options)] = true
+			}
 		}
-		var spec policySpec
-		if e = json.Unmarshal(raw, &spec); e != nil {
-			return e
+		if assignments > 10 {
+			return apiError{409, "at most 10 policies per application"}
 		}
-		options, e := normalizeManagedSignatures(spec.ManagedSignatures)
-		if e != nil {
-			return e
+		if scoped > 0 && defaults == 0 {
+			return apiError{409, "each application with scoped policies needs one default policy"}
 		}
-		options = effectiveManagedOptions(options, spec.Mode)
-		if options.Mode != "off" {
-			configurations[managedRuntimeKey(options)] = true
-		}
-	}
-	if e = rows.Err(); e != nil {
-		return e
 	}
 	if len(configurations) > managedLimit {
 		return apiError{409, fmt.Sprintf("at most %d distinct active managed signature configurations", managedLimit)}
@@ -534,45 +544,11 @@ func (a *App) savePolicy(w http.ResponseWriter, r *http.Request, i identity) err
 			if !exists {
 				return invalid("an assigned application no longer exists")
 			}
-			if len(assignment.SourceCIDRs) == 0 {
-				rows, err := tx.Query(ctx, "DELETE FROM policy_assignments WHERE site_id=$1 AND cardinality(source_cidrs)=0 RETURNING policy_id", assignment.SiteID)
-				if err != nil {
-					return err
-				}
-				displaced := []int64{}
-				for rows.Next() {
-					var previous int64
-					if err = rows.Scan(&previous); err != nil {
-						rows.Close()
-						return err
-					}
-					displaced = append(displaced, previous)
-				}
-				err = rows.Err()
-				rows.Close()
-				if err != nil {
-					return err
-				}
-				for _, previous := range displaced {
-					if _, err = tx.Exec(ctx, "UPDATE policies SET revision=revision+1 WHERE id=$1", previous); err != nil {
-						return err
-					}
-					if _, err = tx.Exec(ctx, "INSERT INTO policy_revisions(policy_id,revision,spec,actor) SELECT id,revision,spec,$2 FROM policies WHERE id=$1", previous, i.Username); err != nil {
-						return err
-					}
-					if err = audit(ctx, tx, i.Username, "policy.default_reassigned", strconv.FormatInt(previous, 10)); err != nil {
-						return err
-					}
-				}
-			} else {
-				var conflict bool
-				if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM policy_assignments WHERE site_id=$1 AND priority=$2)", assignment.SiteID, assignment.Priority).Scan(&conflict); e != nil {
-					return e
-				}
-				if conflict {
-					return apiError{409, "another CIDR policy has this priority on an application; choose a unique priority"}
-				}
-			}
+			// Stacked scopes: assignments with the same client scope compose at
+			// compile time, so a second default or same-scope CIDR policy joins
+			// the scope instead of displacing it. Priority orders scopes and the
+			// members inside a scope (ties break by policy id); the uniqueness
+			// constraint is gone, composition caps apply in checkPolicyAssignments.
 			if _, e = tx.Exec(ctx, "INSERT INTO policy_assignments(policy_id,site_id,source_cidrs,priority) VALUES($1,$2,$3,$4)", id, assignment.SiteID, assignment.SourceCIDRs, assignment.Priority); e != nil {
 				return e
 			}
@@ -599,90 +575,117 @@ func (a *App) loadPolicyBindings(ctx context.Context, tx pgx.Tx, next *snapshot)
 	if e != nil {
 		return e
 	}
-	next.policyBindings = map[int64][]compiledPolicyBinding{}
-	rows, e := tx.Query(ctx, "SELECT b.site_id,b.source_cidrs,b.priority,p.id,p.revision,p.spec FROM policy_assignments b JOIN policies p ON p.id=b.policy_id JOIN sites s ON s.id=b.site_id WHERE s.enabled ORDER BY b.site_id,b.priority")
+	scopes, e := loadPolicyScopes(ctx, tx, 0, nil)
 	if e != nil {
 		return e
 	}
-	defer rows.Close()
+	next.policyBindings = map[int64][]compiledPolicyBinding{}
 	total := 0
-	for rows.Next() {
-		var site int64
-		var cidrs []string
-		var raw []byte
-		var binding compiledPolicyBinding
-		if e = rows.Scan(&site, &cidrs, &binding.Priority, &binding.ID, &binding.Revision, &raw); e != nil {
-			return e
-		}
-		var spec policySpec
-		if e = json.Unmarshal(raw, &spec); e != nil {
-			return e
-		}
-		if e = validatePolicySpec(spec); e != nil {
-			return e
-		}
-		binding.Name = spec.Name
-		binding.ManagedOptions, e = normalizeManagedSignatures(spec.ManagedSignatures)
-		if e != nil {
-			return e
-		}
-		binding.ManagedOptions = effectiveManagedOptions(binding.ManagedOptions, spec.Mode)
-		spec.NetworkAccess, e = catalog.network(spec.NetworkAccess)
-		if e != nil {
-			return e
-		}
-		binding.Protection, e = policyProtection(next.protection[site], spec, binding.ID)
-		if e != nil {
-			return e
-		}
-		for _, cidr := range cidrs {
-			prefix, e := netip.ParsePrefix(cidr)
+	for site, siteScopes := range scopes {
+		assignments := 0
+		defaults := 0
+		bindings := []compiledPolicyBinding{}
+		for n := range siteScopes {
+			scope := &siteScopes[n]
+			assignments += len(scope.Members)
+			if len(scope.CIDRs) == 0 {
+				defaults++
+			}
+			if len(scope.Members) > policyCompositionLimit {
+				return fmt.Errorf("application %d stacks at most %d policies in one client scope", site, policyCompositionLimit)
+			}
+			binding, e := compileScopeBinding(site, scope, catalog, next.protection[site], &total)
 			if e != nil {
 				return e
 			}
-			binding.CIDRs = append(binding.CIDRs, prefix)
+			bindings = append(bindings, *binding)
 		}
-		for _, group := range effectivePolicyGroups(spec) {
+		if assignments > 10 || (defaults == 0 && assignments > 0) {
+			return errors.New("invalid stored policy assignments")
+		}
+		next.policyBindings[site] = bindings
+	}
+	return nil
+}
+
+// compileScopeBinding builds the ONE compiled binding a scope serves — for a
+// stacked scope, the union-at-compile merge of its members. Rules keep their
+// contributing policy's identity (compiled.PolicyID) and mode context; a rule
+// selected by several members composes once, first member wins.
+func compileScopeBinding(site int64, scope *policyScope, catalog addressCatalog, base *protectionPolicy, total *int) (*compiledPolicyBinding, error) {
+	lead := &scope.Members[0]
+	binding := &compiledPolicyBinding{ID: lead.ID, Revision: lead.Revision, Name: lead.Name, Priority: lead.Priority, Contributors: make([]composedPolicyRef, 0, len(scope.Members))}
+	for _, member := range scope.Members {
+		binding.Contributors = append(binding.Contributors, composedPolicyRef{ID: member.ID, Revision: member.Revision, Name: member.Name, Priority: member.Priority})
+	}
+	for _, cidr := range scope.CIDRs {
+		prefix, e := netip.ParsePrefix(cidr)
+		if e != nil {
+			return nil, e
+		}
+		binding.CIDRs = append(binding.CIDRs, prefix)
+	}
+	spec := lead.Spec
+	var e error
+	if len(scope.Members) == 1 {
+		if e = validatePolicySpec(spec); e != nil {
+			return nil, e
+		}
+		spec.NetworkAccess, e = catalog.network(spec.NetworkAccess)
+		if e != nil {
+			return nil, e
+		}
+	} else {
+		if e := expandScopeNetworks(scope, catalog); e != nil {
+			return nil, e
+		}
+		composed, e := composePolicySpecs(scope.Members)
+		if e != nil {
+			return nil, e
+		}
+		spec = composed
+	}
+	binding.ManagedOptions, e = normalizeManagedSignatures(spec.ManagedSignatures)
+	if e != nil {
+		return nil, e
+	}
+	binding.ManagedOptions = effectiveManagedOptions(binding.ManagedOptions, spec.Mode)
+	binding.Protection, e = policyProtection(base, spec, binding.ID)
+	if e != nil {
+		return nil, e
+	}
+	seen := map[int64]bool{}
+	for _, member := range scope.Members {
+		for _, group := range effectivePolicyGroups(member.Spec) {
 			for _, rule := range group.Rules {
-				total++
-				if total > 1000 {
-					return errors.New("stored policy rule capacity exceeded")
+				*total++
+				if *total > 1000 {
+					return nil, errors.New("stored policy rule capacity exceeded")
 				}
-				if spec.Mode == "off" {
+				if member.Spec.Mode == "off" {
 					continue
 				}
+				if seen[rule.RuleID] {
+					continue
+				}
+				seen[rule.RuleID] = true
 				rule.Spec.Scope.SiteID = site
-				rule.Spec.Action = effectivePolicyRuleAction(spec, rule)
+				rule.Spec.Action = effectivePolicyRuleAction(member.Spec, rule)
 				compiled, e := compileRule(rule.Spec)
 				if e != nil {
-					return e
+					return nil, e
 				}
 				compiled.ID = rule.RuleID
-				compiled.PolicyID = binding.ID
-				compiled.PolicyRevision = binding.Revision
+				compiled.PolicyID = member.ID
+				compiled.PolicyRevision = member.Revision
 				compiled.GroupName = group.Name
 				compiled.GroupPrefix = group.PathPrefix
 				compiled.GroupMethods = group.Methods
 				binding.Rules = append(binding.Rules, compiled)
 			}
 		}
-		next.policyBindings[site] = append(next.policyBindings[site], binding)
 	}
-	if e := rows.Err(); e != nil {
-		return e
-	}
-	for _, bindings := range next.policyBindings {
-		defaults := 0
-		for _, b := range bindings {
-			if len(b.CIDRs) == 0 {
-				defaults++
-			}
-		}
-		if defaults != 1 || len(bindings) > 10 {
-			return errors.New("invalid stored policy assignments")
-		}
-	}
-	return nil
+	return binding, nil
 }
 func policyAPI(a *App, m *http.ServeMux) {
 	m.HandleFunc("GET /api/policy-capacity", a.wrap(true, a.policyCapacityReport))

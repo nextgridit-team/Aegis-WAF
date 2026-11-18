@@ -51,9 +51,23 @@ type managedCapacity struct {
 	Distinct       int                    `json:"distinct"`
 	Remaining      int                    `json:"remaining"`
 	Configurations []managedConfiguration `json:"configurations"`
+	// Sites reports per-application stacking: each scope's contributing
+	// policies and the configuration the scope compiles (empty when its
+	// signatures are off), so operators see what is stacked and how many
+	// engines each application's scopes compile to.
+	Sites []siteComposition `json:"sites"`
 	// CommunityRules reports the stored-catalogue growth budget alongside the
 	// engine budget so operators see both capacity surfaces in one place.
 	CommunityRules communityRuleCapacity `json:"community_rules"`
+}
+type siteComposition struct {
+	Site   int64                  `json:"site_id"`
+	Scopes []siteCompositionScope `json:"scopes"`
+}
+type siteCompositionScope struct {
+	SourceCIDRs     []string                     `json:"source_cidrs"`
+	Policies        []managedConfigurationPolicy `json:"policies"`
+	ConfigurationID string                       `json:"configuration_id,omitempty"`
 }
 type communityRuleCapacity struct {
 	Limit          int `json:"limit"`
@@ -84,50 +98,65 @@ type sqlQuerier interface {
 
 // activeManagedConfigurations computes the same distinct engine set that
 // checkPolicyAssignments enforces at save time — assignments on enabled
-// sites, normalized then mode-capped options, off excluded — while keeping
-// the policy references editors need. The optional replacement mirrors
-// checkAssignedRuleCapacity so a preflight check can preview an edit.
+// sites grouped into scopes, stacked scopes merged, off excluded — while
+// keeping the policy references editors need. The optional replacement
+// mirrors checkAssignedRuleCapacity so a preflight check can preview an edit.
 func activeManagedConfigurations(ctx context.Context, db sqlQuerier, replacementID int64, replacement *policySpec) (map[string]*managedConfiguration, error) {
-	rows, e := db.Query(ctx, "SELECT DISTINCT p.id,coalesce(p.spec->>'name',''),p.spec FROM policy_assignments b JOIN policies p ON p.id=b.policy_id JOIN sites s ON s.id=b.site_id WHERE s.enabled")
+	scopes, e := loadPolicyScopes(ctx, db, replacementID, replacement)
 	if e != nil {
 		return nil, e
 	}
-	defer rows.Close()
+	configurations, _, e := managedScopeConfigurations(scopes)
+	return configurations, e
+}
+
+// managedScopeConfigurations composes every scope's merged managed options
+// and returns the distinct engine set plus the per-site composition surface.
+func managedScopeConfigurations(scopes map[int64][]policyScope) (map[string]*managedConfiguration, []siteComposition, error) {
 	configurations := map[string]*managedConfiguration{}
-	for rows.Next() {
-		var id int64
-		var name string
-		var raw []byte
-		if e = rows.Scan(&id, &name, &raw); e != nil {
-			return nil, e
+	sites := []siteComposition{}
+	for site, siteScopes := range scopes {
+		composition := siteComposition{Site: site, Scopes: []siteCompositionScope{}}
+		for n := range siteScopes {
+			scope := &siteScopes[n]
+			options := scope.Members[0].managed
+			if len(scope.Members) > 1 {
+				composed, e := composePolicySpecs(scope.Members)
+				if e != nil {
+					return nil, nil, e
+				}
+				options = composed.ManagedSignatures
+			}
+			entry := &siteCompositionScope{SourceCIDRs: scope.CIDRs, Policies: []managedConfigurationPolicy{}}
+			for _, member := range scope.Members {
+				entry.Policies = append(entry.Policies, managedConfigurationPolicy{ID: member.ID, Name: member.Name, Mode: member.Spec.Mode})
+			}
+			if options.Mode != "off" {
+				key := managedRuntimeKey(options)
+				existing := configurations[key]
+				if existing == nil {
+					digest := sha256.Sum256([]byte(key))
+					existing = &managedConfiguration{ID: hex.EncodeToString(digest[:8]), Options: options, Policies: []managedConfigurationPolicy{}}
+					configurations[key] = existing
+				}
+				seen := map[int64]bool{}
+				for _, policy := range existing.Policies {
+					seen[policy.ID] = true
+				}
+				for _, member := range scope.Members {
+					if !seen[member.ID] {
+						existing.Policies = append(existing.Policies, managedConfigurationPolicy{ID: member.ID, Name: member.Name, Mode: member.Spec.Mode})
+						seen[member.ID] = true
+					}
+				}
+				entry.ConfigurationID = existing.ID
+			}
+			composition.Scopes = append(composition.Scopes, *entry)
 		}
-		spec := policySpec{}
-		if replacement != nil && id == replacementID {
-			spec = *replacement
-		} else if e = json.Unmarshal(raw, &spec); e != nil {
-			return nil, e
-		}
-		options, e := normalizeManagedSignatures(spec.ManagedSignatures)
-		if e != nil {
-			return nil, e
-		}
-		options = effectiveManagedOptions(options, spec.Mode)
-		if options.Mode == "off" {
-			continue
-		}
-		key := managedRuntimeKey(options)
-		entry := configurations[key]
-		if entry == nil {
-			digest := sha256.Sum256([]byte(key))
-			entry = &managedConfiguration{ID: hex.EncodeToString(digest[:8]), Options: options}
-			configurations[key] = entry
-		}
-		entry.Policies = append(entry.Policies, managedConfigurationPolicy{ID: id, Name: name, Mode: spec.Mode})
+		sites = append(sites, composition)
 	}
-	if e = rows.Err(); e != nil {
-		return nil, e
-	}
-	return configurations, nil
+	sort.Slice(sites, func(i, j int) bool { return sites[i].Site < sites[j].Site })
+	return configurations, sites, nil
 }
 
 // hasEnabledAssignment reports whether a policy is bound to at least one
@@ -149,11 +178,15 @@ func hasEnabledAssignment(ctx context.Context, db sqlQuerier, policyID int64) (b
 }
 
 func (a *App) policyCapacityReport(w http.ResponseWriter, r *http.Request, _ identity) error {
-	configurations, e := activeManagedConfigurations(r.Context(), a.db, 0, nil)
+	scopes, e := loadPolicyScopes(r.Context(), a.db, 0, nil)
 	if e != nil {
 		return e
 	}
-	report := managedCapacity{Limit: a.managedEngineLimit(), Distinct: len(configurations), Configurations: []managedConfiguration{}}
+	configurations, sites, e := managedScopeConfigurations(scopes)
+	if e != nil {
+		return e
+	}
+	report := managedCapacity{Limit: a.managedEngineLimit(), Distinct: len(configurations), Configurations: []managedConfiguration{}, Sites: sites}
 	report.Remaining = max(0, report.Limit-report.Distinct)
 	for _, entry := range configurations {
 		report.Configurations = append(report.Configurations, *entry)
@@ -211,7 +244,6 @@ func (a *App) policyCapacityCheck(w http.ResponseWriter, r *http.Request, _ iden
 		respond(w, 200, result)
 		return nil
 	}
-	result.WouldCreateNew = before[managedRuntimeKey(options)] == nil
 	// Model the policy's actual assignments: an existing policy only mints an
 	// engine when it is bound to at least one enabled site, so an unassigned
 	// edit that saves fine must not be counted against the budget. A new
@@ -225,19 +257,45 @@ func (a *App) policyCapacityCheck(w http.ResponseWriter, r *http.Request, _ iden
 		}
 		occupiesEngine = assigned
 	}
-	result.WouldCreateNew = result.WouldCreateNew && occupiesEngine
-	replacement := &policySpec{Mode: in.Mode, ManagedSignatures: in.Options}
-	after, e := activeManagedConfigurations(r.Context(), a.db, in.PolicyID, replacement)
+	// Preview the save with composition: scopes stack, so the engines this
+	// save would mint are the MERGED configurations its scopes compile, not
+	// the candidate's own options. A policy composing with partners never
+	// compiles alone, so its solo configuration is only counted when no scope
+	// stacks it (a brand-new policy has no rows and always counts).
+	scopes, e := loadPolicyScopes(r.Context(), a.db, in.PolicyID, &policySpec{Mode: in.Mode, ManagedSignatures: in.Options})
 	if e != nil {
 		return e
 	}
-	// The saved policy itself always carries the candidate configuration;
-	// count it when no surviving policy already produces it.
-	if after[managedRuntimeKey(options)] == nil && occupiesEngine {
+	stacked := false
+	for _, siteScopes := range scopes {
+		for n := range siteScopes {
+			if len(siteScopes[n].Members) > 1 {
+				for _, member := range siteScopes[n].Members {
+					if member.ID == in.PolicyID {
+						stacked = true
+					}
+				}
+			}
+		}
+	}
+	after, _, e := managedScopeConfigurations(scopes)
+	if e != nil {
+		return e
+	}
+	if !stacked && occupiesEngine && after[managedRuntimeKey(options)] == nil {
 		after[managedRuntimeKey(options)] = &managedConfiguration{}
 	}
 	result.DistinctAfter = len(after)
 	result.Blocked = result.DistinctAfter > a.managedEngineLimit()
+	result.WouldCreateNew = occupiesEngine && !stacked && before[managedRuntimeKey(options)] == nil
+	if stacked {
+		for key := range after {
+			if before[key] == nil {
+				result.WouldCreateNew = true
+				break
+			}
+		}
+	}
 	if result.WouldCreateNew {
 		if entry := nearestManagedConfiguration(before, options); entry != nil {
 			result.NearestPolicyID = entry.Policies[0].ID

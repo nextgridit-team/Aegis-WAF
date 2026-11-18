@@ -106,25 +106,41 @@ func TestPolicyIntegration(t *testing.T) {
 	request(b, "GET", "/api/.env", "203.0.113.4", "", 403, extID)
 	c.call("PUT", extPath, policyInput{Spec: base, Revision: 1}, 409)
 	c.call("DELETE", extPath, map[string]int64{"revision": 4}, 409) // A scoped assignment cannot lose its fallback.
+	// A second policy in the same client scope stacks instead of conflicting
+	// on priority; the composed scope still attributes its lead.
 	conflicting := internal
 	conflicting.Spec.Name = "Conflict"
-	c.call("POST", "/api/policies", conflicting, 409)
+	conflictingID := mustID(t, c.call("POST", "/api/policies", conflicting, 200))
+	refresh()
+	request(a, "GET", "/api/.env", "10.0.0.1", "192.168.1.20", 202, intID)
+	c.call("DELETE", fmt.Sprintf("/api/policies/%d", conflictingID), map[string]int64{"revision": 1}, 200)
 	invalid := internal
 	invalid.Applications = []policyAssignment{{SiteID: site, SourceCIDRs: []string{"0.0.0.0/0"}, Priority: 101}}
 	c.call("POST", "/api/policies", invalid, 400)
-	// Moving the default invalidates the displaced policy's editor revision.
-	replacement := external
-	replacement.Spec.Name = "Replacement"
-	replacement.Revision = 0
-	replacement.RefreshRules = false
+	// A second default joins the default scope instead of displacing the
+	// previous default: its own rule selection unions with the existing
+	// default's, and the previous default's revision is untouched.
+	secretSpec := probeRule("path", "", "equals", "/api/secret")
+	secretSpec.Scope.SiteID = site
+	secretRule := mustID(t, c.call("POST", "/api/rules", secretSpec, 200))
+	replacement := policyInput{Spec: policySpecInput{Name: "Replacement", Mode: "block", RequestsPerSecond: 20, Burst: 60, SiteRequestsPerSecond: 1000, SiteBurst: 2000, Groups: []policyGroupInput{{Name: "Sensitive API", PathPrefix: "/api/", Methods: []string{"GET"}, RuleIDs: []int64{secretRule}}}}, Applications: []policyAssignment{{SiteID: site}}}
 	replacementID := mustID(t, c.call("POST", "/api/policies", replacement, 200))
-	c.call("PUT", extPath, external, 409)
 	var revision int64
-	if e := a.db.QueryRow(ctx, "SELECT revision FROM policies WHERE id=$1", extID).Scan(&revision); e != nil || revision != 5 {
-		t.Fatal("displaced revision", revision, e)
+	if e := a.db.QueryRow(ctx, "SELECT revision FROM policies WHERE id=$1", extID).Scan(&revision); e != nil || revision != 4 {
+		t.Fatal("stacked default must not displace the existing default's revision", revision, e)
 	}
+	refresh()
+	request(a, "GET", "/api/.env", "203.0.113.4", "", 403, extID)
+	request(a, "GET", "/api/secret", "203.0.113.4", "", 403, extID)
 	c.call("DELETE", intPath, map[string]int64{"revision": 1}, 200)
 	c.call("DELETE", fmt.Sprintf("/api/policies/%d", replacementID), map[string]int64{"revision": 1}, 200)
+	refresh()
+	request(a, "GET", "/api/.env", "203.0.113.4", "", 403, extID)
+	request(a, "GET", "/api/secret", "203.0.113.4", "", 202, extID)
+	// Unassigning the last default returns the application to local settings.
+	unassigned := external
+	unassigned.Applications = []policyAssignment{}
+	c.call("PUT", extPath, unassigned, 200)
 	refresh()
 	request(a, "GET", "/api/.env", "203.0.113.4", "", 202, 0)
 }

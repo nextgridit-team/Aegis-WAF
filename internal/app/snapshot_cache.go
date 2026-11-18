@@ -27,7 +27,9 @@ const snapshotCacheLimit = 64 << 20
 // Format 4 added per-policy endpoint rate overrides: older caches cannot carry
 // them (and older binaries would silently drop them on rollback), so any cache
 // from another format is rejected and rebuilt from the database.
-const snapshotCacheFormat = 4
+// Format 5 added stacked-scope contributors (policy composition): older caches
+// cannot attribute composed bindings, so they are rejected and rebuilt.
+const snapshotCacheFormat = 5
 
 type cachedCertificate struct {
 	Chain [][]byte
@@ -48,12 +50,15 @@ type cachedBinding struct {
 	NetworkMode      string
 	ManagedOptions   managedSignatureOptions
 	EndpointRates    []compiledEndpointRate
-	ID, Revision     int64
-	Name             string
-	Priority         int
-	CIDRs            []string
-	Protection       ProtectionSettings
-	Rules            []cachedRule
+	// Contributors carries the stacked-scope composition (one entry per
+	// contributing policy, composition order); single-policy scopes hold one.
+	Contributors []composedPolicyRef
+	ID, Revision int64
+	Name         string
+	Priority     int
+	CIDRs        []string
+	Protection   ProtectionSettings
+	Rules        []cachedRule
 }
 type cachedSnapshot struct {
 	RateState    *storedRateState
@@ -134,7 +139,7 @@ func (a *App) archiveSnapshot(s *snapshot, now time.Time) ([]byte, error) {
 	}
 	for site, bindings := range s.policyBindings {
 		for _, b := range bindings {
-			binding := cachedBinding{ConnectionLimits: b.Protection.connectionLimits, ConnectionMode: b.Protection.connectionMode, ManagedOptions: b.ManagedOptions, EndpointRates: b.Protection.endpoints, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
+			binding := cachedBinding{ConnectionLimits: b.Protection.connectionLimits, ConnectionMode: b.Protection.connectionMode, ManagedOptions: b.ManagedOptions, EndpointRates: b.Protection.endpoints, Contributors: b.Contributors, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: b.Protection.ProtectionSettings, Rules: cacheRules(b.Rules), CIDRs: []string{}}
 			if b.Protection.network != nil {
 				binding.NetworkAccess = b.Protection.network.Settings
 				binding.NetworkMode = b.Protection.network.Mode
@@ -289,8 +294,22 @@ func (a *App) decodeSnapshot(ciphertext []byte, now time.Time) (*snapshot, error
 			if e != nil {
 				return nil, e
 			}
-			binding := compiledPolicyBinding{ManagedOptions: options, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: p}
-			if b.Priority <= previous {
+			contributors := b.Contributors
+			if len(contributors) == 0 {
+				// A composed binding always carries at least its lead; treat a
+				// missing list as the lead alone so the cache still restores.
+				contributors = []composedPolicyRef{{ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority}}
+			}
+			if len(contributors) > policyCompositionLimit {
+				return nil, errors.New("cached policy composition capacity exceeded")
+			}
+			if contributors[0].ID != b.ID || contributors[0].Revision != b.Revision {
+				return nil, errors.New("invalid cached policy composition order")
+			}
+			binding := compiledPolicyBinding{ManagedOptions: options, Contributors: contributors, ID: b.ID, Revision: b.Revision, Name: b.Name, Priority: b.Priority, Protection: p}
+			// Stacked scopes may share a priority (ties break by policy id at
+			// compile), so ordering is non-decreasing rather than strict.
+			if b.Priority < previous {
 				return nil, errors.New("invalid cached policy ordering")
 			}
 			previous = b.Priority

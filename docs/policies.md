@@ -45,7 +45,7 @@ Curated source/version/digest and selections are immutable. **Review upstream** 
 
 ## Managed-signature engines and posture sharing
 
-Every replica compiles a bounded number of **distinct managed-signature configurations** — default 8, configurable through the `MANAGED_ENGINE_LIMIT` environment variable (1–64). A configuration is the complete set of signature options — set, mode (as capped by policy mode), paranoia, thresholds, body/response limits and actions, exclusions, scoped exclusions, allowed methods and streaming window. Policies with **identical** signature settings share one compiled engine; any single differing option mints a separate engine per replica, even an otherwise inert field such as the streaming window. The policy editor shows current usage ("N of {limit}") beside the signature controls and warns before saving a policy that would start a new configuration, naming the nearest reusable posture and the fields that differ; a save that would exceed the limit is explained inline instead of surfacing a bare 409. [Measured compile scaling behind the limit](benchmarks.md#managed-signature-engine-compile-scaling-2026-11-16).
+Every replica compiles a bounded number of **distinct managed-signature configurations** — default 8, configurable through the `MANAGED_ENGINE_LIMIT` environment variable (1–64). A configuration is the complete set of signature options — set, mode (as capped by policy mode), paranoia, thresholds, body/response limits and actions, exclusions, scoped exclusions, allowed methods and streaming window. Policies with **identical** signature settings share one compiled engine; any single differing option mints a separate engine per replica, even an otherwise inert field such as the streaming window. Stacked scopes compile their **merged** options (see [stacking and composition](#stacking-and-composition)), so the budget counts distinct merged combinations: identical merges share one engine, and a stacked site still costs exactly one engine for its signature inspection. The policy editor shows current usage ("N of {limit}") beside the signature controls and warns before saving a policy that would start a new configuration, naming the nearest reusable posture and the fields that differ; a save that would exceed the limit is explained inline instead of surfacing a bare 409. [Measured compile scaling behind the limit](benchmarks.md#managed-signature-engine-compile-scaling-2026-11-16).
 
 ## Included baseline
 
@@ -55,13 +55,40 @@ Choose this policy under **Initial protection policy** when creating a proxy hos
 
 ## External and internal traffic
 
-Assign an External policy with **All other clients · default** first. Then assign an Internal or office policy to specific IPs/CIDRs with a priority of 0–9999. Smaller priorities match first. Every application using scoped policies must retain one default; choosing a new default replaces its old assignment atomically. Overlapping CIDRs use priority rather than longest-prefix matching. At most ten policies can be assigned to an application.
+Assign an External policy with **All other clients · default** first. Then assign an Internal or office policy to specific IPs/CIDRs with a priority of 0–9999. Smaller priorities match first. Every application using scoped policies must retain at least one default. Overlapping CIDR sets use priority rather than longest-prefix matching. At most ten assignments can be held by an application, and at most four policies may stack in one scope.
 
-Client identity is resolved using the application's trusted proxy settings. A direct visitor cannot select an internal policy by forging forwarding headers. Missing or invalid identity from a trusted proxy is eligible only for the default policy. Selecting a trusted policy does not automatically allow traffic: its configured groups, mode and bot/flood protection determine the action.
+Client identity is resolved using the application's trusted proxy settings. A direct visitor cannot select an internal policy by forging forwarding headers. Missing or invalid identity from a trusted proxy is eligible only for the default scope. Selecting a trusted policy does not automatically allow traffic: its configured groups, mode and bot/flood protection determine the action.
 
-Assigned policies replace local bot/flood and standalone rule activation for that application. Applications without assignments keep existing local behavior. Headers, trusted proxies and component CIDR exemptions remain application settings. Flood budgets are per application and selected policy; trusted-policy traffic does not consume an external policy's budget. Local mode is per replica; optional Redis/Dragonfly mode coordinates counters across replicas. See [shared rate state](shared-rate-state.md).
+## Stacking and composition
 
-Configuration and frozen signatures live in PostgreSQL and propagate through the normal two-second snapshot refresh. Requests select cached policies without database or model calls. Metadata logs identify the selected policy and version. Policy saves, default reassignment, deletion and rollback produce administrative audit events.
+Assignments sharing one client scope — the same set of source CIDRs, or the default (all other clients) — **stack**: up to four policies compose into a single effective protection for that scope. Adding a second default no longer replaces the first; a second CIDR policy with the same source ranges joins the scope instead of competing on priority. Priority still orders scopes against each other (smaller values first) and orders the members inside a scope, with ties broken by policy id — the first member is the scope's **lead**, and access rows attribute the composed scope to the lead policy with per-rule provenance retained on each recorded rule result.
+
+Composition happens **at compile time**: the snapshot build merges the stacked policies into one binding, so a request still runs a single evaluation pass and stacking does not multiply per-request latency. The managed-signature budget counts the merged configurations, and the composition rules are deliberate:
+
+| Setting | Composed value |
+| --- | --- |
+| Policy, signature, response and community modes | Most protective wins (block > observe > off) |
+| Signature set | Must be identical across enforcing members; mixed sets are rejected at save |
+| Paranoia level | Maximum |
+| Inbound/outbound thresholds, body and response limits | Minimum |
+| Oversized body/response actions | Reject wins over process-partial |
+| Allowed methods | Intersection |
+| Rule exclusions and scoped exclusions | **Union** — deliberately widening, visible below |
+| Streaming window | Smallest non-zero member value |
+| Flood budgets, bot thresholds and risk budgets, connection limits | Most restrictive (minimum) among members enabling the control |
+| Bot, flood and empty-UA switches | Any member enabling the control enables it |
+| Network block lists and countries | Union |
+| Network allow lists and CIDR allow scope | Intersection; the most protective allow scope (Geo-only bypass) among members that allow anyone wins |
+| Custom rules and community mitigations | Union, de-duplicated by rule id — the first member selecting a rule owns its compiled group context and action |
+| Endpoint rate overrides | Concatenated in member order; first matching pattern wins |
+
+Two consequences deserve attention. **Exclusions union**: a stacked scope excludes every rule any member excludes, so stacking can widen the bypass surface beyond any single policy — the exclusions-union semantic is deliberately visible (the dashboard's signature browser and the simulation report show which policies compose a scope) rather than silent. **Mode composition**: an Observe member's rules keep their Observe action, but a Block member anywhere in the scope raises the scope's shared controls (flood, bots, signatures, methods) to Block.
+
+A scope that fails to compose — mixed signature sets, an exclusion union over the 100-rule cap, or endpoint overrides past 32 rows — is rejected at save time with the offending contributor named; the previous configuration keeps protecting traffic. `GET /api/policy-capacity` reports every application's scopes, the policies composing each, and the configuration each scope compiles to. Simulations through MCP report the same composition for candidate changes.
+
+Assigned policies replace local bot/flood and standalone rule activation for that application. Applications without assignments keep existing local behavior. Headers, trusted proxies and component CIDR exemptions remain application settings. Flood budgets are per application and composed scope; trusted-policy traffic does not consume an external scope's budget. Local mode is per replica; optional Redis/Dragonfly mode coordinates counters across replicas. See [shared rate state](shared-rate-state.md).
+
+Configuration and frozen signatures live in PostgreSQL and propagate through the normal two-second snapshot refresh. Requests select cached policies without database or model calls. Metadata logs identify the selected policy and version. Policy saves, assignment changes, deletion and rollback produce administrative audit events.
 
 Native rules use deterministic matching and blocking; managed CRS uses its own anomaly scoring. Native weighted scoring and built-in AI policy generation are not implemented. External agents can propose and apply scoped, simulated changes through MCP.
 

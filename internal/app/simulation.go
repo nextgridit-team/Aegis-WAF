@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -53,7 +54,22 @@ type simulationSummary struct {
 	NewlyUnblocked    int                       `json:"newly_unblocked"`
 	Unknown           int                       `json:"unknown"`
 	Harness           []simulationHarnessResult `json:"test_results"`
-	Warnings          []string                  `json:"warnings"`
+	// ComposedScopes reports every stacked client scope in the candidate
+	// snapshot: which policies compose it, in composition order. Assignment
+	// changes ride the same simulate-and-save surface as every other policy
+	// mutation, so agents see the stacking a candidate produces.
+	ComposedScopes []simulationComposition `json:"composed_scopes,omitempty"`
+	Warnings       []string                `json:"warnings"`
+}
+type simulationComposition struct {
+	Site        int64                   `json:"site_id"`
+	SourceCIDRs []string                `json:"source_cidrs"`
+	Policies    []composedPolicySummary `json:"policies"`
+}
+type composedPolicySummary struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Priority int    `json:"priority"`
 }
 type simulationHarnessResult struct {
 	Evaluable bool    `json:"evaluable"`
@@ -223,6 +239,30 @@ func (a *App) simulateRuleImpact(parent context.Context, principal agentPrincipa
 	candidate, e := a.buildSnapshot(ctx, tx, result.Version+1)
 	if e != nil {
 		return result, e
+	}
+	// Report the stacked scopes the candidate compiles (union-at-merge), so
+	// agents see exactly which policies compose each client scope.
+	siteIDs := make([]int64, 0, len(candidate.policyBindings))
+	for site := range candidate.policyBindings {
+		siteIDs = append(siteIDs, site)
+	}
+	sort.Slice(siteIDs, func(i, j int) bool { return siteIDs[i] < siteIDs[j] })
+	result.ComposedScopes = []simulationComposition{}
+	for _, site := range siteIDs {
+		for _, binding := range candidate.policyBindings[site] {
+			if len(binding.Contributors) < 2 {
+				continue
+			}
+			cidrs := make([]string, 0, len(binding.CIDRs))
+			for _, prefix := range binding.CIDRs {
+				cidrs = append(cidrs, prefix.String())
+			}
+			scope := simulationComposition{Site: site, SourceCIDRs: cidrs, Policies: []composedPolicySummary{}}
+			for _, contributor := range binding.Contributors {
+				scope.Policies = append(scope.Policies, composedPolicySummary{ID: contributor.ID, Name: contributor.Name, Priority: contributor.Priority})
+			}
+			result.ComposedScopes = append(result.ComposedScopes, scope)
+		}
 	}
 	rows, e := tx.Query(ctx, `SELECT l.id,l.site_id,l.method,l.peer,l.country,l.blocked,CASE WHEN $3 THEN coalesce(t.data,'{}'::jsonb) ELSE '{}'::jsonb END FROM access_logs l LEFT JOIN traffic_evidence t ON t.id=l.event_id AND t.expires_at>now() AND t.at>now()-`+evidenceRetentionWindowSQL+` WHERE l.at>now()-$1::integer*interval '1 minute' ORDER BY l.id DESC LIMIT $2`, input.LookbackMinutes, input.MaxEvents+1, principal.has("evidence"))
 	if e != nil {
