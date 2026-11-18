@@ -167,6 +167,15 @@ func capturedFact(field string, f Fact) Fact {
 		if i == 2 {
 			break
 		}
+		// NUL is valid UTF-8, but json.Marshal escapes it as \u0000 and
+		// PostgreSQL jsonb rejects that escape (SQLSTATE 22P05): one
+		// captured value carrying NUL — a %00 path, a percent-decoded
+		// query value, a JSON body value — fails the traffic_evidence
+		// CopyFrom inside storeAccessBatch's transaction and rolls back
+		// the whole access batch with it (#81). Strip it the way
+		// path_class does (#75) so every attacker-influenced byte that
+		// reaches the jsonb is NUL-free.
+		v = strings.ReplaceAll(v, "\x00", "")
 		clean := valueSecrets.ReplaceAllString(v, "[redacted]")
 		if clean != v {
 			out.State = "redacted"
