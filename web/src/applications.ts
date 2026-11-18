@@ -253,7 +253,7 @@ export function makeApplications(c: Context) {
         ${attention.length ? `<section class="application-attention" aria-label="Needs attention"><h2>Needs attention <span class="count">${attention.length}</span></h2>${attention.map((i) => `<div class="application-issue"><div><h3>${esc(i.title)}</h3><p>${esc(i.note)}</p></div>${i.action}</div>`).join("")}</section>` : ""}
         <div class="application-detail-grid"><section class="application-panel" id="application-routing" tabindex="-1"><div class="section-heading"><h2>Routing &amp; TLS</h2>${button("edit-site", "Edit routing", "secondary compact", site.id)}</div><dl class="application-facts"><div><dt>Public domains</dt><dd>${site.hostnames.map(esc).join("<br>")}</dd></div><div><dt>Upstream</dt><dd class="domain">${esc(site.upstream)}</dd></div><div><dt>Certificate</dt><dd>${esc(certFor(site)?.name || "None assigned")}<small>${esc(tls.note)}</small></dd></div><div><dt>Application access</dt><dd>${site.access_required ? "Sign-in required" : "Public"}<small>${link(`#application-access?site_id=${site.id}`, "Configure access")}</small></dd></div><div><dt>HTTP behavior</dt><dd>${site.redirect_https ? "Redirect to HTTPS" : "HTTP allowed"}</dd></div></dl><p class="muted">Routing enabled describes saved configuration. Use Test upstream in Edit routing to check connectivity; it does not verify public DNS.</p></section>
         <section class="application-panel"><div class="section-heading"><h2>Client identity &amp; exemptions</h2>${button("edit-site", "Review settings", "secondary compact", site.id)}</div><dl class="application-facts"><div><dt>Client IP source</dt><dd>${local.trusted_proxies?.length || selectionCount(local.trusted_addresses) ? esc(local.client_ip_header || "x-forwarded-for") : "Direct connection peer"}</dd></div><div><dt>Trusted proxies</dt><dd>${local.trusted_proxies?.map(esc).join(", ") || "No inline ranges"}<small>${selectionCount(local.trusted_addresses)} address selections</small></dd></div><div><dt>Bot / flood exemptions</dt><dd>${exemptionCount ? `${exemptionCount} ranges / address selections` : "None configured"}</dd></div></dl><p class="muted">Exempt clients can bypass individual components. CIDR policy selection requires a reliable client identity.</p></section></div>
-        <section class="application-panel" id="application-protection" tabindex="-1"><div class="section-heading"><div><h2>Protection by client scope</h2><p class="muted">Effective component modes from saved policies. Smaller priorities match first; Observe caps blocking.</p></div>${link("#policies", "Manage assignments")}</div>
+        <section class="application-panel" id="application-protection" tabindex="-1"><div class="section-heading"><div><h2>Protection by client scope</h2><p class="muted">Effective component modes from saved policies. Smaller priorities match first; assignments sharing a scope stack and compose; Observe caps blocking.</p></div>${link("#policies", "Manage assignments")}</div>
         ${
           policies === null
             ? '<div class="simple-empty">Protection could not be loaded. Refresh to try again.</div>'
@@ -269,6 +269,10 @@ export function makeApplications(c: Context) {
                       selectionCount(network?.allow_addresses);
                     const shared = new Set(p.applications.map((a) => a.site_id))
                       .size;
+                    const scopeKey = b.source_cidrs.join(",");
+                    const stacked = bindings(site).filter(
+                      (other) => other.source_cidrs.join(",") === scopeKey,
+                    ).length;
                     return `<article class="application-policy"><div class="section-heading"><div><span class="application-eyebrow">${b.source_cidrs.length ? `Priority ${b.priority} · ${esc(b.source_cidrs.join(", "))}` : "Default · all other clients"}</span><h3>${esc(p.spec.name)} <span class="muted">v${p.revision}</span></h3></div>${button("edit-policy", "Edit policy", "secondary compact", p.id)}</div><div class="application-components">${components(
                       p,
                     )
@@ -278,7 +282,7 @@ export function makeApplications(c: Context) {
                       )
                       .join(
                         "",
-                      )}</div>${allowCount ? `<p class="application-policy-note">${allowCount} allow ranges / address selections bypass ${network?.allow_scope === "all" ? "all WAF protection" : "Geo checks"} when this policy is active.</p>` : ""}<p class="application-policy-note">Shared by ${shared} application${shared === 1 ? "" : "s"}. Changes apply to every assignment. Body limits, scoped exceptions and request conditions still apply.</p></article>`;
+                      )}</div>${allowCount ? `<p class="application-policy-note">${allowCount} allow ranges / address selections bypass ${network?.allow_scope === "all" ? "all WAF protection" : "Geo checks"} when this policy is active.</p>` : ""}${stacked > 1 ? `<p class="application-policy-note">Stacked: composes with ${stacked - 1} other polic${stacked === 2 ? "y" : "ies"} in this client scope — most protective settings win, exclusions union.</p>` : ""}<p class="application-policy-note">Shared by ${shared} application${shared === 1 ? "" : "s"}. Changes apply to every assignment. Body limits, scoped exceptions and request conditions still apply.</p></article>`;
                   })
                   .join("")
               : `<div class="application-local"><h3>Local application settings</h3><p>HTTP flood ${modeBadge(local.mode)} · Bot signals ${modeBadge(local.bot_mode)}</p><p>Managed signatures require an assigned policy. Standalone custom rules are managed in Rules.</p>${link("#rules", "Review standalone rules")}</div>`

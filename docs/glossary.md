@@ -69,7 +69,7 @@ This file and the embedded glossary are generated from [the help catalogue](../w
 
 A policy is a saved collection of protection settings that you can reuse across applications. Assign it to a proxy host to choose how that application handles traffic.
 
-An assigned policy controls bot/flood settings and its selected rules. Applications can have a default policy and additional policies for specific client networks; the application still controls routing, headers and trusted proxies.
+An assigned policy controls bot/flood settings and its selected rules. Applications can have a default scope and additional scopes for specific client networks; assignments sharing a scope stack and compose at compile time (up to four, most protective settings win, exclusions union). The application still controls routing, headers and trusted proxies.
 
 [Configuration guide](policies.md)
 
@@ -307,9 +307,9 @@ Forwarded client headers include X-Forwarded-For, X-Real-IP, host, protocol and 
 
 ## Policy assignment priority
 
-Priority decides which matching client policy is used first. A smaller number wins; the default policy handles clients that match none of the specific ranges.
+Priority decides which matching client scope is used first. A smaller number wins; the default scope handles clients that match none of the specific ranges.
 
-Aegis does not choose the most specific CIDR automatically: configured priority wins. Applications with client-specific policies need a default. Selecting a policy does not itself allow traffic; the chosen policy’s protection settings still apply.
+Aegis does not choose the most specific CIDR automatically: configured priority wins. Assignments sharing one client scope stack (up to four policies) and compose into one effective protection; priority orders both scopes and the policies inside a scope, with ties broken by policy id. Applications with client-specific scopes need a default. Selecting a policy does not itself allow traffic; the composed protection settings still apply.
 
 [Configuration guide](policies.md)
 
