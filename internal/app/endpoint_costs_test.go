@@ -171,9 +171,12 @@ func TestEndpointCostsAPI(t *testing.T) {
 	}
 }
 
-// A percent-decoded path carrying invalid UTF-8 must not poison the access-log
-// batch: one invalid path_class fails the whole CopyFrom (SQLSTATE 22021),
-// dropping every event in the batch — including valid sibling rows.
+// Garbage paths — invalid UTF-8, NUL bytes, cut multi-byte runes — must all
+// classify into a class PostgreSQL text accepts. One bad class fails the whole
+// access-log CopyFrom batch (issue #46 closed invalid UTF-8; issue #75 closed
+// the NUL byte, which is valid UTF-8 and so survived ToValidUTF8), dropping
+// every row in the batch. Each garbage event stores in the same batch as a
+// valid sibling whose persistence proves the batch survived.
 func TestGarbagePathClassStoresThroughBatch(t *testing.T) {
 	cfg := testDB(t)
 	cfg.SnapshotCacheFile = filepath.Join(t.TempDir(), "snapshot")
@@ -184,20 +187,53 @@ func TestGarbagePathClassStoresThroughBatch(t *testing.T) {
 	u, _ := url.Parse(up.URL)
 	aPub := &App{access: make(chan accessEvent, 10)}
 	aPub.active.Store(&snapshot{version: 1, routes: map[string]*route{"app.example.com": {site: Site{ID: 1}, proxy: newProxy(u, true)}}})
-	r := httptest.NewRequest("GET", "http://app.example.com/api/items/%ff%fe", nil)
-	r.RemoteAddr = "192.0.2.10:1234"
-	w := httptest.NewRecorder()
-	aPub.Public(w, r)
-	if w.Code != 200 {
-		t.Fatalf("status %d", w.Code)
-	}
-	event := <-aPub.access
-	if !utf8.ValidString(event.pathClass) {
-		t.Fatalf("path class %q is not valid UTF-8", event.pathClass)
-	}
-	// The sanitized garbage-path event stores, and a valid sibling in the same
-	// batch persists alongside it.
-	if err := aDB.storeAccessBatch(ctx, []accessEvent{event}); err != nil {
-		t.Fatalf("batch store failed: %v", err)
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{"/api/items/%ff%fe", "/api/items/\ufffd"},
+		{"/api/items/a%00b", "/api/items/ab"},
+		{"/api/items/%ff%fe%00", "/api/items/\ufffd"},
+		{"/api/items/a%e2%82", "/api/items/a\ufffd"},
+	} {
+		// A fresh valid sibling rides the same CopyFrom batch as the
+		// garbage-path event; a class that still poisons the batch drops
+		// this sibling's row with it.
+		sib := httptest.NewRequest("GET", "http://app.example.com/api/items/42", nil)
+		sib.RemoteAddr = "192.0.2.10:1234"
+		sw := httptest.NewRecorder()
+		aPub.Public(sw, sib)
+		sibling := <-aPub.access
+
+		r := httptest.NewRequest("GET", "http://app.example.com"+tc.path, nil)
+		r.RemoteAddr = "192.0.2.10:1234"
+		w := httptest.NewRecorder()
+		aPub.Public(w, r)
+		if w.Code != 200 {
+			t.Fatalf("%s: status %d", tc.path, w.Code)
+		}
+		event := <-aPub.access
+		if err := aDB.storeAccessBatch(ctx, []accessEvent{sibling, event}); err != nil {
+			t.Fatalf("%s: batch store failed: %v", tc.path, err)
+		}
+		if !utf8.ValidString(event.pathClass) {
+			t.Fatalf("%s: path class %q is not valid UTF-8", tc.path, event.pathClass)
+		}
+		if i := strings.IndexByte(event.pathClass, 0); i >= 0 {
+			t.Fatalf("%s: path class %q contains a NUL byte", tc.path, event.pathClass)
+		}
+		if event.pathClass != tc.want {
+			t.Fatalf("%s: path class = %q, want %q", tc.path, event.pathClass, tc.want)
+		}
+		// Both rows persisted: the sanitized garbage event and the valid
+		// sibling that shared its batch.
+		var count int
+		if e := aDB.db.QueryRow(ctx, "SELECT count(*) FROM access_logs WHERE request_id=$1", event.requestID).Scan(&count); e != nil || count != 1 {
+			t.Fatalf("%s: garbage-path row count %d (err %v), want 1", tc.path, count, e)
+		}
+		var stored string
+		if e := aDB.db.QueryRow(ctx, "SELECT path_class FROM access_logs WHERE request_id=$1", sibling.requestID).Scan(&stored); e != nil || stored != "/api/items/{id}" {
+			t.Fatalf("%s: valid sibling not stored alongside (class %q, err %v)", tc.path, stored, e)
+		}
 	}
 }
