@@ -296,7 +296,9 @@ func composeConnectionLimits(members []scopeMember) *connectionLimitSettings {
 // emptied so the expansion is not applied twice. A member with no allow
 // surface imposes no allow constraint; geo strategy allow_selected wins over
 // block_selected because only-allow is stricter, and under allow_selected the
-// composed country list is the union of the allow_selected members' lists.
+// composed country list intersects across the members enforcing that
+// strategy (a member whose Geo is off contributes no countries), mirroring
+// CIDR allow lists so stacking can only tighten the country allow surface.
 func composeNetworkAccess(members []scopeMember) networkAccessSettings {
 	lead := members[0].Spec.NetworkAccess
 	out := lead
@@ -325,13 +327,16 @@ func composeNetworkAccess(members []scopeMember) networkAccessSettings {
 		out.GeoStrategy = "block_selected"
 		allowSelected := []scopeMember{}
 		for _, member := range members {
-			if member.Spec.NetworkAccess.GeoStrategy == "allow_selected" {
+			// Only members actually enforcing Geo contribute: a member whose
+			// Geo is off enforces no country list, so its saved strategy and
+			// countries are inert and must not widen or narrow the scope.
+			if member.Spec.NetworkAccess.GeoStrategy == "allow_selected" && member.Spec.NetworkAccess.GeoMode != "off" {
 				allowSelected = append(allowSelected, member)
 			}
 		}
 		if len(allowSelected) > 0 {
 			out.GeoStrategy = "allow_selected"
-			out.Countries = unionStrings(allowSelected, func(s policySpec) []string { return s.NetworkAccess.Countries })
+			out.Countries = intersectStrings(allowSelected, func(s policySpec) []string { return s.NetworkAccess.Countries })
 		} else {
 			out.Countries = unionStrings(members, func(s policySpec) []string { return s.NetworkAccess.Countries })
 		}
